@@ -12,7 +12,10 @@ function formatCurrency(amount: number): string {
 export default function MenuPanel() {
   const { categories, items, isLoading } = useMenu()
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const { addItem } = useOrder()
+  const { addItem, keypadValue } = useOrder()
+
+  const multiplierQty = keypadValue ? parseInt(keypadValue, 10) : null
+  const showMultiplier = multiplierQty !== null && !isNaN(multiplierQty) && multiplierQty > 0
 
   // Set initial category when categories load
   useEffect(() => {
@@ -35,6 +38,12 @@ export default function MenuPanel() {
 
   return (
     <section className="menu-panel">
+      {showMultiplier && (
+        <div className="quantity-multiplier" aria-live="polite">
+          Adding {multiplierQty}x items
+        </div>
+      )}
+
       <nav className="menu-categories" aria-label="Menu categories">
         {categories.map((category) => (
           <button
@@ -54,7 +63,7 @@ export default function MenuPanel() {
             key={item.id}
             className="menu-item-button"
             onClick={() => addItem(item)}
-            aria-label={`Add ${item.name} at ${formatCurrency(item.price)}`}
+            aria-label={`Add ${showMultiplier ? `${multiplierQty}x ` : ''}${item.name} at ${formatCurrency(item.price)}`}
           >
             <span className="item-name">{item.name}</span>
             <span className="item-price">{formatCurrency(item.price)}</span>

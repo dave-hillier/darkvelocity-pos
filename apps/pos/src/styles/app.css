@@ -352,3 +352,260 @@ html, body, #root {
   font-weight: 700;
   color: var(--pico-ins-color);
 }
+
+/* Quantity multiplier indicator */
+.quantity-multiplier {
+  background: var(--pico-primary);
+  color: var(--pico-primary-inverse);
+  padding: 0.5rem 1rem;
+  text-align: center;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  border-radius: var(--pico-border-radius);
+}
+
+/* Keypad panel enhanced */
+.keypad-hint {
+  text-align: center;
+  color: var(--pico-muted-color);
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.keypad-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.keypad-grid button {
+  padding: 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.keypad-grid .cash-btn {
+  background: var(--pico-ins-color);
+  border-color: var(--pico-ins-color);
+}
+
+.keypad-grid .quickpay-btn {
+  background: var(--pico-primary);
+  border-color: var(--pico-primary);
+}
+
+.keypad-bottom-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.keypad-bottom-actions button {
+  padding: 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.keypad-bottom-actions .send-btn {
+  background: var(--pico-primary);
+  border-color: var(--pico-primary);
+}
+
+.keypad-bottom-actions .checkout-btn {
+  background: var(--pico-primary);
+  border-color: var(--pico-primary);
+}
+
+/* Sent indicator on order lines */
+.order-line.sent {
+  opacity: 0.8;
+}
+
+.sent-indicator {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.125rem 0.375rem;
+  background: var(--pico-muted-color);
+  color: var(--pico-background-color);
+  border-radius: 0.25rem;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+
+.discount-info {
+  display: block;
+  color: var(--pico-del-color);
+  font-size: 0.875rem;
+}
+
+.discount-row {
+  color: var(--pico-del-color);
+}
+
+/* Modal dialogs */
+.quick-pay-modal,
+.discount-modal,
+.actions-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.quick-pay-modal article,
+.discount-modal article,
+.actions-menu article {
+  max-width: 400px;
+  width: 100%;
+  margin: 0;
+}
+
+.discount-display {
+  text-align: center;
+  font-size: 2rem;
+  font-weight: 700;
+  padding: 1rem;
+  background: var(--pico-card-background-color);
+  border-radius: var(--pico-border-radius);
+  margin-bottom: 1rem;
+}
+
+.discount-type-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.discount-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.discount-keypad button {
+  padding: 1rem;
+  font-size: 1.25rem;
+}
+
+/* Actions menu */
+.actions-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.actions-list li {
+  margin-bottom: 0.5rem;
+}
+
+.actions-list button {
+  width: 100%;
+  text-align: left;
+}
+
+/* Edit order panel */
+.pos-layout.edit-mode {
+  grid-template-columns: 1fr;
+}
+
+.edit-order-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 1rem;
+}
+
+.edit-order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.edit-order-header h2 {
+  margin: 0;
+}
+
+.edit-order-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  background: var(--pico-card-background-color);
+  border-radius: var(--pico-border-radius);
+}
+
+.selected-count {
+  color: var(--pico-muted-color);
+}
+
+.edit-order-lines {
+  flex: 1;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+}
+
+.edit-order-line {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--pico-muted-border-color);
+  cursor: pointer;
+}
+
+.edit-order-line:hover {
+  background: var(--pico-card-background-color);
+}
+
+.edit-order-line.selected {
+  background: var(--pico-primary-focus);
+}
+
+.edit-order-line .checkbox {
+  font-size: 1.5rem;
+}
+
+.edit-order-line .line-qty {
+  font-weight: 600;
+  min-width: 40px;
+}
+
+.edit-order-line .line-name {
+  flex: 1;
+}
+
+.edit-order-line .sent-badge {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  background: var(--pico-muted-color);
+  color: var(--pico-background-color);
+  border-radius: 0.25rem;
+}
+
+.edit-order-line .line-price {
+  font-weight: 500;
+  min-width: 80px;
+  text-align: right;
+}
+
+.edit-order-footer {
+  display: flex;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--pico-muted-border-color);
+}
+
+.edit-order-footer button {
+  flex: 1;
+}

@@ -9,15 +9,29 @@ export type OrderAction =
   | { type: 'ORDER_CLEARED' }
   | { type: 'ORDER_PAID'; payload: { paymentId: string } }
   | { type: 'LINE_SELECTED'; payload: { lineId: string | null } }
+  | { type: 'KEYPAD_VALUE_CHANGED'; payload: { value: string } }
+  | { type: 'EDIT_MODE_ENTERED' }
+  | { type: 'EDIT_MODE_EXITED' }
+  | { type: 'LINE_TOGGLED'; payload: { lineId: string } }
+  | { type: 'LINES_REMOVED'; payload: { lineIds: string[] } }
+  | { type: 'UNSENT_ITEMS_CLEARED' }
+  | { type: 'ORDER_DISCOUNT_APPLIED'; payload: { amount: number; reason?: string } }
+  | { type: 'ORDER_SENT'; payload: { sentAt: string } }
 
 export interface OrderState {
   order: Order | null
   selectedLineId: string | null
+  keypadValue: string
+  editMode: boolean
+  selectedLineIds: string[]
 }
 
 export const initialOrderState: OrderState = {
   order: null,
   selectedLineId: null,
+  keypadValue: '',
+  editMode: false,
+  selectedLineIds: [],
 }
 
 function generateId(): string {
@@ -28,9 +42,10 @@ function generateOrderNumber(): string {
   return `ORD-${Date.now().toString(36).toUpperCase()}`
 }
 
-function calculateTotals(lines: OrderLine[]): Pick<Order, 'subtotal' | 'taxTotal' | 'discountTotal' | 'grandTotal'> {
-  const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0)
-  const discountTotal = lines.reduce((sum, line) => sum + line.discountAmount, 0)
+function calculateTotals(lines: OrderLine[], orderDiscountAmount = 0): Pick<Order, 'subtotal' | 'taxTotal' | 'discountTotal' | 'grandTotal'> {
+  const subtotal = lines.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0)
+  const lineDiscounts = lines.reduce((sum, line) => sum + line.discountAmount, 0)
+  const discountTotal = lineDiscounts + orderDiscountAmount
   const taxRate = 0.20 // 20% VAT - should come from accounting groups
   const taxTotal = (subtotal - discountTotal) * taxRate
   const grandTotal = subtotal - discountTotal + taxTotal
@@ -103,7 +118,7 @@ export function orderReducer(state: OrderState, action: OrderAction): OrderState
         order: {
           ...state.order,
           lines: newLines,
-          ...calculateTotals(newLines),
+          ...calculateTotals(newLines, state.order.orderDiscountAmount),
         },
       }
     }
@@ -118,7 +133,7 @@ export function orderReducer(state: OrderState, action: OrderAction): OrderState
         order: {
           ...state.order,
           lines: newLines,
-          ...calculateTotals(newLines),
+          ...calculateTotals(newLines, state.order.orderDiscountAmount),
         },
         selectedLineId: state.selectedLineId === action.payload.lineId ? null : state.selectedLineId,
       }
@@ -137,7 +152,7 @@ export function orderReducer(state: OrderState, action: OrderAction): OrderState
           order: {
             ...state.order,
             lines: newLines,
-            ...calculateTotals(newLines),
+            ...calculateTotals(newLines, state.order.orderDiscountAmount),
           },
           selectedLineId: state.selectedLineId === lineId ? null : state.selectedLineId,
         }
@@ -158,7 +173,7 @@ export function orderReducer(state: OrderState, action: OrderAction): OrderState
         order: {
           ...state.order,
           lines: newLines,
-          ...calculateTotals(newLines),
+          ...calculateTotals(newLines, state.order.orderDiscountAmount),
         },
       }
     }
@@ -166,13 +181,14 @@ export function orderReducer(state: OrderState, action: OrderAction): OrderState
     case 'DISCOUNT_APPLIED': {
       if (!state.order) return state
 
-      const { lineId, amount } = action.payload
+      const { lineId, amount, reason } = action.payload
 
       const newLines = state.order.lines.map((line) =>
         line.id === lineId
           ? {
               ...line,
               discountAmount: amount,
+              discountReason: reason,
               lineTotal: line.quantity * line.unitPrice - amount,
             }
           : line
@@ -183,7 +199,7 @@ export function orderReducer(state: OrderState, action: OrderAction): OrderState
         order: {
           ...state.order,
           lines: newLines,
-          ...calculateTotals(newLines),
+          ...calculateTotals(newLines, state.order.orderDiscountAmount),
         },
       }
     }
@@ -208,6 +224,106 @@ export function orderReducer(state: OrderState, action: OrderAction): OrderState
       return {
         ...state,
         selectedLineId: action.payload.lineId,
+      }
+    }
+
+    case 'KEYPAD_VALUE_CHANGED': {
+      return {
+        ...state,
+        keypadValue: action.payload.value,
+      }
+    }
+
+    case 'EDIT_MODE_ENTERED': {
+      return {
+        ...state,
+        editMode: true,
+        selectedLineIds: [],
+      }
+    }
+
+    case 'EDIT_MODE_EXITED': {
+      return {
+        ...state,
+        editMode: false,
+        selectedLineIds: [],
+      }
+    }
+
+    case 'LINE_TOGGLED': {
+      const { lineId } = action.payload
+      const isSelected = state.selectedLineIds.includes(lineId)
+      return {
+        ...state,
+        selectedLineIds: isSelected
+          ? state.selectedLineIds.filter((id) => id !== lineId)
+          : [...state.selectedLineIds, lineId],
+      }
+    }
+
+    case 'LINES_REMOVED': {
+      if (!state.order) return state
+
+      const { lineIds } = action.payload
+      const newLines = state.order.lines.filter((line) => !lineIds.includes(line.id))
+
+      return {
+        ...state,
+        order: {
+          ...state.order,
+          lines: newLines,
+          ...calculateTotals(newLines, state.order.orderDiscountAmount),
+        },
+        selectedLineIds: [],
+        editMode: false,
+      }
+    }
+
+    case 'UNSENT_ITEMS_CLEARED': {
+      if (!state.order) return state
+
+      const newLines = state.order.lines.filter((line) => line.sentAt != null)
+
+      return {
+        ...state,
+        order: {
+          ...state.order,
+          lines: newLines,
+          ...calculateTotals(newLines, state.order.orderDiscountAmount),
+        },
+      }
+    }
+
+    case 'ORDER_DISCOUNT_APPLIED': {
+      if (!state.order) return state
+
+      const { amount, reason } = action.payload
+
+      return {
+        ...state,
+        order: {
+          ...state.order,
+          orderDiscountAmount: amount,
+          orderDiscountReason: reason,
+          ...calculateTotals(state.order.lines, amount),
+        },
+      }
+    }
+
+    case 'ORDER_SENT': {
+      if (!state.order) return state
+
+      const { sentAt } = action.payload
+      const newLines = state.order.lines.map((line) =>
+        line.sentAt ? line : { ...line, sentAt }
+      )
+
+      return {
+        ...state,
+        order: {
+          ...state.order,
+          lines: newLines,
+        },
       }
     }
 

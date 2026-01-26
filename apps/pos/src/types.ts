@@ -41,7 +41,9 @@ export interface OrderLine {
   quantity: number
   unitPrice: number
   discountAmount: number
+  discountReason?: string
   lineTotal: number
+  sentAt?: string
 }
 
 export interface Order {
@@ -54,6 +56,8 @@ export interface Order {
   taxTotal: number
   discountTotal: number
   grandTotal: number
+  orderDiscountAmount?: number
+  orderDiscountReason?: string
 }
 
 // HAL types

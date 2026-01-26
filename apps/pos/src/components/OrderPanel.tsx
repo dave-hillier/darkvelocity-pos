@@ -39,7 +39,7 @@ export default function OrderPanel() {
         {order.lines.map((line) => (
           <li
             key={line.id}
-            className={`order-line ${selectedLineId === line.id ? 'selected' : ''}`}
+            className={`order-line ${selectedLineId === line.id ? 'selected' : ''} ${line.sentAt ? 'sent' : ''}`}
             onClick={() => selectLine(selectedLineId === line.id ? null : line.id)}
             role="button"
             tabIndex={0}
@@ -48,9 +48,11 @@ export default function OrderPanel() {
             <div className="order-line-info">
               <span className="order-line-qty">{line.quantity}x</span>
               <span className="order-line-name">{line.itemName}</span>
+              {line.sentAt && <span className="sent-indicator" aria-label="Sent to kitchen">Sent</span>}
               {line.discountAmount > 0 && (
-                <small style={{ display: 'block', color: 'var(--pico-del-color)' }}>
+                <small className="discount-info">
                   Discount: -{formatCurrency(line.discountAmount)}
+                  {line.discountReason && ` (${line.discountReason})`}
                 </small>
               )}
             </div>
@@ -73,8 +75,11 @@ export default function OrderPanel() {
           <span>{formatCurrency(order.subtotal)}</span>
         </div>
         {order.discountTotal > 0 && (
-          <div className="order-total-row" style={{ color: 'var(--pico-del-color)' }}>
-            <span>Discounts</span>
+          <div className="order-total-row discount-row">
+            <span>
+              Discounts
+              {order.orderDiscountReason && <small> ({order.orderDiscountReason})</small>}
+            </span>
             <span>-{formatCurrency(order.discountTotal)}</span>
           </div>
         )}

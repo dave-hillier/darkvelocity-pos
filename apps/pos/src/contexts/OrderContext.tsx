@@ -11,6 +11,14 @@ interface OrderContextValue extends OrderState {
   selectLine: (lineId: string | null) => void
   clearOrder: () => void
   completePayment: (paymentId: string) => void
+  setKeypadValue: (value: string) => void
+  enterEditMode: () => void
+  exitEditMode: () => void
+  toggleLine: (lineId: string) => void
+  removeSelectedLines: () => void
+  clearUnsentItems: () => void
+  applyOrderDiscount: (amount: number, reason?: string) => void
+  sendOrder: () => void
   dispatch: React.Dispatch<OrderAction>
 }
 
@@ -23,11 +31,17 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'ORDER_CREATED', payload: { orderType } })
   }
 
-  function addItem(item: MenuItem, quantity = 1) {
+  function addItem(item: MenuItem, quantity?: number) {
     if (!state.order) {
       createOrder('direct_sale')
     }
-    dispatch({ type: 'ITEM_ADDED', payload: { item, quantity } })
+    // Use keypad value if no quantity specified and keypad has a value
+    const qty = quantity ?? (state.keypadValue ? parseInt(state.keypadValue, 10) : 1)
+    dispatch({ type: 'ITEM_ADDED', payload: { item, quantity: isNaN(qty) ? 1 : qty } })
+    // Clear keypad after adding
+    if (state.keypadValue) {
+      dispatch({ type: 'KEYPAD_VALUE_CHANGED', payload: { value: '' } })
+    }
   }
 
   function removeItem(lineId: string) {
@@ -54,6 +68,40 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'ORDER_PAID', payload: { paymentId } })
   }
 
+  function setKeypadValue(value: string) {
+    dispatch({ type: 'KEYPAD_VALUE_CHANGED', payload: { value } })
+  }
+
+  function enterEditMode() {
+    dispatch({ type: 'EDIT_MODE_ENTERED' })
+  }
+
+  function exitEditMode() {
+    dispatch({ type: 'EDIT_MODE_EXITED' })
+  }
+
+  function toggleLine(lineId: string) {
+    dispatch({ type: 'LINE_TOGGLED', payload: { lineId } })
+  }
+
+  function removeSelectedLines() {
+    if (state.selectedLineIds.length > 0) {
+      dispatch({ type: 'LINES_REMOVED', payload: { lineIds: state.selectedLineIds } })
+    }
+  }
+
+  function clearUnsentItems() {
+    dispatch({ type: 'UNSENT_ITEMS_CLEARED' })
+  }
+
+  function applyOrderDiscount(amount: number, reason?: string) {
+    dispatch({ type: 'ORDER_DISCOUNT_APPLIED', payload: { amount, reason } })
+  }
+
+  function sendOrder() {
+    dispatch({ type: 'ORDER_SENT', payload: { sentAt: new Date().toISOString() } })
+  }
+
   return (
     <OrderContext.Provider
       value={{
@@ -66,6 +114,14 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         selectLine,
         clearOrder,
         completePayment,
+        setKeypadValue,
+        enterEditMode,
+        exitEditMode,
+        toggleLine,
+        removeSelectedLines,
+        clearUnsentItems,
+        applyOrderDiscount,
+        sendOrder,
         dispatch,
       }}
     >
