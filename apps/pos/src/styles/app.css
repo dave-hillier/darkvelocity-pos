@@ -1,0 +1,201 @@
+:root {
+  --pico-font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --pico-border-radius: 0.5rem;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+/* POS-specific layout */
+.pos-layout {
+  display: grid;
+  grid-template-columns: 350px 1fr 350px;
+  height: 100vh;
+  gap: 0;
+}
+
+.pos-layout > section {
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+/* Order panel (left) */
+.order-panel {
+  background: var(--pico-card-background-color);
+  border-right: 1px solid var(--pico-muted-border-color);
+}
+
+/* Menu panel (center) */
+.menu-panel {
+  background: var(--pico-background-color);
+}
+
+/* Keypad panel (right) */
+.keypad-panel {
+  background: var(--pico-card-background-color);
+  border-left: 1px solid var(--pico-muted-border-color);
+}
+
+/* Login page */
+.login-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+.login-container h1 {
+  margin-bottom: 2rem;
+}
+
+/* PIN keypad */
+.pin-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  max-width: 280px;
+  margin: 0 auto;
+}
+
+.pin-keypad button {
+  aspect-ratio: 1;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.pin-display {
+  text-align: center;
+  font-size: 2rem;
+  letter-spacing: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: var(--pico-card-background-color);
+  border-radius: var(--pico-border-radius);
+  min-height: 3rem;
+}
+
+/* Menu grid */
+.menu-categories {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.menu-categories button {
+  padding: 0.5rem 1rem;
+}
+
+.menu-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.menu-item-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  min-height: 100px;
+  text-align: center;
+  background: var(--pico-card-background-color);
+  border: 2px solid var(--pico-muted-border-color);
+  border-radius: var(--pico-border-radius);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.menu-item-button:hover {
+  border-color: var(--pico-primary);
+  transform: translateY(-2px);
+}
+
+.menu-item-button .item-name {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.menu-item-button .item-price {
+  color: var(--pico-muted-color);
+  font-size: 0.875rem;
+}
+
+/* Order lines */
+.order-lines {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.order-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+.order-line.selected {
+  background: var(--pico-primary-focus);
+}
+
+.order-line-info {
+  flex: 1;
+}
+
+.order-line-qty {
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+.order-line-name {
+  font-weight: 500;
+}
+
+.order-line-price {
+  text-align: right;
+  min-width: 80px;
+}
+
+/* Order totals */
+.order-totals {
+  padding: 1rem;
+  border-top: 2px solid var(--pico-muted-border-color);
+  margin-top: auto;
+}
+
+.order-total-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.order-total-row.grand-total {
+  font-size: 1.25rem;
+  font-weight: 700;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--pico-muted-border-color);
+}
+
+/* Keypad actions */
+.keypad-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.keypad-display {
+  text-align: center;
+  font-size: 2rem;
+  padding: 1rem;
+  background: var(--pico-card-background-color);
+  border-radius: var(--pico-border-radius);
+  margin-bottom: 1rem;
+}
