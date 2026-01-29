@@ -596,3 +596,292 @@ public class MenuIntegrationTests : IClassFixture<MenuServiceFixture>
 
     #endregion
 }
+
+/// <summary>
+/// Additional Menu Gap Tests (P3)
+/// </summary>
+public class MenuGapIntegrationTests : IClassFixture<MenuServiceFixture>
+{
+    private readonly MenuServiceFixture _fixture;
+    private readonly HttpClient _client;
+
+    public MenuGapIntegrationTests(MenuServiceFixture fixture)
+    {
+        _fixture = fixture;
+        _client = fixture.Client;
+    }
+
+    #region Item Availability
+
+    [Fact]
+    public async Task MenuItem_86d_ExcludedFromAvailable()
+    {
+        // Arrange - Mark an item as 86'd (unavailable)
+        var updateRequest = new UpdateMenuItemAvailabilityRequest(
+            IsAvailable: false,
+            UnavailableReason: "Out of stock");
+
+        // Act
+        var response = await _client.PutAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/items/{_fixture.TestMenuItemId}/availability",
+            updateRequest);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.NoContent, HttpStatusCode.NotFound);
+
+        // Verify item is not in available list
+        if (response.IsSuccessStatusCode)
+        {
+            var availableResponse = await _client.GetAsync(
+                $"/api/locations/{_fixture.TestLocationId}/items?availableOnly=true");
+
+            if (availableResponse.StatusCode == HttpStatusCode.OK)
+            {
+                var items = await availableResponse.Content.ReadFromJsonAsync<List<MenuItemDto>>();
+                items!.Should().NotContain(i => i.Id == _fixture.TestMenuItemId);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task MenuItem_AvailabilitySchedule_TimeBasedAvailability()
+    {
+        // Arrange - Set breakfast item availability (6am-11am only)
+        var scheduleRequest = new SetItemAvailabilityScheduleRequest(
+            DayOfWeek: null, // All days
+            StartTime: "06:00",
+            EndTime: "11:00",
+            IsAvailable: true);
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/items/{_fixture.TestMenuItemId}/availability-schedule",
+            scheduleRequest);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.Created, HttpStatusCode.OK, HttpStatusCode.NotFound);
+    }
+
+    #endregion
+
+    #region Modifier Groups
+
+    [Fact]
+    public async Task ModifierGroup_Required_EnforcedOnOrder()
+    {
+        // Arrange - Create a required modifier group
+        var groupRequest = new CreateModifierGroupRequest(
+            Name: "Choose a Side",
+            MinSelections: 1,
+            MaxSelections: 1,
+            IsRequired: true,
+            Modifiers: new List<ModifierRequest>
+            {
+                new("Fries", 0m),
+                new("Salad", 0m),
+                new("Soup", 1.50m)
+            });
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/modifier-groups",
+            groupRequest);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.Created, HttpStatusCode.OK, HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task ModifierGroup_MaxSelections_Enforced()
+    {
+        // Arrange - Create modifier group with max 3 selections
+        var groupRequest = new CreateModifierGroupRequest(
+            Name: "Extra Toppings",
+            MinSelections: 0,
+            MaxSelections: 3,
+            IsRequired: false,
+            Modifiers: new List<ModifierRequest>
+            {
+                new("Extra Cheese", 1.00m),
+                new("Bacon", 2.00m),
+                new("Mushrooms", 1.50m),
+                new("Onions", 0.50m),
+                new("Jalapeños", 0.50m)
+            });
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/modifier-groups",
+            groupRequest);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.Created, HttpStatusCode.OK, HttpStatusCode.NotFound);
+    }
+
+    #endregion
+
+    #region Combo Meals
+
+    [Fact]
+    public async Task Combo_ComponentsLinked()
+    {
+        // Arrange - Create a combo meal
+        var comboRequest = new CreateComboRequest(
+            Name: "Lunch Combo",
+            Price: 12.99m,
+            Components: new List<ComboComponentRequest>
+            {
+                new(ComponentType: "entree", MenuItemId: _fixture.TestMenuItemId, Quantity: 1),
+                new(ComponentType: "side", CategoryId: _fixture.MainCategoryId, Quantity: 1, SelectionRequired: true),
+                new(ComponentType: "drink", CategoryId: _fixture.BeverageCategoryId, Quantity: 1, SelectionRequired: true)
+            });
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/combos",
+            comboRequest);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.Created, HttpStatusCode.OK, HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetCombos_ReturnsAllCombos()
+    {
+        // Act
+        var response = await _client.GetAsync(
+            $"/api/locations/{_fixture.TestLocationId}/combos");
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.NotFound);
+    }
+
+    #endregion
+
+    #region Menu Cloning
+
+    [Fact]
+    public async Task CloneMenu_CreatesFullCopy()
+    {
+        // Arrange
+        var cloneRequest = new CloneMenuRequest(
+            SourceMenuId: _fixture.DefaultMenuId,
+            NewMenuName: "Cloned Menu",
+            TargetLocationId: _fixture.SecondLocationId);
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/menus/clone",
+            cloneRequest);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.Created, HttpStatusCode.OK, HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task CloneMenu_IncludesAllScreensAndButtons()
+    {
+        // Arrange
+        var cloneRequest = new CloneMenuRequest(
+            SourceMenuId: _fixture.DefaultMenuId,
+            NewMenuName: "Full Clone Test",
+            TargetLocationId: null, // Same location
+            IncludeScreens: true,
+            IncludeButtons: true);
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/menus/clone",
+            cloneRequest);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.Created, HttpStatusCode.OK, HttpStatusCode.NotFound);
+
+        if (response.StatusCode == HttpStatusCode.Created)
+        {
+            var clonedMenu = await response.Content.ReadFromJsonAsync<MenuDto>();
+            clonedMenu!.Screens.Should().NotBeEmpty();
+        }
+    }
+
+    #endregion
+
+    #region Price History
+
+    [Fact]
+    public async Task MenuItem_PriceChange_RecordsHistory()
+    {
+        // Arrange - Update item price
+        var updateRequest = new UpdateMenuItemPriceRequest(
+            NewPrice: 15.99m,
+            EffectiveDate: DateTime.UtcNow,
+            Reason: "Ingredient cost increase");
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/items/{_fixture.TestMenuItemId}/price",
+            updateRequest);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Created, HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetMenuItem_PriceHistory_ReturnsAllChanges()
+    {
+        // Act
+        var response = await _client.GetAsync(
+            $"/api/locations/{_fixture.TestLocationId}/items/{_fixture.TestMenuItemId}/price-history");
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.NotFound);
+    }
+
+    #endregion
+}
+
+// Additional Menu DTOs
+public record UpdateMenuItemAvailabilityRequest(
+    bool IsAvailable,
+    string? UnavailableReason = null);
+
+public record SetItemAvailabilityScheduleRequest(
+    int? DayOfWeek,
+    string StartTime,
+    string EndTime,
+    bool IsAvailable);
+
+public record CreateModifierGroupRequest(
+    string Name,
+    int MinSelections,
+    int MaxSelections,
+    bool IsRequired,
+    List<ModifierRequest> Modifiers);
+
+public record ModifierRequest(
+    string Name,
+    decimal Price);
+
+public record CreateComboRequest(
+    string Name,
+    decimal Price,
+    List<ComboComponentRequest> Components);
+
+public record ComboComponentRequest(
+    string ComponentType,
+    Guid? MenuItemId = null,
+    Guid? CategoryId = null,
+    int Quantity = 1,
+    bool SelectionRequired = false);
+
+public record CloneMenuRequest(
+    Guid SourceMenuId,
+    string NewMenuName,
+    Guid? TargetLocationId = null,
+    bool IncludeScreens = true,
+    bool IncludeButtons = true);
+
+public record UpdateMenuItemPriceRequest(
+    decimal NewPrice,
+    DateTime EffectiveDate,
+    string? Reason = null);

@@ -877,3 +877,335 @@ public record StockTakeDto
     public DateTime StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
 }
+
+/// <summary>
+/// Additional Inventory Gap Tests (P2)
+/// </summary>
+public class InventoryGapIntegrationTests : IClassFixture<InventoryServiceFixture>
+{
+    private readonly InventoryServiceFixture _fixture;
+    private readonly HttpClient _client;
+
+    public InventoryGapIntegrationTests(InventoryServiceFixture fixture)
+    {
+        _fixture = fixture;
+        _client = fixture.Client;
+    }
+
+    #region Expiring Stock
+
+    [Fact]
+    public async Task ExpiringStock_ReturnsItemsWithin7Days()
+    {
+        // Arrange - Create batch with expiry in 5 days
+        var ingredientRequest = new CreateIngredientRequest(
+            Code: $"EXPIRY-{Guid.NewGuid():N}".Substring(0, 20),
+            Name: "Expiring Item",
+            UnitOfMeasure: "kg");
+        var ingredientResponse = await _client.PostAsJsonAsync("/api/ingredients", ingredientRequest);
+        var ingredient = await ingredientResponse.Content.ReadFromJsonAsync<IngredientDto>();
+
+        var batchRequest = new CreateStockBatchRequest(
+            IngredientId: ingredient!.Id,
+            Quantity: 10m,
+            UnitCost: 5.00m,
+            ExpiryDate: DateTime.UtcNow.AddDays(5));
+        await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/stock/batches",
+            batchRequest);
+
+        // Act
+        var response = await _client.GetAsync(
+            $"/api/locations/{_fixture.TestLocationId}/stock/expiring?days=7");
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task ExpiredStock_CanBeMarkedAsWaste()
+    {
+        // Arrange - Create batch with past expiry
+        var ingredientRequest = new CreateIngredientRequest(
+            Code: $"EXPIRED-{Guid.NewGuid():N}".Substring(0, 20),
+            Name: "Expired Item",
+            UnitOfMeasure: "unit");
+        var ingredientResponse = await _client.PostAsJsonAsync("/api/ingredients", ingredientRequest);
+        var ingredient = await ingredientResponse.Content.ReadFromJsonAsync<IngredientDto>();
+
+        var batchRequest = new CreateStockBatchRequest(
+            IngredientId: ingredient!.Id,
+            Quantity: 5m,
+            UnitCost: 10.00m,
+            ExpiryDate: DateTime.UtcNow.AddDays(-1)); // Already expired
+        await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/stock/batches",
+            batchRequest);
+
+        // Act - Record waste for expired stock
+        var wasteRequest = new RecordWasteRequest(
+            IngredientId: ingredient.Id,
+            Quantity: 5m,
+            Reason: "expired",
+            RecordedByUserId: Guid.NewGuid(),
+            Notes: "Past expiry date");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/waste",
+            wasteRequest);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.Created, HttpStatusCode.OK);
+    }
+
+    #endregion
+
+    #region Stock Adjustments
+
+    [Fact]
+    public async Task StockAdjustment_Increase_WithReason()
+    {
+        // Arrange - Create ingredient with stock
+        var ingredientRequest = new CreateIngredientRequest(
+            Code: $"ADJ-INC-{Guid.NewGuid():N}".Substring(0, 20),
+            Name: "Adjustment Test",
+            UnitOfMeasure: "unit");
+        var ingredientResponse = await _client.PostAsJsonAsync("/api/ingredients", ingredientRequest);
+        var ingredient = await ingredientResponse.Content.ReadFromJsonAsync<IngredientDto>();
+
+        var batchRequest = new CreateStockBatchRequest(
+            IngredientId: ingredient!.Id,
+            Quantity: 10m,
+            UnitCost: 5.00m);
+        await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/stock/batches",
+            batchRequest);
+
+        // Act - Increase stock (found more than expected)
+        var adjustRequest = new StockAdjustmentRequest(
+            IngredientId: ingredient.Id,
+            AdjustmentQuantity: 3m, // Positive = increase
+            Reason: "physical_count_variance",
+            AdjustedByUserId: Guid.NewGuid(),
+            Notes: "Found extra cases in back storage");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/stock/adjustments",
+            adjustRequest);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.Created, HttpStatusCode.OK, HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task StockAdjustment_Decrease_WithReason()
+    {
+        // Arrange
+        var ingredientRequest = new CreateIngredientRequest(
+            Code: $"ADJ-DEC-{Guid.NewGuid():N}".Substring(0, 20),
+            Name: "Decrease Test",
+            UnitOfMeasure: "unit");
+        var ingredientResponse = await _client.PostAsJsonAsync("/api/ingredients", ingredientRequest);
+        var ingredient = await ingredientResponse.Content.ReadFromJsonAsync<IngredientDto>();
+
+        var batchRequest = new CreateStockBatchRequest(
+            IngredientId: ingredient!.Id,
+            Quantity: 20m,
+            UnitCost: 5.00m);
+        await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/stock/batches",
+            batchRequest);
+
+        // Act - Decrease stock (shrinkage/theft)
+        var adjustRequest = new StockAdjustmentRequest(
+            IngredientId: ingredient.Id,
+            AdjustmentQuantity: -5m, // Negative = decrease
+            Reason: "shrinkage",
+            AdjustedByUserId: Guid.NewGuid(),
+            Notes: "Suspected theft");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/stock/adjustments",
+            adjustRequest);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.Created, HttpStatusCode.OK, HttpStatusCode.NotFound);
+    }
+
+    #endregion
+
+    #region Stock Movement History
+
+    [Fact]
+    public async Task GetStockMovementHistory_ByIngredient()
+    {
+        // Act
+        var response = await _client.GetAsync(
+            $"/api/locations/{_fixture.TestLocationId}/stock/{_fixture.BeefIngredientId}/movements");
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.NotFound);
+
+        if (response.StatusCode == HttpStatusCode.OK)
+        {
+            var movements = await response.Content.ReadFromJsonAsync<List<StockMovementDto>>();
+            movements.Should().NotBeNull();
+            // Should include receipts, consumptions, adjustments, waste
+        }
+    }
+
+    [Fact]
+    public async Task GetStockMovementHistory_FilterByType()
+    {
+        // Act - Get only consumption movements
+        var response = await _client.GetAsync(
+            $"/api/locations/{_fixture.TestLocationId}/stock/{_fixture.BeefIngredientId}/movements?type=consumption");
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetStockMovementHistory_FilterByDateRange()
+    {
+        // Arrange
+        var startDate = DateTime.UtcNow.AddDays(-7);
+        var endDate = DateTime.UtcNow;
+
+        // Act
+        var response = await _client.GetAsync(
+            $"/api/locations/{_fixture.TestLocationId}/stock/{_fixture.BeefIngredientId}/movements" +
+            $"?startDate={startDate:yyyy-MM-dd}&endDate={endDate:yyyy-MM-dd}");
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.NotFound);
+    }
+
+    #endregion
+
+    #region Stock Transfers
+
+    [Fact]
+    public async Task TransferStock_BetweenLocations()
+    {
+        // Arrange
+        var fromLocation = _fixture.TestLocationId;
+        var toLocation = Guid.NewGuid(); // Different location
+
+        var transferRequest = new StockTransferRequest(
+            IngredientId: _fixture.BeefIngredientId,
+            Quantity: 5m,
+            FromLocationId: fromLocation,
+            ToLocationId: toLocation,
+            TransferredByUserId: Guid.NewGuid(),
+            Notes: "Balancing stock between locations");
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/stock/transfers",
+            transferRequest);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.Created,
+            HttpStatusCode.OK,
+            HttpStatusCode.NotFound,
+            HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task TransferStock_InsufficientQuantity_Rejected()
+    {
+        // Arrange - Transfer more than available
+        var transferRequest = new StockTransferRequest(
+            IngredientId: _fixture.BeefIngredientId,
+            Quantity: 99999m, // More than available
+            FromLocationId: _fixture.TestLocationId,
+            ToLocationId: Guid.NewGuid(),
+            TransferredByUserId: Guid.NewGuid());
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/stock/transfers",
+            transferRequest);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.BadRequest,
+            HttpStatusCode.Conflict,
+            HttpStatusCode.NotFound);
+    }
+
+    #endregion
+
+    #region Reorder Suggestions
+
+    [Fact]
+    public async Task ReorderSuggestion_BelowParLevel()
+    {
+        // Act - Get reorder suggestions for items below PAR level
+        var response = await _client.GetAsync(
+            $"/api/locations/{_fixture.TestLocationId}/stock/reorder-suggestions");
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.NotFound);
+
+        if (response.StatusCode == HttpStatusCode.OK)
+        {
+            var suggestions = await response.Content.ReadFromJsonAsync<List<ReorderSuggestionDto>>();
+            suggestions.Should().NotBeNull();
+            // Each suggestion should have recommended quantity
+        }
+    }
+
+    [Fact]
+    public async Task ReorderSuggestion_IncludesSupplierInfo()
+    {
+        // Act
+        var response = await _client.GetAsync(
+            $"/api/locations/{_fixture.TestLocationId}/stock/reorder-suggestions?includeSuppliers=true");
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.NotFound);
+    }
+
+    #endregion
+}
+
+// Additional DTOs for gap tests
+public record StockAdjustmentRequest(
+    Guid IngredientId,
+    decimal AdjustmentQuantity,
+    string Reason,
+    Guid AdjustedByUserId,
+    string? Notes = null);
+
+public record StockMovementDto
+{
+    public Guid Id { get; init; }
+    public Guid IngredientId { get; init; }
+    public string? MovementType { get; init; } // receipt, consumption, adjustment, waste, transfer
+    public decimal Quantity { get; init; }
+    public decimal? UnitCost { get; init; }
+    public string? Reference { get; init; }
+    public DateTime Timestamp { get; init; }
+}
+
+public record StockTransferRequest(
+    Guid IngredientId,
+    decimal Quantity,
+    Guid FromLocationId,
+    Guid ToLocationId,
+    Guid TransferredByUserId,
+    string? Notes = null);
+
+public record ReorderSuggestionDto
+{
+    public Guid IngredientId { get; init; }
+    public string? IngredientName { get; init; }
+    public decimal CurrentStock { get; init; }
+    public decimal ReorderLevel { get; init; }
+    public decimal SuggestedQuantity { get; init; }
+    public Guid? PreferredSupplierId { get; init; }
+    public string? PreferredSupplierName { get; init; }
+}

@@ -30,6 +30,9 @@
     <ProjectReference Include="..\..\src\Services\Reporting\Reporting.Api\DarkVelocity.Reporting.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\Procurement\Procurement.Api\DarkVelocity.Procurement.Api.csproj" />
     <ProjectReference Include="..\..\src\Services\Costing\Costing.Api\DarkVelocity.Costing.Api.csproj" />
+    <ProjectReference Include="..\..\src\Services\Auth\Auth.Api\DarkVelocity.Auth.Api.csproj" />
+    <ProjectReference Include="..\..\src\Services\Hardware\Hardware.Api\DarkVelocity.Hardware.Api.csproj" />
+    <ProjectReference Include="..\..\src\Services\Location\Location.Api\DarkVelocity.Location.Api.csproj" />
   </ItemGroup>
 
 </Project>

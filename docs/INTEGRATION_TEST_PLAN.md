@@ -665,6 +665,184 @@ Examples:
 
 ---
 
-*Document Version: 1.0*
+---
+
+## Part 7: Gap Analysis (Post-Implementation Review)
+
+*Added: 2026-01-29 after P1/P2/P3 implementation*
+
+### Implementation Summary
+
+| Phase | Tests Implemented | Status |
+|-------|-------------------|--------|
+| P1 Core Business | ~115 tests | ✅ Complete |
+| P2 Procurement/Costing | ~95 tests | ✅ Complete |
+| P3 Advanced Features | ~45 tests | ✅ Complete |
+| **Total Implemented** | **~255 tests** | |
+
+### Identified Gaps (Single-Service Focus)
+
+The following test categories were identified as missing after the initial implementation phases.
+
+#### Gap Category 1: Receipt Generation (P1 - Critical)
+**File:** `ReceiptIntegrationTests.cs`
+
+| Test | Scenario | Priority |
+|------|----------|----------|
+| `GenerateReceipt_IncludesAllOrderDetails` | Receipt shows items, prices, totals | P1 |
+| `GenerateReceipt_IncludesPaymentDetails` | Payment method, card last 4, change | P1 |
+| `GenerateReceipt_IncludesTaxBreakdown` | Tax amounts by rate | P1 |
+| `GenerateReceipt_WithTip` | Tip amount shown separately | P1 |
+| `GenerateReceipt_ForSplitPayment` | Multiple payments on one receipt | P2 |
+| `ReprintReceipt_FromHistory` | Reprint a past receipt | P2 |
+| `VoidReceipt_GeneratesVoidSlip` | Void documentation | P2 |
+
+#### Gap Category 2: Authentication & User Access (P1 - Critical)
+**File:** `AuthIntegrationTests.cs`
+
+| Test | Scenario | Priority |
+|------|----------|----------|
+| `Login_ValidCredentials_ReturnsToken` | Cashier logs in | P1 |
+| `Login_InvalidPassword_ReturnsUnauthorized` | Wrong password rejected | P1 |
+| `Login_LockedAccount_ReturnsLocked` | Too many failed attempts | P2 |
+| `Token_Expired_Returns401` | Session timeout | P1 |
+| `RefreshToken_ExtendsSession` | Keep session alive | P2 |
+| `Logout_InvalidatesToken` | Token no longer works | P1 |
+| `ChangePassword_RequiresCurrentPassword` | Password change flow | P2 |
+
+#### Gap Category 3: Data Validation (P1 - Critical)
+**Add to existing test files**
+
+| Test | File | Scenario | Priority |
+|------|------|----------|----------|
+| `CreateOrder_NegativeQuantity_Rejected` | OrderLifecycle | Cannot add -1 items | P1 |
+| `CreateOrder_ZeroPrice_Rejected` | OrderLifecycle | Price must be positive | P1 |
+| `CreatePayment_ExceedsOrderTotal_Rejected` | Payment | Cannot overpay by card | P1 |
+| `CreatePayment_NegativeAmount_Rejected` | Payment | Amount must be positive | P1 |
+| `OpenSalesPeriod_FutureDate_Rejected` | SalesPeriod | Cannot open tomorrow | P1 |
+| `OpenSalesPeriod_NegativeCash_Rejected` | SalesPeriod | Cash must be >= 0 | P1 |
+| `CreateIngredient_InvalidUnit_Rejected` | Inventory | Unit must be valid | P2 |
+| `CreateRecipe_ZeroYield_Rejected` | Costing | Yield must be > 0 | P2 |
+| `SetTaxRate_Over100Percent_Rejected` | Menu | Tax rate 0-100% | P1 |
+| `CreateSupplier_InvalidEmail_Rejected` | Procurement | Email format validation | P2 |
+
+#### Gap Category 4: Hardware/Device Tests (P2 - Major)
+**File:** `HardwareIntegrationTests.cs`
+
+| Test | Scenario | Priority |
+|------|----------|----------|
+| `RegisterPosDevice_CreatesDevice` | Add new terminal | P2 |
+| `GetPosDevices_ReturnsLocationDevices` | List terminals at location | P2 |
+| `DeactivatePosDevice_SetsInactive` | Remove terminal from service | P2 |
+| `CreatePrinter_WithConfiguration` | Add kitchen/receipt printer | P2 |
+| `GetPrinters_ByType` | Filter receipt vs kitchen printers | P2 |
+| `CreateCashDrawer_LinkedToDevice` | Associate drawer with terminal | P2 |
+| `GetCashDrawerStatus_ReturnsOpenClose` | Check if drawer is open | P2 |
+
+#### Gap Category 5: Location Configuration (P2 - Major)
+**File:** `LocationConfigurationIntegrationTests.cs`
+
+| Test | Scenario | Priority |
+|------|----------|----------|
+| `GetLocation_ReturnsLocationDetails` | Retrieve location info | P2 |
+| `UpdateLocation_ChangesAddress` | Update store address | P2 |
+| `SetOperatingHours_ByDayOfWeek` | Mon-Fri 6am-10pm, Sat-Sun 8am-11pm | P2 |
+| `GetOperatingHours_ReturnsSchedule` | Retrieve hours | P2 |
+| `SetHolidayHours_OverridesRegular` | Christmas: closed | P3 |
+| `GetLocationSettings_ReturnsTaxConfig` | Tax rates, currency | P2 |
+| `UpdateLocationSettings_ChangesCurrency` | USD to CAD | P3 |
+| `GetLocationTimezone_AffectsReporting` | PST vs EST | P2 |
+
+#### Gap Category 6: Detailed Sales Reporting (P2 - Major)
+**File:** `SalesReportingIntegrationTests.cs`
+
+| Test | Scenario | Priority |
+|------|----------|----------|
+| `DailySalesReport_ByEmployee` | Sales by server | P2 |
+| `DailySalesReport_ByHour` | Hourly breakdown (lunch rush) | P2 |
+| `DailySalesReport_ByDayOfWeek` | Weekday vs weekend patterns | P3 |
+| `VoidReport_ByReason` | Voids categorized by reason | P2 |
+| `DiscountReport_ByType` | Comps, promos, loyalty discounts | P2 |
+| `RefundReport_ByEmployee` | Refunds per cashier | P3 |
+| `AverageTicket_ByOrderType` | Dine-in vs takeout avg ticket | P2 |
+| `ItemSalesReport_WithQuantityAndRevenue` | Units sold + revenue per item | P2 |
+
+#### Gap Category 7: Inventory Additions (P2)
+**Add to:** `InventoryIntegrationTests.cs`
+
+| Test | Scenario | Priority |
+|------|----------|----------|
+| `ExpiringStock_ReturnsItemsWithin7Days` | Expiration warnings | P2 |
+| `ExpiredStock_MarkedAsWaste` | Auto-waste expired batches | P3 |
+| `StockAdjustment_Increase_WithReason` | Found extra stock | P2 |
+| `StockAdjustment_Decrease_WithReason` | Shrinkage/theft | P2 |
+| `GetStockMovementHistory_ByIngredient` | All ins/outs for an ingredient | P2 |
+| `TransferStock_BetweenLocations` | Move stock between stores | P3 |
+| `ReorderSuggestion_BelowParLevel` | Auto-suggest reorder qty | P3 |
+
+#### Gap Category 8: Menu Additions (P3)
+**Add to:** `MenuIntegrationTests.cs`
+
+| Test | Scenario | Priority |
+|------|----------|----------|
+| `MenuItem_86d_ExcludedFromAvailable` | Out of stock items hidden | P2 |
+| `MenuItem_AvailabilitySchedule` | Breakfast items only 6am-11am | P3 |
+| `ModifierGroup_Required_EnforcedOnOrder` | "Choose a side" required | P3 |
+| `ModifierGroup_MaxSelections_Enforced` | Max 3 toppings | P3 |
+| `Combo_ComponentsLinked` | Combo = burger + fries + drink | P3 |
+| `CloneMenu_CreatesFullCopy` | Duplicate menu for new location | P3 |
+
+#### Gap Category 9: Payment Additions (P3)
+**Add to:** `PaymentIntegrationTests.cs`
+
+| Test | Scenario | Priority |
+|------|----------|----------|
+| `GiftCard_CheckBalance` | Check remaining balance | P2 |
+| `GiftCard_PartialRedemption` | Use $20 of $50 card | P2 |
+| `GiftCard_FullRedemption_ZeroBalance` | Use entire balance | P2 |
+| `GiftCard_InsufficientBalance_PartialPayment` | Card has $10, order is $25 | P2 |
+| `HouseAccount_ChargeToAccount` | Customer has tab | P3 |
+| `HouseAccount_GetBalance` | Check account balance | P3 |
+| `PaymentMethod_Deactivate_PreventsFutureUse` | Disable a payment type | P2 |
+
+#### Gap Category 10: User Management (P3)
+**File:** `UserManagementIntegrationTests.cs`
+
+| Test | Scenario | Priority |
+|------|----------|----------|
+| `CreateUser_WithRole` | Add new cashier | P2 |
+| `UpdateUser_ChangeRole` | Promote to manager | P2 |
+| `DeactivateUser_PreventLogin` | Terminate employee | P2 |
+| `AssignUserToLocation` | User can work at Store A | P2 |
+| `RemoveUserFromLocation` | User no longer at Store B | P2 |
+| `GetUsersByLocation` | List staff at a location | P2 |
+| `ResetPassword_SendsEmail` | Forgot password flow | P3 |
+
+#### Gap Category 11: Audit Trail (P3)
+**File:** `AuditIntegrationTests.cs`
+
+| Test | Scenario | Priority |
+|------|----------|----------|
+| `VoidOrder_RecordsWhoAndWhen` | Void audit entry | P2 |
+| `Discount_RecordsAuthorizingManager` | Who approved discount | P2 |
+| `PriceOverride_RecordsReason` | Why price was changed | P2 |
+| `CashDrawerOpen_RecordsEvent` | Drawer open audit | P2 |
+| `GetAuditLog_FilterByDateRange` | View audit history | P2 |
+| `GetAuditLog_FilterByUser` | Actions by specific user | P3 |
+| `GetAuditLog_FilterByEventType` | All voids, all discounts | P3 |
+
+### Gap Implementation Priority
+
+| Priority | Category | Tests | Effort |
+|----------|----------|-------|--------|
+| P1 | Receipt, Auth, Validation | 24 | 1-2 days |
+| P2 | Hardware, Location, Reporting, Inventory | 30 | 2-3 days |
+| P3 | Menu, Payment, User, Audit | 27 | 2-3 days |
+| **Total** | | **81** | **5-8 days** |
+
+---
+
+*Document Version: 1.1*
 *Created: 2026-01-29*
-*Status: Draft for Review*
+*Updated: 2026-01-29 (Gap Analysis Added)*
+*Status: Implementation In Progress*

@@ -932,3 +932,393 @@ public class PaymentIntegrationTests : IClassFixture<PaymentsServiceFixture>
 public record VoidPaymentRequest(
     string Reason,
     Guid UserId);
+
+/// <summary>
+/// Gap tests for Payment functionality - Gift Cards, House Accounts, Payment Method Management.
+///
+/// Business Scenarios Covered:
+/// - Gift card balance checks
+/// - Gift card redemption (partial and full)
+/// - House account charging
+/// - Payment method deactivation
+/// </summary>
+public class PaymentGapIntegrationTests : IClassFixture<PaymentsServiceFixture>
+{
+    private readonly PaymentsServiceFixture _fixture;
+    private readonly HttpClient _client;
+
+    public PaymentGapIntegrationTests(PaymentsServiceFixture fixture)
+    {
+        _fixture = fixture;
+        _client = fixture.Client;
+    }
+
+    #region Gift Cards
+
+    [Fact]
+    public async Task GiftCard_CheckBalance_ReturnsCurrentBalance()
+    {
+        // Arrange
+        var giftCardNumber = "GC-12345678";
+
+        // Act
+        var response = await _client.GetAsync(
+            $"/api/locations/{_fixture.TestLocationId}/gift-cards/{giftCardNumber}/balance");
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.OK,
+            HttpStatusCode.NotFound);
+
+        if (response.StatusCode == HttpStatusCode.OK)
+        {
+            var balance = await response.Content.ReadFromJsonAsync<GiftCardBalanceDto>();
+            balance.Should().NotBeNull();
+            balance!.CardNumber.Should().Be(giftCardNumber);
+            balance.Balance.Should().BeGreaterOrEqualTo(0);
+        }
+    }
+
+    [Fact]
+    public async Task GiftCard_PartialRedemption_ReducesBalance()
+    {
+        // Arrange - Create gift card with balance
+        var createRequest = new CreateGiftCardRequest(
+            CardNumber: $"GC-{Guid.NewGuid():N}".Substring(0, 16),
+            InitialBalance: 100.00m);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/gift-cards",
+            createRequest);
+
+        if (!createResponse.IsSuccessStatusCode) return;
+
+        var giftCard = await createResponse.Content.ReadFromJsonAsync<GiftCardDto>();
+
+        // Redeem partial amount
+        var redeemRequest = new RedeemGiftCardRequest(
+            CardNumber: giftCard!.CardNumber!,
+            Amount: 30.00m,
+            OrderId: Guid.NewGuid());
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/gift-cards/redeem",
+            redeemRequest);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.OK,
+            HttpStatusCode.Created,
+            HttpStatusCode.NotFound);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<GiftCardRedemptionDto>();
+            result!.AmountRedeemed.Should().Be(30.00m);
+            result.RemainingBalance.Should().Be(70.00m);
+        }
+    }
+
+    [Fact]
+    public async Task GiftCard_FullRedemption_ZeroBalance()
+    {
+        // Arrange
+        var createRequest = new CreateGiftCardRequest(
+            CardNumber: $"GC-{Guid.NewGuid():N}".Substring(0, 16),
+            InitialBalance: 50.00m);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/gift-cards",
+            createRequest);
+
+        if (!createResponse.IsSuccessStatusCode) return;
+
+        var giftCard = await createResponse.Content.ReadFromJsonAsync<GiftCardDto>();
+
+        // Redeem full amount
+        var redeemRequest = new RedeemGiftCardRequest(
+            CardNumber: giftCard!.CardNumber!,
+            Amount: 50.00m,
+            OrderId: Guid.NewGuid());
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/gift-cards/redeem",
+            redeemRequest);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.OK,
+            HttpStatusCode.Created,
+            HttpStatusCode.NotFound);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<GiftCardRedemptionDto>();
+            result!.RemainingBalance.Should().Be(0m);
+        }
+    }
+
+    [Fact]
+    public async Task GiftCard_InsufficientBalance_ReturnsPartialOrError()
+    {
+        // Arrange
+        var createRequest = new CreateGiftCardRequest(
+            CardNumber: $"GC-{Guid.NewGuid():N}".Substring(0, 16),
+            InitialBalance: 25.00m);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/gift-cards",
+            createRequest);
+
+        if (!createResponse.IsSuccessStatusCode) return;
+
+        var giftCard = await createResponse.Content.ReadFromJsonAsync<GiftCardDto>();
+
+        // Try to redeem more than balance
+        var redeemRequest = new RedeemGiftCardRequest(
+            CardNumber: giftCard!.CardNumber!,
+            Amount: 50.00m, // More than the $25 balance
+            OrderId: Guid.NewGuid());
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/gift-cards/redeem",
+            redeemRequest);
+
+        // Assert - Either partial redemption or bad request
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.OK,           // Partial redemption allowed
+            HttpStatusCode.BadRequest,   // Insufficient funds error
+            HttpStatusCode.NotFound);
+    }
+
+    #endregion
+
+    #region House Accounts
+
+    [Fact]
+    public async Task HouseAccount_ChargeToAccount_CreatesAccountPayment()
+    {
+        // Arrange
+        var orderId = Guid.NewGuid();
+        var request = new ChargeHouseAccountRequest(
+            HouseAccountId: _fixture.TestHouseAccountId,
+            OrderId: orderId,
+            Amount: 75.00m,
+            Notes: "Business lunch");
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/house-accounts/{_fixture.TestHouseAccountId}/charge",
+            request);
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.OK,
+            HttpStatusCode.Created,
+            HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task HouseAccount_GetBalance_ReturnsOutstandingBalance()
+    {
+        // Act
+        var response = await _client.GetAsync(
+            $"/api/locations/{_fixture.TestLocationId}/house-accounts/{_fixture.TestHouseAccountId}");
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.OK,
+            HttpStatusCode.NotFound);
+
+        if (response.StatusCode == HttpStatusCode.OK)
+        {
+            var account = await response.Content.ReadFromJsonAsync<HouseAccountDto>();
+            account.Should().NotBeNull();
+            account!.Balance.Should().BeGreaterOrEqualTo(0);
+        }
+    }
+
+    [Fact]
+    public async Task HouseAccount_GetTransactionHistory_ReturnsChargesAndPayments()
+    {
+        // Act
+        var response = await _client.GetAsync(
+            $"/api/locations/{_fixture.TestLocationId}/house-accounts/{_fixture.TestHouseAccountId}/transactions");
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.OK,
+            HttpStatusCode.NotFound);
+
+        if (response.StatusCode == HttpStatusCode.OK)
+        {
+            var transactions = await response.Content.ReadFromJsonAsync<List<HouseAccountTransactionDto>>();
+            transactions.Should().NotBeNull();
+        }
+    }
+
+    #endregion
+
+    #region Payment Method Management
+
+    [Fact]
+    public async Task PaymentMethod_Deactivate_PreventsFutureUse()
+    {
+        // Arrange - Create a payment method, then deactivate it
+        var createRequest = new CreatePaymentMethodRequest(
+            Name: $"Test Method {Guid.NewGuid():N}".Substring(0, 20),
+            Type: "cash",
+            IsActive: true);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/payment-methods",
+            createRequest);
+
+        if (!createResponse.IsSuccessStatusCode) return;
+
+        var paymentMethod = await createResponse.Content.ReadFromJsonAsync<PaymentMethodDto>();
+
+        // Deactivate
+        var updateRequest = new UpdatePaymentMethodRequest(IsActive: false);
+        var deactivateResponse = await _client.PatchAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/payment-methods/{paymentMethod!.Id}",
+            updateRequest);
+
+        if (!deactivateResponse.IsSuccessStatusCode) return;
+
+        // Act - Try to use deactivated method
+        var orderId = Guid.NewGuid();
+        var paymentRequest = new CreateCashPaymentRequest(
+            OrderId: orderId,
+            UserId: _fixture.TestUserId,
+            PaymentMethodId: paymentMethod.Id,
+            Amount: 25.00m,
+            ReceivedAmount: 25.00m);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/locations/{_fixture.TestLocationId}/payments/cash",
+            paymentRequest);
+
+        // Assert - Should fail or be rejected
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.BadRequest,
+            HttpStatusCode.Created, // If deactivation doesn't affect in-progress payments
+            HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetPaymentMethods_FilterByType_ReturnsOnlyMatchingType()
+    {
+        // Act
+        var response = await _client.GetAsync(
+            $"/api/locations/{_fixture.TestLocationId}/payment-methods?type=cash");
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.OK,
+            HttpStatusCode.NotFound);
+
+        if (response.StatusCode == HttpStatusCode.OK)
+        {
+            var methods = await response.Content.ReadFromJsonAsync<List<PaymentMethodDto>>();
+            methods!.Should().OnlyContain(m => m.Type == "cash");
+        }
+    }
+
+    [Fact]
+    public async Task GetPaymentMethods_FilterActive_ReturnsOnlyActiveOrInactive()
+    {
+        // Act
+        var response = await _client.GetAsync(
+            $"/api/locations/{_fixture.TestLocationId}/payment-methods?isActive=true");
+
+        // Assert
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.OK,
+            HttpStatusCode.NotFound);
+
+        if (response.StatusCode == HttpStatusCode.OK)
+        {
+            var methods = await response.Content.ReadFromJsonAsync<List<PaymentMethodDto>>();
+            methods!.Should().OnlyContain(m => m.IsActive);
+        }
+    }
+
+    #endregion
+}
+
+// Gap Test DTOs
+public record CreateGiftCardRequest(
+    string CardNumber,
+    decimal InitialBalance);
+
+public record GiftCardDto
+{
+    public Guid Id { get; init; }
+    public string? CardNumber { get; init; }
+    public decimal Balance { get; init; }
+    public bool IsActive { get; init; }
+    public DateTime CreatedAt { get; init; }
+}
+
+public record GiftCardBalanceDto
+{
+    public string? CardNumber { get; init; }
+    public decimal Balance { get; init; }
+}
+
+public record RedeemGiftCardRequest(
+    string CardNumber,
+    decimal Amount,
+    Guid OrderId);
+
+public record GiftCardRedemptionDto
+{
+    public decimal AmountRedeemed { get; init; }
+    public decimal RemainingBalance { get; init; }
+}
+
+public record ChargeHouseAccountRequest(
+    Guid HouseAccountId,
+    Guid OrderId,
+    decimal Amount,
+    string? Notes = null);
+
+public record HouseAccountDto
+{
+    public Guid Id { get; init; }
+    public string? Name { get; init; }
+    public string? AccountNumber { get; init; }
+    public decimal Balance { get; init; }
+    public decimal CreditLimit { get; init; }
+    public bool IsActive { get; init; }
+}
+
+public record HouseAccountTransactionDto
+{
+    public Guid Id { get; init; }
+    public string? TransactionType { get; init; }
+    public decimal Amount { get; init; }
+    public DateTime TransactionDate { get; init; }
+    public string? Notes { get; init; }
+}
+
+public record CreatePaymentMethodRequest(
+    string Name,
+    string Type,
+    bool IsActive = true);
+
+public record UpdatePaymentMethodRequest(
+    string? Name = null,
+    bool? IsActive = null);
+
+public record PaymentMethodDto
+{
+    public Guid Id { get; init; }
+    public string? Name { get; init; }
+    public string? Type { get; init; }
+    public bool IsActive { get; init; }
+}

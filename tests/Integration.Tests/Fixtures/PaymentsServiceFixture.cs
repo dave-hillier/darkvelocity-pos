@@ -26,6 +26,7 @@ public class PaymentsServiceFixture : WebApplicationFactory<DarkVelocity.Payment
     public Guid CashPaymentMethodId { get; private set; }
     public Guid CardPaymentMethodId { get; private set; }
     public Guid VoucherPaymentMethodId { get; private set; }
+    public Guid TestHouseAccountId { get; private set; }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -56,6 +57,7 @@ public class PaymentsServiceFixture : WebApplicationFactory<DarkVelocity.Payment
         if (TestLocationId == Guid.Empty) TestLocationId = Guid.NewGuid();
         if (TestUserId == Guid.Empty) TestUserId = Guid.NewGuid();
         if (TestOrderId == Guid.Empty) TestOrderId = Guid.NewGuid();
+        TestHouseAccountId = Guid.NewGuid();
 
         // Create payment methods
         var cashMethod = new PaymentMethod
