@@ -4,7 +4,7 @@ A full-featured Point of Sale system inspired by Lightspeed Restaurant K-Series,
 
 ## Architecture
 
-**Backend**: Service-Oriented Architecture with 16 discrete .NET 10 Web APIs deployed on Kubernetes (no API gateway).
+**Backend**: Service-Oriented Architecture with 18 discrete .NET 10 Web APIs deployed on Kubernetes (no API gateway).
 
 ### Core Services
 
@@ -31,6 +31,8 @@ A full-featured Point of Sale system inspired by Lightspeed Restaurant K-Series,
 | Fiscalisation | KassenSichV (TSE), European tax compliance, DSFinV-K | fiscalisation_db |
 | Accounting | Journal entries, P&L, reconciliation, DATEV export | accounting_db |
 | OrdersGateway | Uber Eats, DoorDash, Deliveroo, Just Eat integration | ordersgateway_db |
+| Customers | CRM, loyalty programs, points, rewards, referrals | customers_db |
+| Labor | Scheduling, time tracking, tip distribution, payroll | labor_db |
 
 **Frontend**: React SPAs (planned)
 - POS Application - Offline-first PWA for tablets
@@ -48,6 +50,8 @@ A full-featured Point of Sale system inspired by Lightspeed Restaurant K-Series,
 - **European fiscalisation** - KassenSichV (Germany), TSE integration, DSFinV-K export
 - **Integrated accounting** - journal entries, P&L, reconciliation, DATEV export
 - **Delivery platform integrations** - Uber Eats, DoorDash, Deliveroo, Just Eat, Wolt, and more
+- **Customer loyalty** - points, tiers, rewards, referrals
+- **Labor management** - scheduling, time tracking, tip pooling, payroll export
 - **HAL+JSON hypermedia** API responses
 - **Kubernetes-native** - Ingress routing, Istio service mesh, no API gateway
 
@@ -210,6 +214,7 @@ cd apps/kds && npm run dev
 | Hardware | 5005 | | PaymentGateway | 5011 |
 | GiftCards | 5012 | | Fiscalisation | 5013 |
 | Accounting | 5014 | | OrdersGateway | 5015 |
+| Customers | 5016 | | Labor | 5017 |
 
 ### Infrastructure Ports
 

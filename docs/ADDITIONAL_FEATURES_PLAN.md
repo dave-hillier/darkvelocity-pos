@@ -10,9 +10,11 @@ This document outlines the implementation plan for additional core features requ
 2. [Fiscalisation Service](#2-fiscalisation-service)
 3. [Accounting Service](#3-accounting-service)
 4. [Orders Gateway Service](#4-orders-gateway-service)
-5. [Multi-Tenancy Architecture](#5-multi-tenancy-architecture)
-6. [Kubernetes-Native Deployment](#6-kubernetes-native-deployment-no-api-gateway)
-7. [Implementation Phases](#7-implementation-phases)
+5. [Customers & Loyalty Service](#5-customers--loyalty-service)
+6. [Labor Management Service](#6-labor-management-service)
+7. [Multi-Tenancy Architecture](#7-multi-tenancy-architecture)
+8. [Kubernetes-Native Deployment](#8-kubernetes-native-deployment-no-api-gateway)
+9. [Implementation Phases](#9-implementation-phases)
 
 ---
 
@@ -976,7 +978,664 @@ PlatformConnectionChanged
 
 ---
 
-## 5. Multi-Tenancy Architecture
+## 5. Customers & Loyalty Service
+
+A comprehensive CRM and loyalty program service for customer relationship management, rewards, and retention.
+
+### Service Overview
+
+| Attribute | Value |
+|-----------|-------|
+| Service Name | Customers.Api |
+| Port | 5016 |
+| Database | customers_db |
+| Dependencies | Orders, Payments, Auth, GiftCards |
+
+### Core Entities
+
+```
+Customer
+├── Id (Guid)
+├── TenantId (Guid)
+├── ExternalId (string?) - for POS integrations
+├── Email (string, unique per tenant)
+├── Phone (string?)
+├── FirstName (string)
+├── LastName (string)
+├── DateOfBirth (Date?)
+├── Gender (string?)
+├── PreferredLanguage (string)
+├── MarketingOptIn (bool)
+├── SmsOptIn (bool)
+├── Tags (string[]) - VIP, Regular, New, etc.
+├── Notes (string?)
+├── Source (POS, Online, Import, Reservation)
+├── DefaultLocationId (Guid?) - home location
+├── CreatedAt (DateTime)
+├── LastVisitAt (DateTime?)
+├── TotalVisits (int)
+├── TotalSpend (decimal)
+├── AverageOrderValue (decimal)
+└── Metadata (JSON)
+
+CustomerAddress
+├── Id (Guid)
+├── CustomerId (Guid)
+├── Label (Home, Work, Other)
+├── Street (string)
+├── City (string)
+├── PostalCode (string)
+├── Country (string)
+├── IsDefault (bool)
+└── DeliveryInstructions (string?)
+
+LoyaltyProgram
+├── Id (Guid)
+├── TenantId (Guid)
+├── Name (string)
+├── Type (Points, Stamps, Tiered, Cashback)
+├── Status (Active, Paused, Ended)
+├── PointsPerCurrencyUnit (decimal) - e.g., 1 point per €1
+├── PointsValueInCurrency (decimal) - e.g., 100 points = €1
+├── MinimumRedemption (int) - minimum points to redeem
+├── PointsExpireAfterDays (int?)
+├── WelcomeBonus (int?) - points on signup
+├── BirthdayBonus (int?)
+├── ReferralBonus (int?)
+├── TermsAndConditions (string)
+├── StartDate (Date)
+├── EndDate (Date?)
+└── Settings (JSON)
+
+LoyaltyTier
+├── Id (Guid)
+├── ProgramId (Guid)
+├── Name (string) - Bronze, Silver, Gold, Platinum
+├── MinimumPoints (int) - threshold to reach tier
+├── PointsMultiplier (decimal) - e.g., 1.5x for Gold
+├── Benefits (JSON)
+│   ├── FreeDelivery (bool)
+│   ├── PriorityBooking (bool)
+│   ├── ExclusiveOffers (bool)
+│   └── BirthdayReward (string)
+├── Color (string) - for UI display
+├── IconUrl (string?)
+└── SortOrder (int)
+
+CustomerLoyalty
+├── Id (Guid)
+├── CustomerId (Guid)
+├── ProgramId (Guid)
+├── CurrentPoints (int)
+├── LifetimePoints (int)
+├── CurrentTierId (Guid?)
+├── TierQualifyingPoints (int) - points counting toward next tier
+├── TierExpiresAt (DateTime?)
+├── EnrolledAt (DateTime)
+└── LastActivityAt (DateTime)
+
+PointsTransaction
+├── Id (Guid)
+├── CustomerLoyaltyId (Guid)
+├── TransactionType (Earn, Redeem, Expire, Adjust, Bonus, Referral)
+├── Points (int) - positive for earn, negative for redeem
+├── BalanceBefore (int)
+├── BalanceAfter (int)
+├── OrderId (Guid?)
+├── Description (string)
+├── ExpiresAt (DateTime?)
+├── ProcessedAt (DateTime)
+├── ProcessedByUserId (Guid?)
+└── Metadata (JSON)
+
+Reward
+├── Id (Guid)
+├── TenantId (Guid)
+├── ProgramId (Guid)
+├── Name (string)
+├── Description (string)
+├── Type (Discount, FreeItem, Voucher, Experience)
+├── PointsCost (int)
+├── Value (decimal?) - monetary value if applicable
+├── MenuItemId (Guid?) - for free item rewards
+├── DiscountPercentage (decimal?)
+├── MaxRedemptionsPerCustomer (int?)
+├── TotalAvailable (int?)
+├── TotalRedeemed (int)
+├── ValidFrom (DateTime)
+├── ValidUntil (DateTime?)
+├── TermsAndConditions (string?)
+├── ImageUrl (string?)
+└── IsActive (bool)
+
+CustomerReward
+├── Id (Guid)
+├── CustomerId (Guid)
+├── RewardId (Guid)
+├── Code (string) - unique redemption code
+├── Status (Available, Redeemed, Expired, Cancelled)
+├── IssuedAt (DateTime)
+├── ExpiresAt (DateTime?)
+├── RedeemedAt (DateTime?)
+├── RedeemedOrderId (Guid?)
+└── RedeemedLocationId (Guid?)
+
+Referral
+├── Id (Guid)
+├── TenantId (Guid)
+├── ReferrerCustomerId (Guid)
+├── ReferredCustomerId (Guid?)
+├── ReferralCode (string)
+├── Status (Pending, Completed, Expired)
+├── ReferrerBonus (int) - points awarded to referrer
+├── RefereeBonus (int) - points awarded to new customer
+├── CreatedAt (DateTime)
+├── CompletedAt (DateTime?)
+└── FirstOrderId (Guid?)
+```
+
+### API Endpoints
+
+```
+Customer Management
+├── GET    /api/customers                             # List customers (search, filter)
+├── POST   /api/customers                             # Create customer
+├── GET    /api/customers/{id}                        # Get customer details
+├── PUT    /api/customers/{id}                        # Update customer
+├── DELETE /api/customers/{id}                        # Delete (soft) customer
+├── GET    /api/customers/{id}/orders                 # Customer order history
+├── GET    /api/customers/{id}/visits                 # Visit history by location
+├── POST   /api/customers/lookup                      # Find by email/phone
+├── POST   /api/customers/merge                       # Merge duplicate profiles
+└── POST   /api/customers/import                      # Bulk import
+
+Customer Addresses
+├── GET    /api/customers/{id}/addresses              # List addresses
+├── POST   /api/customers/{id}/addresses              # Add address
+├── PUT    /api/customer-addresses/{id}               # Update address
+└── DELETE /api/customer-addresses/{id}               # Remove address
+
+Loyalty Programs
+├── GET    /api/loyalty-programs                      # List programs
+├── POST   /api/loyalty-programs                      # Create program
+├── GET    /api/loyalty-programs/{id}                 # Get program details
+├── PUT    /api/loyalty-programs/{id}                 # Update program
+├── POST   /api/loyalty-programs/{id}/pause           # Pause program
+├── POST   /api/loyalty-programs/{id}/resume          # Resume program
+├── GET    /api/loyalty-programs/{id}/tiers           # List tiers
+├── POST   /api/loyalty-programs/{id}/tiers           # Create tier
+└── GET    /api/loyalty-programs/{id}/analytics       # Program analytics
+
+Customer Loyalty
+├── GET    /api/customers/{id}/loyalty                # Get loyalty status
+├── POST   /api/customers/{id}/loyalty/enroll         # Enroll in program
+├── GET    /api/customers/{id}/loyalty/points         # Points balance
+├── GET    /api/customers/{id}/loyalty/transactions   # Points history
+├── POST   /api/customers/{id}/loyalty/earn           # Earn points (manual)
+├── POST   /api/customers/{id}/loyalty/redeem         # Redeem points
+├── POST   /api/customers/{id}/loyalty/adjust         # Adjust points (admin)
+└── GET    /api/customers/{id}/loyalty/rewards        # Available rewards
+
+Rewards Catalog
+├── GET    /api/rewards                               # List rewards
+├── POST   /api/rewards                               # Create reward
+├── GET    /api/rewards/{id}                          # Get reward
+├── PUT    /api/rewards/{id}                          # Update reward
+├── GET    /api/customers/{id}/rewards                # Customer's earned rewards
+└── POST   /api/customer-rewards/{id}/redeem          # Redeem a reward
+
+Referrals
+├── GET    /api/customers/{id}/referral-code          # Get/generate referral code
+├── POST   /api/referrals/validate                    # Validate referral code
+├── GET    /api/customers/{id}/referrals              # List successful referrals
+└── GET    /api/referral-analytics                    # Referral program stats
+
+Segments & Tags
+├── GET    /api/customer-segments                     # List segments
+├── POST   /api/customer-segments                     # Create segment (rule-based)
+├── GET    /api/customer-segments/{id}/customers      # Customers in segment
+└── POST   /api/customers/{id}/tags                   # Add/remove tags
+```
+
+### Integration Points
+
+**With Orders Service:**
+- Attach customer to order
+- Auto-earn points on order completion
+- Apply customer discounts
+
+**With Payments Service:**
+- Redeem points as payment method
+- Track spend for tier qualification
+
+**With GiftCards Service:**
+- Issue gift cards as rewards
+- Link gift cards to customer profile
+
+**With Booking Service:**
+- Customer history for reservations
+- VIP recognition and preferences
+
+### Kafka Events
+
+```
+CustomerCreated
+├── CustomerId, Email, Source, CreatedAt
+
+CustomerUpdated
+├── CustomerId, ChangedFields
+
+PointsEarned
+├── CustomerId, ProgramId, Points, OrderId, NewBalance
+
+PointsRedeemed
+├── CustomerId, ProgramId, Points, RewardId, NewBalance
+
+TierChanged
+├── CustomerId, ProgramId, OldTier, NewTier, Reason
+
+RewardIssued
+├── CustomerId, RewardId, Code, ExpiresAt
+
+RewardRedeemed
+├── CustomerId, RewardId, OrderId, LocationId
+
+ReferralCompleted
+├── ReferrerId, RefereeId, BonusPoints
+```
+
+---
+
+## 6. Labor Management Service
+
+A comprehensive workforce management service for scheduling, time tracking, tip distribution, and labor cost optimization.
+
+### Service Overview
+
+| Attribute | Value |
+|-----------|-------|
+| Service Name | Labor.Api |
+| Port | 5017 |
+| Database | labor_db |
+| Dependencies | Auth, Location, Orders, Payments, Reporting |
+
+### Core Entities
+
+```
+Employee
+├── Id (Guid)
+├── TenantId (Guid)
+├── UserId (Guid) - link to Auth service user
+├── EmployeeNumber (string)
+├── FirstName (string)
+├── LastName (string)
+├── Email (string)
+├── Phone (string)
+├── DateOfBirth (Date?)
+├── HireDate (Date)
+├── TerminationDate (Date?)
+├── EmploymentType (FullTime, PartTime, Casual, Contractor)
+├── Status (Active, OnLeave, Terminated)
+├── DefaultLocationId (Guid)
+├── AllowedLocationIds (Guid[])
+├── DefaultRoleId (Guid)
+├── HourlyRate (decimal?)
+├── SalaryAmount (decimal?)
+├── PayFrequency (Weekly, Biweekly, Monthly)
+├── OvertimeRate (decimal) - multiplier, e.g., 1.5
+├── MaxHoursPerWeek (int?)
+├── MinHoursPerWeek (int?)
+├── TaxId (string?) - for payroll
+├── BankDetails (JSON, encrypted)
+└── EmergencyContact (JSON)
+
+Role (Position)
+├── Id (Guid)
+├── TenantId (Guid)
+├── Name (string) - Server, Bartender, Line Cook, Manager
+├── Department (FOH, BOH, Management)
+├── DefaultHourlyRate (decimal?)
+├── Color (string) - for schedule display
+├── SortOrder (int)
+├── RequiredCertifications (string[])
+└── IsActive (bool)
+
+EmployeeRole (many-to-many with custom rates)
+├── Id (Guid)
+├── EmployeeId (Guid)
+├── RoleId (Guid)
+├── HourlyRateOverride (decimal?)
+├── IsPrimary (bool)
+└── CertifiedAt (DateTime?)
+
+Schedule
+├── Id (Guid)
+├── TenantId (Guid)
+├── LocationId (Guid)
+├── WeekStartDate (Date) - always Monday
+├── Status (Draft, Published, Locked)
+├── PublishedAt (DateTime?)
+├── PublishedByUserId (Guid?)
+├── TotalScheduledHours (decimal)
+├── TotalLaborCost (decimal)
+├── Notes (string?)
+└── Metadata (JSON)
+
+Shift
+├── Id (Guid)
+├── ScheduleId (Guid)
+├── EmployeeId (Guid)
+├── RoleId (Guid)
+├── Date (Date)
+├── StartTime (TimeOnly)
+├── EndTime (TimeOnly)
+├── BreakMinutes (int)
+├── ScheduledHours (decimal) - calculated
+├── HourlyRate (decimal) - snapshot
+├── LaborCost (decimal) - calculated
+├── Status (Scheduled, Confirmed, Started, Completed, NoShow, Cancelled)
+├── Notes (string?)
+├── IsOvertime (bool)
+├── SwapRequestId (Guid?) - if result of swap
+└── Metadata (JSON)
+
+TimeEntry (Clock in/out records)
+├── Id (Guid)
+├── TenantId (Guid)
+├── EmployeeId (Guid)
+├── LocationId (Guid)
+├── ShiftId (Guid?) - linked scheduled shift
+├── RoleId (Guid)
+├── ClockInAt (DateTime)
+├── ClockOutAt (DateTime?)
+├── ClockInMethod (PIN, QR, Biometric, Manager)
+├── ClockOutMethod (PIN, QR, Biometric, Manager, Auto)
+├── BreakMinutes (int)
+├── ActualHours (decimal) - calculated
+├── RegularHours (decimal)
+├── OvertimeHours (decimal)
+├── HourlyRate (decimal)
+├── OvertimeRate (decimal)
+├── GrossPay (decimal) - calculated
+├── Status (Active, Completed, Adjusted, Disputed)
+├── AdjustedByUserId (Guid?)
+├── AdjustmentReason (string?)
+├── ApprovedByUserId (Guid?)
+├── ApprovedAt (DateTime?)
+└── Notes (string?)
+
+Break
+├── Id (Guid)
+├── TimeEntryId (Guid)
+├── StartAt (DateTime)
+├── EndAt (DateTime?)
+├── Type (Paid, Unpaid, Meal)
+├── DurationMinutes (int) - calculated or manual
+└── AutoDeducted (bool)
+
+ShiftSwapRequest
+├── Id (Guid)
+├── TenantId (Guid)
+├── RequestingEmployeeId (Guid)
+├── RequestingShiftId (Guid)
+├── TargetEmployeeId (Guid?)
+├── TargetShiftId (Guid?) - for swap, null for drop
+├── Type (Swap, Drop, Pickup)
+├── Status (Pending, Approved, Rejected, Cancelled)
+├── RequestedAt (DateTime)
+├── RespondedAt (DateTime?)
+├── ManagerApprovalRequired (bool)
+├── ManagerApprovedByUserId (Guid?)
+├── Reason (string?)
+└── Notes (string?)
+
+TipPool
+├── Id (Guid)
+├── TenantId (Guid)
+├── LocationId (Guid)
+├── Date (Date)
+├── SalesPeriodId (Guid?)
+├── TotalTips (decimal)
+├── DistributionMethod (Equal, Hours, Points, Custom)
+├── Status (Pending, Calculated, Distributed, Locked)
+├── CalculatedAt (DateTime?)
+├── DistributedAt (DateTime?)
+├── DistributedByUserId (Guid?)
+└── Notes (string?)
+
+TipDistribution
+├── Id (Guid)
+├── TipPoolId (Guid)
+├── EmployeeId (Guid)
+├── RoleId (Guid)
+├── HoursWorked (decimal)
+├── PointsEarned (int?) - for point-based systems
+├── TipShare (decimal)
+├── TipPercentage (decimal) - of pool
+├── DeclaredTips (decimal?) - if employee declares
+├── Status (Calculated, Approved, Disputed, Paid)
+└── PaidAt (DateTime?)
+
+TipPoolRule
+├── Id (Guid)
+├── TenantId (Guid)
+├── LocationId (Guid)
+├── RoleId (Guid)
+├── PoolSharePercentage (decimal) - % of role's tips to pool
+├── DistributionWeight (decimal) - for weighted distribution
+├── MinimumHoursToQualify (decimal?)
+└── IsActive (bool)
+
+PayrollPeriod
+├── Id (Guid)
+├── TenantId (Guid)
+├── PeriodStart (Date)
+├── PeriodEnd (Date)
+├── Status (Open, Processing, Approved, Exported, Paid)
+├── TotalRegularHours (decimal)
+├── TotalOvertimeHours (decimal)
+├── TotalGrossPay (decimal)
+├── TotalTips (decimal)
+├── ProcessedAt (DateTime?)
+├── ApprovedByUserId (Guid?)
+├── ExportedAt (DateTime?)
+└── ExportFormat (string?) - ADP, Gusto, Paychex, etc.
+
+PayrollEntry
+├── Id (Guid)
+├── PayrollPeriodId (Guid)
+├── EmployeeId (Guid)
+├── RegularHours (decimal)
+├── OvertimeHours (decimal)
+├── RegularPay (decimal)
+├── OvertimePay (decimal)
+├── TipIncome (decimal)
+├── GrossPay (decimal)
+├── Adjustments (decimal)
+├── AdjustmentNotes (string?)
+└── Status (Pending, Approved, Disputed)
+
+Availability
+├── Id (Guid)
+├── EmployeeId (Guid)
+├── DayOfWeek (int) - 0-6
+├── StartTime (TimeOnly?)
+├── EndTime (TimeOnly?)
+├── IsAvailable (bool)
+├── IsPreferred (bool)
+├── EffectiveFrom (Date)
+├── EffectiveTo (Date?)
+└── Notes (string?)
+
+TimeOffRequest
+├── Id (Guid)
+├── EmployeeId (Guid)
+├── Type (Vacation, Sick, Personal, Bereavement, Other)
+├── StartDate (Date)
+├── EndDate (Date)
+├── TotalDays (decimal)
+├── IsPaid (bool)
+├── Status (Pending, Approved, Rejected, Cancelled)
+├── RequestedAt (DateTime)
+├── ReviewedByUserId (Guid?)
+├── ReviewedAt (DateTime?)
+├── Reason (string?)
+└── Notes (string?)
+```
+
+### API Endpoints
+
+```
+Employee Management
+├── GET    /api/employees                              # List employees
+├── POST   /api/employees                              # Create employee
+├── GET    /api/employees/{id}                         # Get employee
+├── PUT    /api/employees/{id}                         # Update employee
+├── POST   /api/employees/{id}/terminate               # Terminate employee
+├── GET    /api/employees/{id}/roles                   # Employee roles
+├── POST   /api/employees/{id}/roles                   # Assign role
+├── GET    /api/employees/{id}/availability            # Get availability
+└── PUT    /api/employees/{id}/availability            # Update availability
+
+Roles
+├── GET    /api/roles                                  # List roles
+├── POST   /api/roles                                  # Create role
+├── PUT    /api/roles/{id}                             # Update role
+└── GET    /api/roles/{id}/employees                   # Employees in role
+
+Scheduling
+├── GET    /api/schedules                              # List schedules
+├── POST   /api/schedules                              # Create schedule (week)
+├── GET    /api/schedules/{id}                         # Get schedule
+├── POST   /api/schedules/{id}/publish                 # Publish schedule
+├── POST   /api/schedules/{id}/copy                    # Copy to new week
+├── GET    /api/schedules/{id}/shifts                  # List shifts
+├── POST   /api/schedules/{id}/shifts                  # Create shift
+├── PUT    /api/shifts/{id}                            # Update shift
+├── DELETE /api/shifts/{id}                            # Delete shift
+├── POST   /api/schedules/{id}/auto-generate           # Auto-generate shifts
+├── GET    /api/schedules/{id}/labor-forecast          # Labor cost forecast
+└── GET    /api/schedules/{id}/coverage                # Coverage analysis
+
+Shift Swaps
+├── POST   /api/shift-swap-requests                    # Request swap/drop
+├── GET    /api/shift-swap-requests                    # List requests
+├── POST   /api/shift-swap-requests/{id}/approve       # Approve request
+├── POST   /api/shift-swap-requests/{id}/reject        # Reject request
+└── GET    /api/employees/{id}/swap-requests           # Employee's requests
+
+Time Tracking
+├── POST   /api/time-entries/clock-in                  # Clock in
+├── POST   /api/time-entries/clock-out                 # Clock out
+├── GET    /api/time-entries                           # List entries (date range)
+├── GET    /api/time-entries/{id}                      # Get entry
+├── PUT    /api/time-entries/{id}                      # Adjust entry (manager)
+├── POST   /api/time-entries/{id}/approve              # Approve entry
+├── GET    /api/employees/{id}/time-entries            # Employee's entries
+├── GET    /api/employees/{id}/current-shift           # Current clock status
+├── POST   /api/time-entries/{id}/breaks               # Add break
+└── PUT    /api/breaks/{id}                            # Update break
+
+Tips
+├── GET    /api/tip-pools                              # List tip pools
+├── POST   /api/tip-pools                              # Create tip pool
+├── GET    /api/tip-pools/{id}                         # Get pool details
+├── POST   /api/tip-pools/{id}/calculate               # Calculate distribution
+├── POST   /api/tip-pools/{id}/distribute              # Finalize distribution
+├── GET    /api/tip-pools/{id}/distributions           # List distributions
+├── PUT    /api/tip-distributions/{id}                 # Adjust distribution
+├── GET    /api/tip-pool-rules                         # List rules
+├── POST   /api/tip-pool-rules                         # Create rule
+└── GET    /api/employees/{id}/tips                    # Employee tip history
+
+Payroll
+├── GET    /api/payroll-periods                        # List periods
+├── POST   /api/payroll-periods                        # Create period
+├── GET    /api/payroll-periods/{id}                   # Get period
+├── POST   /api/payroll-periods/{id}/process           # Process payroll
+├── POST   /api/payroll-periods/{id}/approve           # Approve payroll
+├── POST   /api/payroll-periods/{id}/export            # Export to payroll provider
+├── GET    /api/payroll-periods/{id}/entries           # List entries
+├── PUT    /api/payroll-entries/{id}                   # Adjust entry
+└── GET    /api/employees/{id}/payroll                 # Employee payroll history
+
+Time Off
+├── GET    /api/time-off-requests                      # List requests
+├── POST   /api/time-off-requests                      # Submit request
+├── GET    /api/time-off-requests/{id}                 # Get request
+├── POST   /api/time-off-requests/{id}/approve         # Approve request
+├── POST   /api/time-off-requests/{id}/reject          # Reject request
+├── GET    /api/employees/{id}/time-off                # Employee's requests
+└── GET    /api/employees/{id}/time-off-balance        # Remaining PTO
+
+Labor Analytics
+├── GET    /api/labor-analytics/costs                  # Labor cost report
+├── GET    /api/labor-analytics/hours                  # Hours summary
+├── GET    /api/labor-analytics/overtime               # Overtime report
+├── GET    /api/labor-analytics/labor-vs-sales         # Labor % of sales
+└── GET    /api/labor-analytics/schedule-adherence     # Actual vs scheduled
+```
+
+### Payroll Integration Exports
+
+| Provider | Format | Region |
+|----------|--------|--------|
+| ADP | CSV/API | US, Global |
+| Gusto | API | US |
+| Paychex | CSV | US |
+| DATEV LODAS | ASCII | Germany |
+| Sage | CSV | UK, EU |
+| Xero Payroll | API | AU, NZ, UK |
+| Generic | CSV/JSON | Any |
+
+### Kafka Events
+
+```
+EmployeeClockIn
+├── EmployeeId, LocationId, ShiftId, ClockInAt, Method
+
+EmployeeClockOut
+├── EmployeeId, TimeEntryId, ClockOutAt, TotalHours
+
+ShiftPublished
+├── ScheduleId, EmployeeId, ShiftId, Date, StartTime, EndTime
+
+ShiftSwapRequested
+├── RequestId, RequestingEmployeeId, TargetEmployeeId, ShiftIds
+
+ShiftSwapApproved
+├── RequestId, ApprovedByUserId
+
+TimeEntryAdjusted
+├── TimeEntryId, AdjustedByUserId, OldHours, NewHours, Reason
+
+TipsDistributed
+├── TipPoolId, LocationId, Date, TotalAmount, EmployeeCount
+
+PayrollProcessed
+├── PayrollPeriodId, TotalEmployees, TotalGrossPay
+
+OvertimeAlert
+├── EmployeeId, CurrentHours, ThresholdHours, WeekOf
+```
+
+### Labor Cost Calculations
+
+```
+Regular Pay = Regular Hours × Hourly Rate
+Overtime Pay = Overtime Hours × Hourly Rate × Overtime Multiplier
+Gross Pay = Regular Pay + Overtime Pay + Tips
+Labor Cost % = Total Labor Cost ÷ Total Sales × 100
+
+Overtime Rules (configurable per location/jurisdiction):
+- US: > 40 hours/week at 1.5x
+- California: > 8 hours/day at 1.5x, > 12 hours/day at 2x
+- EU: Varies by country
+```
+
+---
+
+## 7. Multi-Tenancy Architecture
 
 Transform the existing multi-location design into a true multi-tenant SaaS architecture with proper isolation.
 
@@ -1177,7 +1836,7 @@ public async Task HandleOrderCompleted(OrderCompletedEvent evt)
 
 ---
 
-## 6. Kubernetes-Native Deployment (No API Gateway)
+## 8. Kubernetes-Native Deployment (No API Gateway)
 
 Remove the API Gateway in favor of Kubernetes-native service mesh and ingress.
 
@@ -1560,7 +2219,7 @@ spec:
 
 ---
 
-## 7. Implementation Phases
+## 9. Implementation Phases
 
 ### Phase 1: Foundation (Weeks 1-2)
 
@@ -1657,6 +2316,8 @@ spec:
 | **Fiscalisation** | **5013** | **TSE/KassenSichV compliance** |
 | **Accounting** | **5014** | **Financial records, journals** |
 | **OrdersGateway** | **5015** | **Uber Eats, DoorDash, Deliveroo, etc.** |
+| **Customers** | **5016** | **CRM, loyalty programs, rewards** |
+| **Labor** | **5017** | **Scheduling, timesheets, tip distribution** |
 
 ---
 
