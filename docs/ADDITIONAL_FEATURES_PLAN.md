@@ -9,9 +9,10 @@ This document outlines the implementation plan for additional core features requ
 1. [Gift Cards Service](#1-gift-cards-service)
 2. [Fiscalisation Service](#2-fiscalisation-service)
 3. [Accounting Service](#3-accounting-service)
-4. [Multi-Tenancy Architecture](#4-multi-tenancy-architecture)
-5. [Kubernetes-Native Deployment](#5-kubernetes-native-deployment-no-api-gateway)
-6. [Implementation Phases](#6-implementation-phases)
+4. [Orders Gateway Service](#4-orders-gateway-service)
+5. [Multi-Tenancy Architecture](#5-multi-tenancy-architecture)
+6. [Kubernetes-Native Deployment](#6-kubernetes-native-deployment-no-api-gateway)
+7. [Implementation Phases](#7-implementation-phases)
 
 ---
 
@@ -611,7 +612,371 @@ ReconciliationVarianceDetected
 
 ---
 
-## 4. Multi-Tenancy Architecture
+## 4. Orders Gateway Service
+
+A unified integration hub for receiving orders from third-party delivery platforms and online ordering systems.
+
+### Service Overview
+
+| Attribute | Value |
+|-----------|-------|
+| Service Name | OrdersGateway.Api |
+| Port | 5015 |
+| Database | ordersgateway_db |
+| Dependencies | Orders, Menu, Location, Fiscalisation |
+
+### Supported Platforms
+
+| Platform | Region | Integration Type |
+|----------|--------|------------------|
+| Uber Eats | Global | REST API + Webhooks |
+| DoorDash | US, Canada, Australia | REST API + Webhooks |
+| Deliveroo | UK, EU, Middle East | REST API + Webhooks |
+| Just Eat / Takeaway.com | UK, EU | REST API + Webhooks |
+| Grubhub | US | REST API + Webhooks |
+| Wolt | EU, Middle East | REST API + Webhooks |
+| Glovo | EU, LATAM | REST API + Webhooks |
+| Rappi | LATAM | REST API + Webhooks |
+| Lieferando | Germany, Austria | REST API + Webhooks |
+| Foodpanda | Asia, EU | REST API + Webhooks |
+| Custom/White-label | Any | Generic webhook interface |
+
+### Core Entities
+
+```
+DeliveryPlatform
+├── Id (Guid)
+├── TenantId (Guid)
+├── PlatformType (UberEats, DoorDash, Deliveroo, JustEat, etc.)
+├── Name (string) - display name
+├── Status (Active, Paused, Disconnected)
+├── ApiCredentialsEncrypted (string)
+├── WebhookSecret (string)
+├── MerchantId (string) - platform's ID for this merchant
+├── Settings (JSON)
+│   ├── AutoAcceptOrders (bool)
+│   ├── DefaultPrepTime (int minutes)
+│   ├── BusyModePrepTime (int minutes)
+│   └── AutoSyncMenu (bool)
+├── ConnectedAt (DateTime)
+├── LastSyncAt (DateTime?)
+└── LastOrderAt (DateTime?)
+
+PlatformLocation (many-to-many: Platform ↔ Location)
+├── Id (Guid)
+├── DeliveryPlatformId (Guid)
+├── LocationId (Guid)
+├── PlatformStoreId (string) - platform's ID for this store
+├── IsActive (bool)
+├── MenuMappingId (Guid?) - which menu to sync
+└── OperatingHoursOverride (JSON?)
+
+ExternalOrder
+├── Id (Guid)
+├── TenantId (Guid)
+├── LocationId (Guid)
+├── DeliveryPlatformId (Guid)
+├── PlatformOrderId (string) - ID from the platform
+├── PlatformOrderNumber (string) - display number
+├── InternalOrderId (Guid?) - linked DarkVelocity order
+├── Status (Pending, Accepted, Preparing, Ready, PickedUp, Delivered, Cancelled, Failed)
+├── OrderType (Delivery, Pickup)
+├── PlacedAt (DateTime)
+├── AcceptedAt (DateTime?)
+├── EstimatedPickupAt (DateTime)
+├── ActualPickupAt (DateTime?)
+├── Customer (JSON)
+│   ├── Name (string)
+│   ├── Phone (string, masked)
+│   └── DeliveryAddress (for delivery orders)
+├── Items (JSON) - original platform items
+├── Subtotal (decimal)
+├── DeliveryFee (decimal)
+├── ServiceFee (decimal)
+├── Tax (decimal)
+├── Tip (decimal)
+├── Total (decimal)
+├── Currency (string)
+├── SpecialInstructions (string?)
+├── PlatformRawPayload (string) - full webhook payload
+├── ErrorMessage (string?)
+├── RetryCount (int)
+└── Metadata (JSON)
+
+MenuSync
+├── Id (Guid)
+├── TenantId (Guid)
+├── DeliveryPlatformId (Guid)
+├── LocationId (Guid)
+├── Status (Pending, InProgress, Completed, Failed)
+├── ItemsTotal (int)
+├── ItemsSynced (int)
+├── ItemsFailed (int)
+├── StartedAt (DateTime)
+├── CompletedAt (DateTime?)
+├── ErrorLog (JSON)
+└── TriggeredBy (Manual, Scheduled, MenuChange)
+
+MenuItemMapping
+├── Id (Guid)
+├── TenantId (Guid)
+├── DeliveryPlatformId (Guid)
+├── InternalMenuItemId (Guid)
+├── PlatformItemId (string)
+├── PlatformCategoryId (string)
+├── PriceOverride (decimal?) - different price for platform
+├── IsAvailable (bool)
+├── ModifierMappings (JSON)
+└── LastSyncedAt (DateTime)
+
+PlatformPayout
+├── Id (Guid)
+├── TenantId (Guid)
+├── DeliveryPlatformId (Guid)
+├── LocationId (Guid)
+├── PayoutReference (string)
+├── PeriodStart (Date)
+├── PeriodEnd (Date)
+├── GrossAmount (decimal)
+├── Commissions (decimal)
+├── Fees (decimal)
+├── Adjustments (decimal)
+├── NetAmount (decimal)
+├── Currency (string)
+├── Status (Pending, Reconciled, Disputed)
+├── ReceivedAt (DateTime)
+└── OrderIds (Guid[])
+```
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     Third-Party Delivery Platforms                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Uber Eats  │  DoorDash  │  Deliveroo  │  Just Eat  │  Wolt  │  ...    │
+└──────┬──────┴─────┬──────┴──────┬──────┴─────┬──────┴───┬────┴─────────┘
+       │            │             │            │          │
+       │  Webhooks (order events) │            │          │
+       ▼            ▼             ▼            ▼          ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        Orders Gateway Service                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐        │
+│  │ Uber Eats  │  │ DoorDash   │  │ Deliveroo  │  │ Just Eat   │  ...   │
+│  │  Adapter   │  │  Adapter   │  │  Adapter   │  │  Adapter   │        │
+│  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘        │
+│        └───────────────┴───────────────┴───────────────┘                │
+│                                │                                         │
+│                    ┌───────────▼───────────┐                            │
+│                    │   Order Normalizer    │                            │
+│                    │  (Common Order Model) │                            │
+│                    └───────────┬───────────┘                            │
+│                                │                                         │
+│        ┌───────────────────────┼───────────────────────┐                │
+│        ▼                       ▼                       ▼                │
+│  ┌───────────┐          ┌───────────┐          ┌───────────┐           │
+│  │ Auto-     │          │ Menu      │          │ Payout    │           │
+│  │ Accept    │          │ Sync      │          │ Reconcile │           │
+│  │ Engine    │          │ Engine    │          │ Engine    │           │
+│  └─────┬─────┘          └─────┬─────┘          └───────────┘           │
+└────────┼──────────────────────┼─────────────────────────────────────────┘
+         │                      │
+         ▼                      ▼
+┌─────────────────┐    ┌─────────────────┐
+│  Orders Service │    │   Menu Service  │
+│ (Internal POS)  │    │                 │
+└────────┬────────┘    └─────────────────┘
+         │
+         ▼
+┌─────────────────┐    ┌─────────────────┐
+│ Fiscalisation   │    │   Accounting    │
+│    Service      │    │    Service      │
+└─────────────────┘    └─────────────────┘
+```
+
+### API Endpoints
+
+```
+Platform Management
+├── GET    /api/delivery-platforms                    # List connected platforms
+├── POST   /api/delivery-platforms                    # Connect new platform
+├── GET    /api/delivery-platforms/{id}               # Get platform details
+├── PUT    /api/delivery-platforms/{id}               # Update settings
+├── POST   /api/delivery-platforms/{id}/pause         # Pause receiving orders
+├── POST   /api/delivery-platforms/{id}/resume        # Resume receiving orders
+├── POST   /api/delivery-platforms/{id}/disconnect    # Disconnect platform
+├── GET    /api/delivery-platforms/{id}/status        # Connection health
+└── POST   /api/delivery-platforms/{id}/test          # Test connection
+
+Platform-Location Mapping
+├── GET    /api/delivery-platforms/{id}/locations     # List location mappings
+├── POST   /api/delivery-platforms/{id}/locations     # Map location
+├── PUT    /api/platform-locations/{id}               # Update mapping
+└── DELETE /api/platform-locations/{id}               # Remove mapping
+
+External Orders
+├── GET    /api/external-orders                       # List orders (filtered)
+├── GET    /api/external-orders/{id}                  # Get order details
+├── POST   /api/external-orders/{id}/accept           # Accept order
+├── POST   /api/external-orders/{id}/reject           # Reject order
+├── POST   /api/external-orders/{id}/ready            # Mark ready for pickup
+├── POST   /api/external-orders/{id}/cancel           # Cancel order
+├── POST   /api/external-orders/{id}/adjust-time      # Update prep time
+├── GET    /api/external-orders/{id}/tracking         # Get delivery tracking
+└── GET    /api/locations/{locId}/external-orders     # Orders by location
+
+Webhooks (Inbound from Platforms)
+├── POST   /webhooks/ubereats                         # Uber Eats events
+├── POST   /webhooks/doordash                         # DoorDash events
+├── POST   /webhooks/deliveroo                        # Deliveroo events
+├── POST   /webhooks/justeat                          # Just Eat events
+├── POST   /webhooks/wolt                             # Wolt events
+├── POST   /webhooks/generic                          # Generic/custom platforms
+└── GET    /webhooks/{platform}/verify                # Webhook verification
+
+Menu Sync
+├── POST   /api/delivery-platforms/{id}/menu-sync     # Trigger menu sync
+├── GET    /api/menu-syncs/{id}                       # Get sync status
+├── GET    /api/delivery-platforms/{id}/menu-syncs    # Sync history
+├── GET    /api/menu-mappings                         # List all mappings
+├── PUT    /api/menu-mappings/{id}                    # Update item mapping
+└── POST   /api/menu-mappings/bulk                    # Bulk update mappings
+
+Payouts & Reconciliation
+├── GET    /api/platform-payouts                      # List payouts
+├── GET    /api/platform-payouts/{id}                 # Payout details
+├── POST   /api/platform-payouts/{id}/reconcile       # Mark reconciled
+└── GET    /api/platform-payouts/pending              # Pending reconciliation
+
+Analytics
+├── GET    /api/delivery-analytics/summary            # Platform performance
+├── GET    /api/delivery-analytics/by-platform        # Breakdown by platform
+├── GET    /api/delivery-analytics/revenue            # Revenue by platform
+└── GET    /api/delivery-analytics/prep-times         # Prep time metrics
+```
+
+### Order Flow
+
+```
+1. Platform sends webhook
+   └── POST /webhooks/ubereats { order_id: "UE-12345", items: [...] }
+
+2. Adapter normalizes order
+   └── Convert Uber Eats format → Common ExternalOrder model
+
+3. Order stored & event published
+   └── ExternalOrderReceived event to Kafka
+
+4. Auto-accept (if enabled)
+   ├── Check location is open
+   ├── Check menu items available
+   ├── Calculate prep time
+   └── Call platform API to accept
+
+5. Create internal order
+   ├── Map external items → internal menu items
+   ├── Create Order in Orders service
+   └── Link ExternalOrder.InternalOrderId
+
+6. Kitchen receives order
+   ├── Order appears on KDS
+   └── SignalR push to POS devices
+
+7. Order marked ready
+   ├── Staff marks ready in POS
+   ├── Orders Gateway notifies platform
+   └── Driver dispatched
+
+8. Order picked up
+   ├── Platform confirms pickup
+   └── ExternalOrder status → PickedUp
+
+9. Fiscalisation
+   └── Transaction signed when order paid/completed
+```
+
+### Platform Adapter Interface
+
+```csharp
+public interface IDeliveryPlatformAdapter
+{
+    string PlatformType { get; }
+
+    // Connection
+    Task<ConnectionResult> ConnectAsync(PlatformCredentials credentials);
+    Task<bool> TestConnectionAsync();
+    Task DisconnectAsync();
+
+    // Orders
+    Task<ExternalOrder> ParseWebhookAsync(string payload, string signature);
+    Task AcceptOrderAsync(string platformOrderId, int prepTimeMinutes);
+    Task RejectOrderAsync(string platformOrderId, string reason);
+    Task MarkReadyAsync(string platformOrderId);
+    Task CancelOrderAsync(string platformOrderId, string reason);
+    Task UpdatePrepTimeAsync(string platformOrderId, int newPrepTimeMinutes);
+
+    // Menu
+    Task<MenuSyncResult> SyncMenuAsync(IEnumerable<MenuItemDto> items);
+    Task UpdateItemAvailabilityAsync(string platformItemId, bool available);
+    Task UpdateItemPriceAsync(string platformItemId, decimal price);
+
+    // Store
+    Task SetStoreStatusAsync(bool isOpen);
+    Task SetBusyModeAsync(bool isBusy, int? additionalPrepMinutes);
+}
+```
+
+### Kafka Events
+
+```
+ExternalOrderReceived
+├── ExternalOrderId, PlatformType, PlatformOrderId, LocationId, Total
+
+ExternalOrderAccepted
+├── ExternalOrderId, InternalOrderId, EstimatedPickupAt
+
+ExternalOrderRejected
+├── ExternalOrderId, Reason
+
+ExternalOrderReady
+├── ExternalOrderId, InternalOrderId, ReadyAt
+
+ExternalOrderPickedUp
+├── ExternalOrderId, PickedUpAt, DriverName
+
+ExternalOrderCancelled
+├── ExternalOrderId, CancelledBy (Platform/Merchant/Customer), Reason
+
+MenuSyncCompleted
+├── PlatformId, LocationId, ItemsSynced, ItemsFailed
+
+PlatformConnectionChanged
+├── PlatformId, OldStatus, NewStatus, Reason
+```
+
+### Error Handling & Resilience
+
+**Webhook Processing:**
+- Idempotent processing using PlatformOrderId
+- Store raw payload for debugging
+- Retry failed order creation with exponential backoff
+- Dead-letter queue for permanently failed orders
+
+**Platform API Calls:**
+- Circuit breaker per platform
+- Retry with exponential backoff
+- Fallback to queue if platform unavailable
+- Alert on repeated failures
+
+**Menu Sync:**
+- Incremental sync (only changed items)
+- Rollback on partial failure
+- Scheduled re-sync (nightly)
+
+---
+
+## 5. Multi-Tenancy Architecture
 
 Transform the existing multi-location design into a true multi-tenant SaaS architecture with proper isolation.
 
@@ -812,7 +1177,7 @@ public async Task HandleOrderCompleted(OrderCompletedEvent evt)
 
 ---
 
-## 5. Kubernetes-Native Deployment (No API Gateway)
+## 6. Kubernetes-Native Deployment (No API Gateway)
 
 Remove the API Gateway in favor of Kubernetes-native service mesh and ingress.
 
@@ -1195,7 +1560,7 @@ spec:
 
 ---
 
-## 6. Implementation Phases
+## 7. Implementation Phases
 
 ### Phase 1: Foundation (Weeks 1-2)
 
@@ -1246,7 +1611,22 @@ spec:
 - [ ] Add DATEV export (Germany)
 - [ ] Write integration tests
 
-### Phase 5: Integration & Polish (Weeks 11-12)
+### Phase 5: Orders Gateway (Weeks 11-13)
+
+- [ ] Create OrdersGateway.Api service
+- [ ] Implement platform adapter interface
+- [ ] Build Uber Eats adapter
+- [ ] Build DoorDash adapter
+- [ ] Build Deliveroo adapter
+- [ ] Build Just Eat adapter
+- [ ] Implement webhook receivers with signature verification
+- [ ] Create order normalization pipeline
+- [ ] Add auto-accept engine with availability checks
+- [ ] Implement menu sync to platforms
+- [ ] Add payout reconciliation
+- [ ] Write integration tests with mock platforms
+
+### Phase 6: Integration & Polish (Weeks 14-16)
 
 - [ ] End-to-end testing across all services
 - [ ] Performance testing and optimization
@@ -1276,12 +1656,24 @@ spec:
 | **GiftCards** | **5012** | **Gift card management** |
 | **Fiscalisation** | **5013** | **TSE/KassenSichV compliance** |
 | **Accounting** | **5014** | **Financial records, journals** |
+| **OrdersGateway** | **5015** | **Uber Eats, DoorDash, Deliveroo, etc.** |
 
 ---
 
 ## Dependencies Diagram
 
 ```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     Third-Party Delivery Platforms                       │
+│            (Uber Eats, DoorDash, Deliveroo, Just Eat, etc.)             │
+└────────────────────────────────┬────────────────────────────────────────┘
+                                 │ Webhooks
+                                 ▼
+                        ┌─────────────────┐
+                        │ Orders Gateway  │
+                        │    Service      │
+                        └────────┬────────┘
+                                 │
                            ┌──────────────┐
                            │    Auth      │
                            │   Service    │
