@@ -1,7 +1,9 @@
 using DarkVelocity.Customers.Api.Data;
 using DarkVelocity.Customers.Api.Dtos;
 using DarkVelocity.Customers.Api.Entities;
+using DarkVelocity.Shared.Contracts.Events;
 using DarkVelocity.Shared.Contracts.Hal;
+using DarkVelocity.Shared.Infrastructure.Events;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,13 +14,15 @@ namespace DarkVelocity.Customers.Api.Controllers;
 public class CustomerLoyaltyController : ControllerBase
 {
     private readonly CustomersDbContext _context;
+    private readonly IEventBus _eventBus;
 
     private Guid TenantId => Guid.Parse(Request.Headers["X-Tenant-Id"].FirstOrDefault()
         ?? "00000000-0000-0000-0000-000000000001");
 
-    public CustomerLoyaltyController(CustomersDbContext context)
+    public CustomerLoyaltyController(CustomersDbContext context, IEventBus eventBus)
     {
         _context = context;
+        _eventBus = eventBus;
     }
 
     [HttpGet]
@@ -144,6 +148,14 @@ public class CustomerLoyaltyController : ControllerBase
         await _context.Entry(loyalty).Reference(l => l.Program).LoadAsync();
         await _context.Entry(loyalty).Reference(l => l.CurrentTier).LoadAsync();
 
+        await _eventBus.PublishAsync(new CustomerEnrolledInLoyalty(
+            CustomerId: customerId,
+            TenantId: customer.TenantId,
+            ProgramId: program.Id,
+            ProgramName: program.Name,
+            WelcomeBonus: program.WelcomeBonus ?? 0
+        ));
+
         var dto = MapToDto(loyalty, customerId);
         dto.AddSelfLink($"/api/customers/{customerId}/loyalty/{request.ProgramId}");
 
@@ -257,6 +269,7 @@ public class CustomerLoyaltyController : ControllerBase
         var program = loyalty.Program!;
         var multiplier = loyalty.CurrentTier?.PointsMultiplier ?? 1.0m;
         var pointsToEarn = (int)(request.Points * multiplier);
+        var oldTierName = loyalty.CurrentTier?.Name;
 
         var transaction = new PointsTransaction
         {
@@ -280,6 +293,7 @@ public class CustomerLoyaltyController : ControllerBase
         loyalty.LastActivityAt = DateTime.UtcNow;
 
         // Check for tier upgrade
+        var tierChanged = false;
         var newTier = program.Tiers
             .Where(t => t.MinimumPoints <= loyalty.LifetimePoints)
             .OrderByDescending(t => t.MinimumPoints)
@@ -288,6 +302,7 @@ public class CustomerLoyaltyController : ControllerBase
         if (newTier != null && newTier.Id != loyalty.CurrentTierId)
         {
             loyalty.CurrentTierId = newTier.Id;
+            tierChanged = true;
         }
 
         _context.PointsTransactions.Add(transaction);
@@ -295,6 +310,30 @@ public class CustomerLoyaltyController : ControllerBase
 
         // Reload tier
         await _context.Entry(loyalty).Reference(l => l.CurrentTier).LoadAsync();
+
+        // Publish PointsEarned event
+        await _eventBus.PublishAsync(new PointsEarned(
+            CustomerId: customerId,
+            TenantId: customer.TenantId,
+            ProgramId: loyalty.ProgramId,
+            Points: pointsToEarn,
+            NewBalance: loyalty.CurrentPoints,
+            OrderId: request.OrderId,
+            LocationId: request.LocationId
+        ));
+
+        // Publish TierChanged event if tier was upgraded
+        if (tierChanged && newTier != null)
+        {
+            await _eventBus.PublishAsync(new TierChanged(
+                CustomerId: customerId,
+                TenantId: customer.TenantId,
+                ProgramId: loyalty.ProgramId,
+                OldTierName: oldTierName,
+                NewTierName: newTier.Name,
+                Reason: "Points threshold reached"
+            ));
+        }
 
         var dto = MapToDto(loyalty, customerId);
         dto.AddSelfLink($"/api/customers/{customerId}/loyalty/{loyalty.ProgramId}");
@@ -342,6 +381,15 @@ public class CustomerLoyaltyController : ControllerBase
 
         _context.PointsTransactions.Add(transaction);
         await _context.SaveChangesAsync();
+
+        await _eventBus.PublishAsync(new PointsRedeemed(
+            CustomerId: customerId,
+            TenantId: customer.TenantId,
+            ProgramId: loyalty.ProgramId,
+            Points: request.Points,
+            NewBalance: loyalty.CurrentPoints,
+            RewardId: null
+        ));
 
         var dto = MapToDto(loyalty, customerId);
         dto.AddSelfLink($"/api/customers/{customerId}/loyalty/{loyalty.ProgramId}");

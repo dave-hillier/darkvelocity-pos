@@ -1,7 +1,9 @@
 using DarkVelocity.Customers.Api.Data;
 using DarkVelocity.Customers.Api.Dtos;
 using DarkVelocity.Customers.Api.Entities;
+using DarkVelocity.Shared.Contracts.Events;
 using DarkVelocity.Shared.Contracts.Hal;
+using DarkVelocity.Shared.Infrastructure.Events;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,14 +14,16 @@ namespace DarkVelocity.Customers.Api.Controllers;
 public class CustomersController : ControllerBase
 {
     private readonly CustomersDbContext _context;
+    private readonly IEventBus _eventBus;
 
     // In a real implementation, this would come from the authenticated user's JWT claims
     private Guid TenantId => Guid.Parse(Request.Headers["X-Tenant-Id"].FirstOrDefault()
         ?? "00000000-0000-0000-0000-000000000001");
 
-    public CustomersController(CustomersDbContext context)
+    public CustomersController(CustomersDbContext context, IEventBus eventBus)
     {
         _context = context;
+        _eventBus = eventBus;
     }
 
     [HttpGet]
@@ -131,6 +135,15 @@ public class CustomersController : ControllerBase
         _context.Customers.Add(customer);
         await _context.SaveChangesAsync();
 
+        await _eventBus.PublishAsync(new CustomerCreated(
+            CustomerId: customer.Id,
+            TenantId: customer.TenantId,
+            Email: customer.Email,
+            FirstName: customer.FirstName,
+            LastName: customer.LastName,
+            Source: customer.Source
+        ));
+
         var dto = MapToDto(customer);
         dto.AddSelfLink($"/api/customers/{customer.Id}");
 
@@ -147,6 +160,8 @@ public class CustomersController : ControllerBase
         if (customer == null)
             return NotFound();
 
+        var changedFields = new List<string>();
+
         if (request.Email != null)
         {
             // Check if email is being changed to one that already exists
@@ -156,22 +171,32 @@ public class CustomersController : ControllerBase
             if (existing != null)
                 return Conflict(new { message = "A customer with this email already exists" });
 
+            if (customer.Email != request.Email) changedFields.Add("Email");
             customer.Email = request.Email;
         }
 
-        if (request.Phone != null) customer.Phone = request.Phone;
-        if (request.FirstName != null) customer.FirstName = request.FirstName;
-        if (request.LastName != null) customer.LastName = request.LastName;
-        if (request.DateOfBirth.HasValue) customer.DateOfBirth = request.DateOfBirth.Value;
-        if (request.Gender != null) customer.Gender = request.Gender;
-        if (request.PreferredLanguage != null) customer.PreferredLanguage = request.PreferredLanguage;
-        if (request.MarketingOptIn.HasValue) customer.MarketingOptIn = request.MarketingOptIn.Value;
-        if (request.SmsOptIn.HasValue) customer.SmsOptIn = request.SmsOptIn.Value;
-        if (request.Tags != null) customer.Tags = request.Tags;
-        if (request.Notes != null) customer.Notes = request.Notes;
-        if (request.DefaultLocationId.HasValue) customer.DefaultLocationId = request.DefaultLocationId.Value;
+        if (request.Phone != null && customer.Phone != request.Phone) { changedFields.Add("Phone"); customer.Phone = request.Phone; }
+        if (request.FirstName != null && customer.FirstName != request.FirstName) { changedFields.Add("FirstName"); customer.FirstName = request.FirstName; }
+        if (request.LastName != null && customer.LastName != request.LastName) { changedFields.Add("LastName"); customer.LastName = request.LastName; }
+        if (request.DateOfBirth.HasValue && customer.DateOfBirth != request.DateOfBirth.Value) { changedFields.Add("DateOfBirth"); customer.DateOfBirth = request.DateOfBirth.Value; }
+        if (request.Gender != null && customer.Gender != request.Gender) { changedFields.Add("Gender"); customer.Gender = request.Gender; }
+        if (request.PreferredLanguage != null && customer.PreferredLanguage != request.PreferredLanguage) { changedFields.Add("PreferredLanguage"); customer.PreferredLanguage = request.PreferredLanguage; }
+        if (request.MarketingOptIn.HasValue && customer.MarketingOptIn != request.MarketingOptIn.Value) { changedFields.Add("MarketingOptIn"); customer.MarketingOptIn = request.MarketingOptIn.Value; }
+        if (request.SmsOptIn.HasValue && customer.SmsOptIn != request.SmsOptIn.Value) { changedFields.Add("SmsOptIn"); customer.SmsOptIn = request.SmsOptIn.Value; }
+        if (request.Tags != null) { changedFields.Add("Tags"); customer.Tags = request.Tags; }
+        if (request.Notes != null && customer.Notes != request.Notes) { changedFields.Add("Notes"); customer.Notes = request.Notes; }
+        if (request.DefaultLocationId.HasValue && customer.DefaultLocationId != request.DefaultLocationId.Value) { changedFields.Add("DefaultLocationId"); customer.DefaultLocationId = request.DefaultLocationId.Value; }
 
         await _context.SaveChangesAsync();
+
+        if (changedFields.Count > 0)
+        {
+            await _eventBus.PublishAsync(new CustomerUpdated(
+                CustomerId: customer.Id,
+                TenantId: customer.TenantId,
+                ChangedFields: changedFields
+            ));
+        }
 
         var dto = MapToDto(customer);
         dto.AddSelfLink($"/api/customers/{customer.Id}");
@@ -188,10 +213,17 @@ public class CustomersController : ControllerBase
         if (customer == null)
             return NotFound();
 
+        var tenantId = customer.TenantId;
+
         // Soft delete
         customer.IsDeleted = true;
         customer.DeletedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
+
+        await _eventBus.PublishAsync(new CustomerDeleted(
+            CustomerId: id,
+            TenantId: tenantId
+        ));
 
         return NoContent();
     }
