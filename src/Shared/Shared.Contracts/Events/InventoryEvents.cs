@@ -66,3 +66,15 @@ public sealed record RecipeCostRecalculated(
 {
     public override string EventType => "inventory.recipe.cost_recalculated";
 }
+
+public sealed record LowStockAlert(
+    Guid IngredientId,
+    string IngredientName,
+    Guid LocationId,
+    decimal CurrentStock,
+    decimal ReorderLevel,
+    decimal ReorderQuantity
+) : IntegrationEvent
+{
+    public override string EventType => "inventory.stock.low_stock_alert";
+}
