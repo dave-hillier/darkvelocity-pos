@@ -24,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Tests.Shared\DarkVelocity.Tests.Shared.csproj" />
     <ProjectReference Include="..\..\src\Services\Accounting\Accounting.Api\DarkVelocity.Accounting.Api.csproj" />
+    <ProjectReference Include="..\..\src\Shared\Shared.Infrastructure\DarkVelocity.Shared.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
