@@ -303,7 +303,7 @@ From Requested/Confirmed:
 
 | Event | Description | Key Data | Triggered By |
 |-------|-------------|----------|--------------|
-| `DepositRequired` | Deposit needed | BookingId, Amount, DueBy | RequireDeposit |
+| `DepositRequirementSet` | Deposit needed | BookingId, Amount, DueBy | RequireDeposit |
 | `DepositPaid` | Deposit received | BookingId, Amount, PaymentRef | RecordDepositPayment |
 | `DepositForfeited` | Deposit kept | BookingId, Amount, Reason | ForfeitDeposit |
 | `DepositRefunded` | Deposit returned | BookingId, Amount, Reason | RefundDeposit |
@@ -870,7 +870,7 @@ public static class BookingEventTypes
     public const string GuestNoteAdded = "bookings.booking.guest_note_added";
 
     // Deposits
-    public const string DepositRequired = "bookings.deposit.required";
+    public const string DepositRequirementSet = "bookings.deposit.requirement_set";
     public const string DepositPaid = "bookings.deposit.paid";
     public const string DepositForfeited = "bookings.deposit.forfeited";
     public const string DepositRefunded = "bookings.deposit.refunded";

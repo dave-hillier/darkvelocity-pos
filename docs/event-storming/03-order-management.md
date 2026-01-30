@@ -312,7 +312,7 @@ From Settled:
 | `CourseFired` | Course sent | OrderId, CourseNumber, LineIds, FiredAt | FireCourse |
 | `OrderHeld` | Delayed firing | OrderId, HoldUntil, HeldBy | HoldOrder |
 | `OrderRushed` | Priority elevated | OrderId, RushedBy | RushOrder |
-| `KitchenRecall` | Items pulled back | OrderId, LineIds, RecalledBy, Reason | RecallFromKitchen |
+| `OrderRecalledFromKitchen` | Items pulled back | OrderId, LineIds, RecalledBy, Reason | RecallFromKitchen |
 
 ### Transfer Events
 
@@ -906,7 +906,7 @@ public static class OrderEventTypes
     public const string CourseFired = "orders.kitchen.course_fired";
     public const string OrderHeld = "orders.kitchen.held";
     public const string OrderRushed = "orders.kitchen.rushed";
-    public const string KitchenRecall = "orders.kitchen.recall";
+    public const string OrderRecalledFromKitchen = "orders.kitchen.recalled";
 
     // Transfers
     public const string OrderTransferredToTable = "orders.transfer.to_table";

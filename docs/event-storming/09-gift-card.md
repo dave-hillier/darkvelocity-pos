@@ -233,7 +233,7 @@ From Active or Depleted (after expiry date):
 | Event | Description | Key Data | Triggered By |
 |-------|-------------|----------|--------------|
 | `SuspiciousActivityDetected` | Unusual pattern | CardId, ActivityType, Details | System |
-| `InvalidPinAttempt` | Wrong PIN entered | CardId, AttemptCount, Location | CheckBalance/Redeem |
+| `InvalidPinAttempted` | Wrong PIN entered | CardId, AttemptCount, Location | CheckBalance/Redeem |
 | `CardReportedLost` | Customer report | CardId, ReportedBy | Customer service |
 | `CardReportedStolen` | Theft report | CardId, ReportedBy | Customer service |
 
@@ -575,7 +575,7 @@ public static class GiftCardEventTypes
 
     // Fraud
     public const string SuspiciousActivityDetected = "giftcards.fraud.suspicious_activity";
-    public const string InvalidPinAttempt = "giftcards.fraud.invalid_pin";
+    public const string InvalidPinAttempted = "giftcards.fraud.invalid_pin_attempted";
     public const string CardReportedLost = "giftcards.fraud.reported_lost";
     public const string CardReportedStolen = "giftcards.fraud.reported_stolen";
 }

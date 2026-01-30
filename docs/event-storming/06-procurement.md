@@ -389,7 +389,7 @@ From any state except Closed:                    │
 | `InvoiceMatchedToDelivery` | Linked to delivery | InvoiceId, DeliveryId | MatchToDelivery |
 | `InvoiceMatchedToPO` | Linked to PO | InvoiceId, POId | MatchToPurchaseOrder |
 | `ThreeWayMatchCompleted` | Match performed | InvoiceId, POId, DeliveryId, MatchResult | PerformThreeWayMatch |
-| `InvoiceMatchDiscrepancy` | Match issue found | InvoiceId, DiscrepancyType, Details | PerformThreeWayMatch |
+| `InvoiceMatchDiscrepancyDetected` | Match issue found | InvoiceId, DiscrepancyType, Details | PerformThreeWayMatch |
 | `InvoiceApproved` | Approved for payment | InvoiceId, ApprovedBy | ApproveInvoice |
 | `InvoiceDisputed` | Discrepancy raised | InvoiceId, DisputeReason, Details | DisputeInvoice |
 | `InvoicePaid` | Payment recorded | InvoiceId, PaidAmount, PaymentRef | RecordPayment |
@@ -940,7 +940,7 @@ public static class ProcurementEventTypes
     public const string InvoiceMatchedToDelivery = "procurement.invoice.matched_to_delivery";
     public const string InvoiceMatchedToPO = "procurement.invoice.matched_to_po";
     public const string ThreeWayMatchCompleted = "procurement.invoice.three_way_match";
-    public const string InvoiceMatchDiscrepancy = "procurement.invoice.match_discrepancy";
+    public const string InvoiceMatchDiscrepancyDetected = "procurement.invoice.match_discrepancy_detected";
     public const string InvoiceApproved = "procurement.invoice.approved";
     public const string InvoiceDisputed = "procurement.invoice.disputed";
     public const string InvoicePaid = "procurement.invoice.paid";

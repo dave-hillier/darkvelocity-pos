@@ -237,7 +237,7 @@ From any state:
 | `CourseFired` | Course started | OrderId, CourseNumber, TicketIds | FireCourse |
 | `CourseHeld` | Course delayed | OrderId, CourseNumber, Reason | HoldFire |
 | `AllDayRequested` | All-day count | StationId, ItemId, Count | RequestAllDay |
-| `StationBehind` | Falling behind alert | StationId, TicketCount, OldestAge | MarkBehind |
+| `StationFellBehind` | Falling behind alert | StationId, TicketCount, OldestAge | MarkBehind |
 | `AssistanceRequested` | Help needed | StationId, RequestedBy | RequestAssistance |
 | `CookAssigned` | Cook assigned | TicketId, CookId | AssignCookToTicket |
 
@@ -377,7 +377,7 @@ public record TicketBumped : DomainEvent
 | Record Metrics | Log ticket time | Reporting |
 | Notify Server | Alert for pickup | Notifications |
 
-### When StationBehind
+### When StationFellBehind
 
 | Policy | Reaction | Target Domain |
 |--------|----------|---------------|
@@ -585,7 +585,7 @@ public static class KitchenEventTypes
     public const string CourseFired = "kitchen.coordination.course_fired";
     public const string CourseHeld = "kitchen.coordination.course_held";
     public const string AllDayRequested = "kitchen.coordination.all_day_requested";
-    public const string StationBehind = "kitchen.coordination.station_behind";
+    public const string StationFellBehind = "kitchen.coordination.station_fell_behind";
     public const string AssistanceRequested = "kitchen.coordination.assistance_requested";
     public const string CookAssigned = "kitchen.coordination.cook_assigned";
 
