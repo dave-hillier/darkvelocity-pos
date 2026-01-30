@@ -1,5 +1,6 @@
 using DarkVelocity.Accounting.Api.Data;
 using DarkVelocity.Accounting.Api.Entities;
+using DarkVelocity.Shared.Infrastructure.Events;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -186,5 +187,16 @@ public class AccountingApiFixture : WebApplicationFactory<Program>, IAsyncLifeti
     {
         var scope = Services.CreateScope();
         return scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+    }
+
+    public InMemoryEventBus GetEventBus()
+    {
+        var scope = Services.CreateScope();
+        return (InMemoryEventBus)scope.ServiceProvider.GetRequiredService<IEventBus>();
+    }
+
+    public void ClearEventLog()
+    {
+        GetEventBus().ClearEventLog();
     }
 }
