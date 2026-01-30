@@ -2,7 +2,9 @@ using DarkVelocity.Orders.Api.Data;
 using DarkVelocity.Orders.Api.Dtos;
 using DarkVelocity.Orders.Api.Entities;
 using DarkVelocity.Orders.Api.Services;
+using DarkVelocity.Shared.Contracts.Events;
 using DarkVelocity.Shared.Contracts.Hal;
+using DarkVelocity.Shared.Infrastructure.Events;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,11 +16,13 @@ public class OrdersController : ControllerBase
 {
     private readonly OrdersDbContext _context;
     private readonly IOrderNumberGenerator _orderNumberGenerator;
+    private readonly IEventBus _eventBus;
 
-    public OrdersController(OrdersDbContext context, IOrderNumberGenerator orderNumberGenerator)
+    public OrdersController(OrdersDbContext context, IOrderNumberGenerator orderNumberGenerator, IEventBus eventBus)
     {
         _context = context;
         _orderNumberGenerator = orderNumberGenerator;
+        _eventBus = eventBus;
     }
 
     [HttpGet]
@@ -96,6 +100,14 @@ public class OrdersController : ControllerBase
         _context.Orders.Add(order);
         await _context.SaveChangesAsync();
 
+        await _eventBus.PublishAsync(new OrderCreated(
+            OrderId: order.Id,
+            LocationId: order.LocationId,
+            UserId: order.UserId,
+            OrderNumber: order.OrderNumber,
+            OrderType: order.OrderType
+        ));
+
         var dto = MapToDto(order);
         dto.AddSelfLink($"/api/locations/{locationId}/orders/{order.Id}");
 
@@ -133,6 +145,16 @@ public class OrdersController : ControllerBase
 
         _context.OrderLines.Add(line);
         await _context.SaveChangesAsync();
+
+        await _eventBus.PublishAsync(new OrderLineAdded(
+            OrderId: id,
+            LineId: line.Id,
+            MenuItemId: line.MenuItemId,
+            ItemName: line.ItemName,
+            Quantity: line.Quantity,
+            UnitPrice: line.UnitPrice,
+            LineTotal: line.LineTotal
+        ));
 
         // Reload order with lines for recalculation
         await _context.Entry(order).Collection(o => o.Lines).LoadAsync();
@@ -243,6 +265,11 @@ public class OrdersController : ControllerBase
         RecalculateTotals(order);
         await _context.SaveChangesAsync();
 
+        await _eventBus.PublishAsync(new OrderLineRemoved(
+            OrderId: orderId,
+            LineId: lineId
+        ));
+
         return NoContent();
     }
 
@@ -292,6 +319,23 @@ public class OrdersController : ControllerBase
         order.CompletedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
+        var lines = order.Lines.Where(l => !l.IsVoided).Select(l => new OrderLineSnapshot(
+            LineId: l.Id,
+            MenuItemId: l.MenuItemId,
+            ItemName: l.ItemName,
+            Quantity: l.Quantity,
+            UnitPrice: l.UnitPrice,
+            LineTotal: l.LineTotal
+        )).ToList();
+
+        await _eventBus.PublishAsync(new OrderCompleted(
+            OrderId: order.Id,
+            LocationId: order.LocationId,
+            OrderNumber: order.OrderNumber,
+            GrandTotal: order.GrandTotal,
+            Lines: lines
+        ));
+
         var dto = MapToDto(order);
         dto.AddSelfLink($"/api/locations/{locationId}/orders/{order.Id}");
 
@@ -316,6 +360,12 @@ public class OrdersController : ControllerBase
         order.VoidedByUserId = request.UserId;
         order.VoidReason = request.Reason;
         await _context.SaveChangesAsync();
+
+        await _eventBus.PublishAsync(new OrderVoided(
+            OrderId: order.Id,
+            UserId: request.UserId,
+            Reason: request.Reason
+        ));
 
         var dto = MapToDto(order);
         dto.AddSelfLink($"/api/locations/{locationId}/orders/{order.Id}");

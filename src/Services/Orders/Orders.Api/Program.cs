@@ -1,5 +1,6 @@
 using DarkVelocity.Orders.Api.Data;
 using DarkVelocity.Orders.Api.Services;
+using DarkVelocity.Shared.Infrastructure.Events;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +18,10 @@ if (!builder.Environment.IsEnvironment("Test"))
 
 // Services
 builder.Services.AddScoped<IOrderNumberGenerator, OrderNumberGenerator>();
+
+// Event Bus
+builder.Services.AddInMemoryEventBus();
+builder.Services.AddEventHandlersFromAssembly(typeof(Program).Assembly);
 
 builder.Services.AddControllers();
 builder.Services.AddHealthChecks()

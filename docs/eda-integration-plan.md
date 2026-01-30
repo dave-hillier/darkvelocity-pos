@@ -10,7 +10,7 @@ This plan outlines the staged approach to integrating all DarkVelocity POS servi
 |---------|---------------|------------|-----------|--------|
 | Auth | 10 | Yes | Yes | **Complete** |
 | Labor | 12 | Yes | Yes | **Complete** |
-| Orders | 5 | No | No | Pending |
+| Orders | 5 | Yes | No | **Publishing Complete** |
 | Inventory | 5 | No | No | Pending |
 | Payments | 0 | No | No | Pending |
 | Accounting | 0 | No | No | Pending |
@@ -36,25 +36,28 @@ Enable the Orders service to publish events for order lifecycle, which other ser
 
 ### Tasks
 
-- [ ] **1.1** Add event bus registration to Orders Program.cs
+- [x] **1.1** Add event bus registration to Orders Program.cs
   ```csharp
   builder.Services.AddInMemoryEventBus();
   builder.Services.AddEventHandlersFromAssembly(typeof(Program).Assembly);
   ```
 
-- [ ] **1.2** Update OrdersController to inject IEventBus
+- [x] **1.2** Update OrdersController to inject IEventBus
 
-- [ ] **1.3** Publish `OrderCreated` event when order is created
+- [x] **1.3** Publish `OrderCreated` event when order is created
   - Include: OrderId, LocationId, UserId, OrderNumber, OrderType
 
-- [ ] **1.4** Publish `OrderLineAdded` event when line items added
+- [x] **1.4** Publish `OrderLineAdded` event when line items added
   - Include: OrderId, LineId, MenuItemId, ItemName, Quantity, UnitPrice, LineTotal
 
-- [ ] **1.5** Publish `OrderCompleted` event when order is completed
+- [x] **1.5** Publish `OrderCompleted` event when order is completed
   - Include: OrderId, LocationId, OrderNumber, GrandTotal, full Lines array
 
-- [ ] **1.6** Publish `OrderVoided` event when order is voided
+- [x] **1.6** Publish `OrderVoided` event when order is voided
   - Include: OrderId, UserId, Reason
+
+- [x] **1.7** Publish `OrderLineRemoved` event when line items removed
+  - Include: OrderId, LineId
 
 ### Files to Modify
 - `src/Services/Orders/Orders.Api/Program.cs`
