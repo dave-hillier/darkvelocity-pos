@@ -19,7 +19,7 @@ public class OrderEventHandlerTests : IClassFixture<InventoryApiFixture>
     }
 
     [Fact]
-    public async Task OrderCompleted_WithMatchingRecipe_ConsumesStockAndPublishesEvents()
+    public async Task OrderCompleted_WithMatchingRecipe_ConsumesStockAndPublishesEvent()
     {
         // Arrange
         _fixture.ClearEventLog();
@@ -137,16 +137,118 @@ public class OrderEventHandlerTests : IClassFixture<InventoryApiFixture>
     }
 
     [Fact]
-    public async Task OrderCompleted_WhenBatchExhausted_PublishesStockBatchExhaustedEvent()
+    public async Task OrderCompleted_IncludesRemainingQuantityInBatchConsumptions()
     {
         // Arrange
         _fixture.ClearEventLog();
 
-        // Create a new ingredient and batch that will be exhausted
+        // Create a new ingredient and batch with known quantity
+        Guid testIngredientId;
+        Guid testBatchId;
+        Guid testMenuItemId = Guid.NewGuid();
+        decimal initialBatchQuantity = 10.0m;
+        decimal quantityToConsume = 3.0m;
+
+        using (var db = _fixture.GetDbContext())
+        {
+            var ingredient = new Ingredient
+            {
+                Code = "REMAINING-TEST-" + Guid.NewGuid().ToString("N").Substring(0, 6),
+                Name = "Remaining Quantity Test Ingredient",
+                UnitOfMeasure = "kg",
+                ReorderLevel = 0,
+                ReorderQuantity = 0,
+                CurrentStock = initialBatchQuantity
+            };
+            db.Ingredients.Add(ingredient);
+            testIngredientId = ingredient.Id;
+
+            var batch = new StockBatch
+            {
+                IngredientId = testIngredientId,
+                LocationId = _fixture.TestLocationId,
+                InitialQuantity = initialBatchQuantity,
+                RemainingQuantity = initialBatchQuantity,
+                UnitCost = 5.00m,
+                ReceivedAt = DateTime.UtcNow.AddDays(-1),
+                Status = "active"
+            };
+            db.StockBatches.Add(batch);
+            testBatchId = batch.Id;
+
+            var recipe = new Recipe
+            {
+                Code = "REMAINING-RECIPE-" + Guid.NewGuid().ToString("N").Substring(0, 6),
+                Name = "Remaining Test Recipe",
+                MenuItemId = testMenuItemId,
+                PortionYield = 1
+            };
+            db.Recipes.Add(recipe);
+
+            await db.SaveChangesAsync();
+
+            var recipeIngredient = new RecipeIngredient
+            {
+                RecipeId = recipe.Id,
+                IngredientId = testIngredientId,
+                Quantity = quantityToConsume,
+                WastePercentage = 0
+            };
+            db.RecipeIngredients.Add(recipeIngredient);
+
+            await db.SaveChangesAsync();
+        }
+
+        var orderCompleted = new OrderCompleted(
+            OrderId: Guid.NewGuid(),
+            LocationId: _fixture.TestLocationId,
+            OrderNumber: "TEST-REMAINING",
+            GrandTotal: 20.00m,
+            Lines: new List<OrderLineSnapshot>
+            {
+                new OrderLineSnapshot(
+                    LineId: Guid.NewGuid(),
+                    MenuItemId: testMenuItemId,
+                    ItemName: "Remaining Test Item",
+                    Quantity: 1,
+                    UnitPrice: 20.00m,
+                    LineTotal: 20.00m)
+            });
+
+        // Act
+        await _fixture.GetEventBus().PublishAsync(orderCompleted);
+
+        // Assert - Verify RemainingQuantity is in the event
+        var events = _fixture.GetEventBus().GetEventLog();
+        var stockConsumedEvent = events.OfType<StockConsumedForSale>()
+            .FirstOrDefault(e => e.OrderId == orderCompleted.OrderId);
+
+        stockConsumedEvent.Should().NotBeNull();
+
+        var ingredientConsumption = stockConsumedEvent!.Consumptions
+            .FirstOrDefault(c => c.IngredientId == testIngredientId);
+        ingredientConsumption.Should().NotBeNull();
+
+        var batchConsumption = ingredientConsumption!.BatchConsumptions
+            .FirstOrDefault(bc => bc.BatchId == testBatchId);
+        batchConsumption.Should().NotBeNull();
+
+        // Remaining should be initial - consumed = 10 - 3 = 7
+        batchConsumption!.RemainingQuantity.Should().Be(initialBatchQuantity - quantityToConsume);
+        batchConsumption.Quantity.Should().Be(quantityToConsume);
+    }
+
+    [Fact]
+    public async Task OrderCompleted_WhenBatchFullyConsumed_RemainingQuantityIsZero()
+    {
+        // Arrange
+        _fixture.ClearEventLog();
+
+        // Create a batch that will be fully exhausted
         Guid exhaustibleIngredientId;
         Guid exhaustibleBatchId;
-        Guid exhaustibleRecipeId;
         Guid exhaustibleMenuItemId = Guid.NewGuid();
+        decimal batchQuantity = 0.5m;
 
         using (var db = _fixture.GetDbContext())
         {
@@ -155,9 +257,9 @@ public class OrderEventHandlerTests : IClassFixture<InventoryApiFixture>
                 Code = "EXHAUST-TEST-" + Guid.NewGuid().ToString("N").Substring(0, 6),
                 Name = "Exhaustible Test Ingredient",
                 UnitOfMeasure = "kg",
-                ReorderLevel = 0.5m,
-                ReorderQuantity = 1m,
-                CurrentStock = 0.5m
+                ReorderLevel = 0,
+                ReorderQuantity = 0,
+                CurrentStock = batchQuantity
             };
             db.Ingredients.Add(ingredient);
             exhaustibleIngredientId = ingredient.Id;
@@ -166,8 +268,8 @@ public class OrderEventHandlerTests : IClassFixture<InventoryApiFixture>
             {
                 IngredientId = exhaustibleIngredientId,
                 LocationId = _fixture.TestLocationId,
-                InitialQuantity = 0.5m,
-                RemainingQuantity = 0.5m, // Small amount that will be exhausted
+                InitialQuantity = batchQuantity,
+                RemainingQuantity = batchQuantity,
                 UnitCost = 10.00m,
                 ReceivedAt = DateTime.UtcNow.AddDays(-1),
                 Status = "active"
@@ -183,15 +285,14 @@ public class OrderEventHandlerTests : IClassFixture<InventoryApiFixture>
                 PortionYield = 1
             };
             db.Recipes.Add(recipe);
-            exhaustibleRecipeId = recipe.Id;
 
             await db.SaveChangesAsync();
 
             var recipeIngredient = new RecipeIngredient
             {
-                RecipeId = exhaustibleRecipeId,
+                RecipeId = recipe.Id,
                 IngredientId = exhaustibleIngredientId,
-                Quantity = 0.5m, // Will exhaust the batch
+                Quantity = batchQuantity, // Will exhaust the batch
                 WastePercentage = 0
             };
             db.RecipeIngredients.Add(recipeIngredient);
@@ -202,7 +303,7 @@ public class OrderEventHandlerTests : IClassFixture<InventoryApiFixture>
         var orderCompleted = new OrderCompleted(
             OrderId: Guid.NewGuid(),
             LocationId: _fixture.TestLocationId,
-            OrderNumber: "TEST-003",
+            OrderNumber: "TEST-EXHAUST",
             GrandTotal: 20.00m,
             Lines: new List<OrderLineSnapshot>
             {
@@ -218,112 +319,27 @@ public class OrderEventHandlerTests : IClassFixture<InventoryApiFixture>
         // Act
         await _fixture.GetEventBus().PublishAsync(orderCompleted);
 
-        // Assert - Verify batch was exhausted
+        // Assert - Verify batch was exhausted (RemainingQuantity = 0)
+        var events = _fixture.GetEventBus().GetEventLog();
+        var stockConsumedEvent = events.OfType<StockConsumedForSale>()
+            .FirstOrDefault(e => e.OrderId == orderCompleted.OrderId);
+
+        stockConsumedEvent.Should().NotBeNull();
+
+        var batchConsumption = stockConsumedEvent!.Consumptions
+            .SelectMany(c => c.BatchConsumptions)
+            .FirstOrDefault(bc => bc.BatchId == exhaustibleBatchId);
+
+        batchConsumption.Should().NotBeNull();
+        batchConsumption!.RemainingQuantity.Should().Be(0);
+
+        // Verify database state - batch should be marked exhausted
         using (var db = _fixture.GetDbContext())
         {
             var batch = await db.StockBatches.FindAsync(exhaustibleBatchId);
             batch!.Status.Should().Be("exhausted");
             batch.RemainingQuantity.Should().Be(0);
         }
-
-        // Assert - Verify StockBatchExhausted event was published
-        var events = _fixture.GetEventBus().GetEventLog();
-        var exhaustedEvent = events.OfType<StockBatchExhausted>()
-            .FirstOrDefault(e => e.BatchId == exhaustibleBatchId);
-
-        exhaustedEvent.Should().NotBeNull();
-        exhaustedEvent!.IngredientId.Should().Be(exhaustibleIngredientId);
-    }
-
-    [Fact]
-    public async Task OrderCompleted_WhenStockFallsBelowReorderLevel_PublishesLowStockAlert()
-    {
-        // Arrange
-        _fixture.ClearEventLog();
-
-        // Create a new ingredient with stock close to reorder level
-        Guid lowStockIngredientId;
-        Guid lowStockMenuItemId = Guid.NewGuid();
-
-        using (var db = _fixture.GetDbContext())
-        {
-            var ingredient = new Ingredient
-            {
-                Code = "LOWSTOCK-TEST-" + Guid.NewGuid().ToString("N").Substring(0, 6),
-                Name = "Low Stock Test Ingredient",
-                UnitOfMeasure = "kg",
-                ReorderLevel = 2.0m, // Will trigger alert when stock falls below this
-                ReorderQuantity = 5.0m,
-                CurrentStock = 2.5m // Just above reorder level
-            };
-            db.Ingredients.Add(ingredient);
-            lowStockIngredientId = ingredient.Id;
-
-            var batch = new StockBatch
-            {
-                IngredientId = lowStockIngredientId,
-                LocationId = _fixture.TestLocationId,
-                InitialQuantity = 2.5m,
-                RemainingQuantity = 2.5m,
-                UnitCost = 5.00m,
-                ReceivedAt = DateTime.UtcNow.AddDays(-1),
-                Status = "active"
-            };
-            db.StockBatches.Add(batch);
-
-            var recipe = new Recipe
-            {
-                Code = "LOWSTOCK-RECIPE-" + Guid.NewGuid().ToString("N").Substring(0, 6),
-                Name = "Low Stock Test Recipe",
-                MenuItemId = lowStockMenuItemId,
-                PortionYield = 1
-            };
-            db.Recipes.Add(recipe);
-
-            await db.SaveChangesAsync();
-
-            var recipeIngredient = new RecipeIngredient
-            {
-                RecipeId = recipe.Id,
-                IngredientId = lowStockIngredientId,
-                Quantity = 1.0m, // Will bring stock to 1.5, below reorder level of 2.0
-                WastePercentage = 0
-            };
-            db.RecipeIngredients.Add(recipeIngredient);
-
-            await db.SaveChangesAsync();
-        }
-
-        var orderCompleted = new OrderCompleted(
-            OrderId: Guid.NewGuid(),
-            LocationId: _fixture.TestLocationId,
-            OrderNumber: "TEST-004",
-            GrandTotal: 15.00m,
-            Lines: new List<OrderLineSnapshot>
-            {
-                new OrderLineSnapshot(
-                    LineId: Guid.NewGuid(),
-                    MenuItemId: lowStockMenuItemId,
-                    ItemName: "Low Stock Test Item",
-                    Quantity: 1,
-                    UnitPrice: 15.00m,
-                    LineTotal: 15.00m)
-            });
-
-        // Act
-        await _fixture.GetEventBus().PublishAsync(orderCompleted);
-
-        // Assert - Verify LowStockAlert event was published
-        var events = _fixture.GetEventBus().GetEventLog();
-        var lowStockEvent = events.OfType<LowStockAlert>()
-            .FirstOrDefault(e => e.IngredientId == lowStockIngredientId);
-
-        lowStockEvent.Should().NotBeNull();
-        lowStockEvent!.IngredientName.Should().Be("Low Stock Test Ingredient");
-        lowStockEvent.LocationId.Should().Be(_fixture.TestLocationId);
-        lowStockEvent.CurrentStock.Should().BeLessThanOrEqualTo(2.0m);
-        lowStockEvent.ReorderLevel.Should().Be(2.0m);
-        lowStockEvent.ReorderQuantity.Should().Be(5.0m);
     }
 
     [Fact]
@@ -406,7 +422,7 @@ public class OrderEventHandlerTests : IClassFixture<InventoryApiFixture>
         var orderCompleted = new OrderCompleted(
             OrderId: Guid.NewGuid(),
             LocationId: _fixture.TestLocationId,
-            OrderNumber: "TEST-005",
+            OrderNumber: "TEST-FIFO",
             GrandTotal: 10.00m,
             Lines: new List<OrderLineSnapshot>
             {
@@ -435,7 +451,7 @@ public class OrderEventHandlerTests : IClassFixture<InventoryApiFixture>
             newerBatch!.RemainingQuantity.Should().Be(5.0m);
         }
 
-        // Verify COGS used older batch price
+        // Verify event contains only older batch consumption with correct remaining
         var events = _fixture.GetEventBus().GetEventLog();
         var stockConsumedEvent = events.OfType<StockConsumedForSale>()
             .FirstOrDefault(e => e.OrderId == orderCompleted.OrderId);
@@ -443,6 +459,12 @@ public class OrderEventHandlerTests : IClassFixture<InventoryApiFixture>
         stockConsumedEvent.Should().NotBeNull();
         // COGS should be 2.0kg * $2.00/kg = $4.00 (older batch price)
         stockConsumedEvent!.TotalCOGS.Should().Be(4.00m);
+
+        var batchConsumption = stockConsumedEvent.Consumptions
+            .SelectMany(c => c.BatchConsumptions)
+            .FirstOrDefault(bc => bc.BatchId == olderBatchId);
+        batchConsumption.Should().NotBeNull();
+        batchConsumption!.RemainingQuantity.Should().Be(3.0m);
     }
 
     [Fact]
@@ -548,7 +570,7 @@ public class OrderEventHandlerTests : IClassFixture<InventoryApiFixture>
         var orderCompleted = new OrderCompleted(
             OrderId: Guid.NewGuid(),
             LocationId: _fixture.TestLocationId,
-            OrderNumber: "TEST-006",
+            OrderNumber: "TEST-MULTI",
             GrandTotal: 25.00m,
             Lines: new List<OrderLineSnapshot>
             {

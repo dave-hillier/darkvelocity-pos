@@ -9,7 +9,8 @@ namespace DarkVelocity.Inventory.Api.EventHandlers;
 /// <summary>
 /// Handles OrderCompleted events to automatically consume inventory based on recipes.
 /// For each order line, looks up the recipe by MenuItemId and consumes ingredients using FIFO.
-/// Publishes StockConsumedForSale, StockBatchExhausted, and LowStockAlert events as needed.
+/// Publishes StockConsumedForSale event with detailed batch consumption data including remaining quantities,
+/// allowing consuming services to make their own inferences about stock levels and batch status.
 /// </summary>
 public class OrderCompletedHandler : IEventHandler<OrderCompleted>
 {
@@ -39,8 +40,6 @@ public class OrderCompletedHandler : IEventHandler<OrderCompleted>
             @event.Lines.Count);
 
         var allConsumptions = new List<IngredientConsumption>();
-        var exhaustedBatches = new List<(Guid BatchId, Guid IngredientId)>();
-        var lowStockIngredients = new List<(Guid IngredientId, string Name, decimal CurrentStock, decimal ReorderLevel, decimal ReorderQuantity)>();
         decimal totalCOGS = 0;
 
         foreach (var line in @event.Lines)
@@ -76,14 +75,6 @@ public class OrderCompletedHandler : IEventHandler<OrderCompleted>
                 var effectiveQuantity = recipeIngredient.Quantity * (1 + recipeIngredient.WastePercentage / 100);
                 var totalQuantityNeeded = effectiveQuantity * line.Quantity;
 
-                // Track batches before consumption to detect exhaustion
-                var activeBatchesBefore = await _context.StockBatches
-                    .Where(b => b.IngredientId == recipeIngredient.IngredientId
-                        && b.LocationId == @event.LocationId
-                        && b.Status == "active")
-                    .Select(b => new { b.Id, b.RemainingQuantity })
-                    .ToListAsync(cancellationToken);
-
                 // Consume stock using FIFO
                 var consumptionResult = await _consumptionService.ConsumeAsync(
                     @event.LocationId,
@@ -104,8 +95,19 @@ public class OrderCompletedHandler : IEventHandler<OrderCompleted>
 
                 if (consumptionResult.BatchConsumptions.Count > 0)
                 {
+                    // Get current remaining quantities for each batch consumed
+                    var batchIds = consumptionResult.BatchConsumptions.Select(bc => bc.BatchId).ToList();
+                    var batchRemainingQuantities = await _context.StockBatches
+                        .Where(b => batchIds.Contains(b.Id))
+                        .ToDictionaryAsync(b => b.Id, b => b.RemainingQuantity, cancellationToken);
+
                     var batchConsumptions = consumptionResult.BatchConsumptions
-                        .Select(bc => new BatchConsumption(bc.BatchId, bc.QuantityConsumed, bc.UnitCost, bc.Cost))
+                        .Select(bc => new BatchConsumption(
+                            bc.BatchId,
+                            bc.QuantityConsumed,
+                            bc.UnitCost,
+                            bc.Cost,
+                            batchRemainingQuantities.GetValueOrDefault(bc.BatchId, 0)))
                         .ToList();
 
                     allConsumptions.Add(new IngredientConsumption(
@@ -116,37 +118,6 @@ public class OrderCompletedHandler : IEventHandler<OrderCompleted>
                         batchConsumptions));
 
                     totalCOGS += consumptionResult.TotalCost;
-
-                    // Check for exhausted batches
-                    foreach (var batchBefore in activeBatchesBefore)
-                    {
-                        var batchAfter = await _context.StockBatches
-                            .Where(b => b.Id == batchBefore.Id)
-                            .Select(b => new { b.Status })
-                            .FirstOrDefaultAsync(cancellationToken);
-
-                        if (batchAfter?.Status == "exhausted")
-                        {
-                            exhaustedBatches.Add((batchBefore.Id, recipeIngredient.IngredientId));
-                        }
-                    }
-
-                    // Check for low stock after consumption
-                    var ingredient = recipeIngredient.Ingredient;
-                    var currentStock = ingredient.CurrentStock ?? 0;
-                    if (currentStock <= ingredient.ReorderLevel && ingredient.ReorderLevel > 0)
-                    {
-                        // Only add if not already in the list
-                        if (!lowStockIngredients.Any(i => i.IngredientId == ingredient.Id))
-                        {
-                            lowStockIngredients.Add((
-                                ingredient.Id,
-                                ingredient.Name,
-                                currentStock,
-                                ingredient.ReorderLevel,
-                                ingredient.ReorderQuantity));
-                        }
-                    }
                 }
             }
         }
@@ -169,44 +140,9 @@ public class OrderCompletedHandler : IEventHandler<OrderCompleted>
                 totalCOGS);
         }
 
-        // Publish StockBatchExhausted events for each exhausted batch
-        foreach (var (batchId, ingredientId) in exhaustedBatches)
-        {
-            var exhaustedEvent = new StockBatchExhausted(batchId, ingredientId);
-            await _eventBus.PublishAsync(exhaustedEvent, cancellationToken);
-
-            _logger.LogInformation(
-                "Published StockBatchExhausted event for batch {BatchId} (ingredient {IngredientId})",
-                batchId,
-                ingredientId);
-        }
-
-        // Publish LowStockAlert events for ingredients below reorder level
-        foreach (var (ingredientId, name, currentStock, reorderLevel, reorderQuantity) in lowStockIngredients)
-        {
-            var lowStockEvent = new LowStockAlert(
-                ingredientId,
-                name,
-                @event.LocationId,
-                currentStock,
-                reorderLevel,
-                reorderQuantity);
-
-            await _eventBus.PublishAsync(lowStockEvent, cancellationToken);
-
-            _logger.LogWarning(
-                "Published LowStockAlert for {IngredientName}: current stock {CurrentStock} is below reorder level {ReorderLevel}",
-                name,
-                currentStock,
-                reorderLevel);
-        }
-
         _logger.LogInformation(
-            "Completed inventory consumption for order {OrderId}: {ConsumptionCount} ingredients consumed, " +
-            "{ExhaustedCount} batches exhausted, {LowStockCount} low stock alerts",
+            "Completed inventory consumption for order {OrderId}: {ConsumptionCount} ingredients consumed",
             @event.OrderId,
-            allConsumptions.Count,
-            exhaustedBatches.Count,
-            lowStockIngredients.Count);
+            allConsumptions.Count);
     }
 }

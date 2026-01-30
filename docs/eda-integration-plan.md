@@ -11,7 +11,7 @@ This plan outlines the staged approach to integrating all DarkVelocity POS servi
 | Auth | 10 | Yes | Yes | **Complete** |
 | Labor | 12 | Yes | Yes | **Complete** |
 | Orders | 5 | Yes | No | **Publishing Complete** |
-| Inventory | 6 | Yes | Yes | **Consuming Complete** |
+| Inventory | 5 | Yes | Yes | **Consuming Complete** |
 | Payments | 0 | No | No | Pending |
 | Accounting | 0 | No | No | Pending |
 | GiftCards | 10 | No | No | Pending |
@@ -100,12 +100,9 @@ Automatically consume inventory when orders are completed, maintaining accurate 
   - Update StockBatch quantities (FIFO consumption)
 
 - [x] **2.3** Publish `StockConsumedForSale` event after consumption
-  - Include: OrderId, LocationId, list of Consumptions, TotalCOGS
-
-- [x] **2.4** Publish `StockBatchExhausted` when batch runs out
-
-- [x] **2.5** Check reorder levels and publish `LowStockAlert` if needed
-  - Include: IngredientId, IngredientName, LocationId, CurrentStock, ReorderLevel, ReorderQuantity
+  - Include: OrderId, LocationId, list of Consumptions (with RemainingQuantity per batch), TotalCOGS
+  - Consumers can derive batch exhaustion from RemainingQuantity = 0
+  - Consumers can track stock levels and make their own reorder/alert decisions
 
 ### Files to Modify
 - `src/Services/Inventory/Inventory.Api/Program.cs`
@@ -126,15 +123,17 @@ public class OrderCompletedHandler : IEventHandler<OrderCompleted>
 - No cross-service API calls needed - recipe data is managed in Inventory service
 
 ### Events Published
-- `StockConsumedForSale` - after all ingredients consumed for an order
-- `StockBatchExhausted` - when a batch reaches zero remaining quantity
-- `LowStockAlert` - when ingredient stock falls below reorder level (new event added)
+- `StockConsumedForSale` - continuous event with detailed batch consumption data
+  - Includes `RemainingQuantity` for each batch so consumers can derive:
+    - Batch exhaustion (when RemainingQuantity = 0)
+    - Low stock alerts (by tracking cumulative consumption)
+    - Reorder triggers (based on their own business rules)
 
 ### Verification
 - Complete an order with menu items that have recipes
 - Verify StockConsumption records created
 - Verify StockBatch quantities reduced
-- Verify events published for consumption, exhaustion, and low stock alerts
+- Verify event includes RemainingQuantity for each batch consumed
 
 ---
 
