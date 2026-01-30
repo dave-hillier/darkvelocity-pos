@@ -11,7 +11,7 @@ This plan outlines the staged approach to integrating all DarkVelocity POS servi
 | Auth | 10 | Yes | Yes | **Complete** |
 | Labor | 12 | Yes | Yes | **Complete** |
 | Orders | 5 | Yes | No | **Publishing Complete** |
-| Inventory | 5 | No | No | Pending |
+| Inventory | 5 | Yes | Yes | **Consuming Complete** |
 | Payments | 0 | No | No | Pending |
 | Accounting | 0 | No | No | Pending |
 | GiftCards | 10 | No | No | Pending |
@@ -87,20 +87,22 @@ Automatically consume inventory when orders are completed, maintaining accurate 
 
 ### Tasks
 
-- [ ] **2.1** Add event bus registration to Inventory Program.cs
+- [x] **2.1** Add event bus registration to Inventory Program.cs
+  ```csharp
+  builder.Services.AddInMemoryEventBus();
+  builder.Services.AddEventHandlersFromAssembly(typeof(Program).Assembly);
+  ```
 
-- [ ] **2.2** Create `OrderCompletedHandler` in Inventory service
-  - For each OrderLine, look up MenuItem recipe
-  - Calculate ingredient quantities based on recipe
-  - Create StockConsumption records
+- [x] **2.2** Create `OrderCompletedHandler` in Inventory service
+  - For each OrderLine, look up MenuItem recipe by MenuItemId
+  - Calculate ingredient quantities based on recipe (with waste percentage)
+  - Create StockConsumption records via IFifoConsumptionService
   - Update StockBatch quantities (FIFO consumption)
 
-- [ ] **2.3** Publish `StockConsumedForSale` event after consumption
-  - Include: OrderId, LocationId, list of Consumptions, TotalCOGS
-
-- [ ] **2.4** Publish `StockBatchExhausted` when batch runs out
-
-- [ ] **2.5** Check reorder levels and publish alerts if needed
+- [x] **2.3** Publish `StockConsumedForSale` event after consumption
+  - Include: OrderId, LocationId, list of Consumptions (with RemainingQuantity per batch), TotalCOGS
+  - Consumers can derive batch exhaustion from RemainingQuantity = 0
+  - Consumers can track stock levels and make their own reorder/alert decisions
 
 ### Files to Modify
 - `src/Services/Inventory/Inventory.Api/Program.cs`
@@ -116,13 +118,22 @@ public class OrderCompletedHandler : IEventHandler<OrderCompleted>
 ```
 
 ### Cross-Service Data Access
-- May need to call Menu service API to get MenuItem → RecipeId mapping
-- May need to call Costing service API to get Recipe → Ingredients
+- Recipes in Inventory service have optional `MenuItemId` field that links to Menu service
+- When `OrderCompleted` event is received, handler looks up Recipe by MenuItemId
+- No cross-service API calls needed - recipe data is managed in Inventory service
+
+### Events Published
+- `StockConsumedForSale` - continuous event with detailed batch consumption data
+  - Includes `RemainingQuantity` for each batch so consumers can derive:
+    - Batch exhaustion (when RemainingQuantity = 0)
+    - Low stock alerts (by tracking cumulative consumption)
+    - Reorder triggers (based on their own business rules)
 
 ### Verification
 - Complete an order with menu items that have recipes
 - Verify StockConsumption records created
 - Verify StockBatch quantities reduced
+- Verify event includes RemainingQuantity for each batch consumed
 
 ---
 

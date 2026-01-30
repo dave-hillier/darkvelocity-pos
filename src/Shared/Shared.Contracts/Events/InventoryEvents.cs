@@ -54,7 +54,8 @@ public sealed record BatchConsumption(
     Guid BatchId,
     decimal Quantity,
     decimal UnitCost,
-    decimal Cost
+    decimal Cost,
+    decimal RemainingQuantity
 );
 
 public sealed record RecipeCostRecalculated(

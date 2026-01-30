@@ -1,5 +1,6 @@
 using DarkVelocity.Inventory.Api.Data;
 using DarkVelocity.Inventory.Api.Services;
+using DarkVelocity.Shared.Infrastructure.Events;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +15,10 @@ if (!builder.Environment.IsEnvironment("Test"))
         options.UseNpgsql(connectionString);
     });
 }
+
+// Event Bus
+builder.Services.AddInMemoryEventBus();
+builder.Services.AddEventHandlersFromAssembly(typeof(Program).Assembly);
 
 // Services
 builder.Services.AddScoped<IFifoConsumptionService, FifoConsumptionService>();
