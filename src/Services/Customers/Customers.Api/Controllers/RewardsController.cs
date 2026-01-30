@@ -1,7 +1,9 @@
 using DarkVelocity.Customers.Api.Data;
 using DarkVelocity.Customers.Api.Dtos;
 using DarkVelocity.Customers.Api.Entities;
+using DarkVelocity.Shared.Contracts.Events;
 using DarkVelocity.Shared.Contracts.Hal;
+using DarkVelocity.Shared.Infrastructure.Events;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,13 +14,15 @@ namespace DarkVelocity.Customers.Api.Controllers;
 public class RewardsController : ControllerBase
 {
     private readonly CustomersDbContext _context;
+    private readonly IEventBus _eventBus;
 
     private Guid TenantId => Guid.Parse(Request.Headers["X-Tenant-Id"].FirstOrDefault()
         ?? "00000000-0000-0000-0000-000000000001");
 
-    public RewardsController(CustomersDbContext context)
+    public RewardsController(CustomersDbContext context, IEventBus eventBus)
     {
         _context = context;
+        _eventBus = eventBus;
     }
 
     [HttpGet]
@@ -252,6 +256,26 @@ public class RewardsController : ControllerBase
         _context.CustomerRewards.Add(customerReward);
         await _context.SaveChangesAsync();
 
+        // Publish PointsRedeemed event for the points spent
+        await _eventBus.PublishAsync(new PointsRedeemed(
+            CustomerId: customerId,
+            TenantId: customer.TenantId,
+            ProgramId: loyalty.ProgramId,
+            Points: reward.PointsCost,
+            NewBalance: loyalty.CurrentPoints,
+            RewardId: id
+        ));
+
+        // Publish RewardIssued event
+        await _eventBus.PublishAsync(new RewardIssued(
+            CustomerId: customerId,
+            TenantId: customer.TenantId,
+            RewardId: id,
+            RewardName: reward.Name,
+            Code: customerReward.Code,
+            ExpiresAt: customerReward.ExpiresAt
+        ));
+
         var dto = new CustomerRewardDto
         {
             Id = customerReward.Id,
@@ -310,13 +334,15 @@ public class RewardsController : ControllerBase
 public class CustomerRewardsController : ControllerBase
 {
     private readonly CustomersDbContext _context;
+    private readonly IEventBus _eventBus;
 
     private Guid TenantId => Guid.Parse(Request.Headers["X-Tenant-Id"].FirstOrDefault()
         ?? "00000000-0000-0000-0000-000000000001");
 
-    public CustomerRewardsController(CustomersDbContext context)
+    public CustomerRewardsController(CustomersDbContext context, IEventBus eventBus)
     {
         _context = context;
+        _eventBus = eventBus;
     }
 
     [HttpGet]
@@ -444,6 +470,17 @@ public class CustomerRewardsController : ControllerBase
         customerReward.RedeemedLocationId = request.LocationId;
 
         await _context.SaveChangesAsync();
+
+        // Publish RewardRedeemed event
+        await _eventBus.PublishAsync(new RewardRedeemed(
+            CustomerId: customerId,
+            TenantId: customer.TenantId,
+            CustomerRewardId: customerReward.Id,
+            RewardId: customerReward.RewardId,
+            RewardName: customerReward.Reward?.Name ?? "",
+            OrderId: request.OrderId,
+            LocationId: request.LocationId
+        ));
 
         var dto = new CustomerRewardDto
         {

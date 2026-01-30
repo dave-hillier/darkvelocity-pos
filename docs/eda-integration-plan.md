@@ -299,38 +299,46 @@ Enable gift card lifecycle events and integrate with accounting for liability tr
 
 ---
 
-## Stage 7: Customer Loyalty Integration
+## Stage 7: Customer Loyalty Integration ✅
 
 **Priority:** Medium
 **Dependencies:** Stage 1 (Orders)
 **Estimated Scope:** Customers service
+**Status:** Completed
 
 ### Objective
 Award loyalty points when orders complete, enable points redemption.
 
 ### Tasks
 
-- [ ] **7.1** Add event bus registration to Customers Program.cs
+- [x] **7.1** Add event bus registration to Customers Program.cs
 
-- [ ] **7.2** Create `OrderCompletedHandler` in Customers
+- [x] **7.2** Create `OrderCompletedHandler` in Customers
   - Look up customer by order association (if any)
   - Calculate points based on order total
   - Create PointsTransaction record
   - Publish `PointsEarned` event
+  - NOTE: Handler is ready but waiting for CustomerId in OrderCompleted event (7.4)
 
-- [ ] **7.3** Publish customer lifecycle events (already defined)
-  - `CustomerCreated`, `CustomerUpdated`
+- [x] **7.3** Publish customer lifecycle events (already defined)
+  - `CustomerCreated`, `CustomerUpdated`, `CustomerDeleted`
   - `CustomerEnrolledInLoyalty`
   - `PointsEarned`, `PointsRedeemed`
-  - `TierChanged`, `RewardIssued`
+  - `TierChanged`, `RewardIssued`, `RewardRedeemed`
 
 - [ ] **7.4** (Future) Link customers to orders
   - Orders may need CustomerId field
   - Or separate CustomerOrder linking entity
 
-### Files to Modify
+### Files Modified
 - `src/Services/Customers/Customers.Api/Program.cs`
-- Create: `src/Services/Customers/Customers.Api/EventHandlers/OrderEventHandlers.cs`
+- `src/Services/Customers/Customers.Api/Controllers/CustomersController.cs`
+- `src/Services/Customers/Customers.Api/Controllers/CustomerLoyaltyController.cs`
+- `src/Services/Customers/Customers.Api/Controllers/RewardsController.cs`
+- Created: `src/Services/Customers/Customers.Api/EventHandlers/OrderEventHandlers.cs`
+
+### Tests Added
+- `tests/Customers.Tests/CustomerEventPublishingTests.cs` - 9 integration tests for event publishing
 
 ### Events (already defined)
 - All CustomerEvents.cs events ready to publish
