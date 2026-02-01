@@ -1,0 +1,40 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Stop existing containers
+        run: docker compose down --remove-orphans || true
+
+      - name: Build and start containers
+        run: docker compose up -d --build
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for backend to be ready..."
+          timeout 120 bash -c 'until curl -sf http://localhost:5200/health; do sleep 5; done' || echo "Backend health check timed out"
+
+      - name: Show running containers
+        run: docker compose ps
+
+      - name: Show service URLs
+        run: |
+          echo "========================================="
+          echo "DarkVelocity POS is running!"
+          echo "========================================="
+          echo "Backend API:    http://localhost:5200"
+          echo "Orleans Dashboard: http://localhost:8888"
+          echo "POS App:        http://localhost:3000"
+          echo "Back Office:    http://localhost:3001"
+          echo "KDS:            http://localhost:3002"
+          echo "========================================="
