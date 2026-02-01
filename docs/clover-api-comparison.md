@@ -632,6 +632,33 @@ For F&B, DarkVelocity uses **modifiers with options** which is the correct appro
 - Recipe costing works (same recipe, scaled quantity)
 - Kitchen display shows "Lager (Pint)" not a different item
 
+**However, there is a gap in modifier options for inventory consumption:**
+
+The current `MenuItemModifierOptionState` only has `Name`, `Price`, `IsDefault` - it's missing the **serving size** needed for inventory deduction:
+
+```
+Current (incomplete):
+  "Pint" option → Price: £0.00 → ❌ No volume info
+
+Needed for F&B inventory:
+  "Pint" option → Price: £0.00, ServingSize: 568, ServingUnit: "ml"
+  "Half Pint"   → Price: -£1.50, ServingSize: 284, ServingUnit: "ml"
+
+Inventory consumption:
+  Keg (50L = 50,000ml) → Sell "Pint" → Decrement 568ml
+                       → Sell "Half"  → Decrement 284ml
+
+Wine glass example:
+  Bottle (750ml) → Sell "125ml glass" → Decrement 125ml
+                 → Sell "175ml glass" → Decrement 175ml
+                 → Sell "250ml glass" → Decrement 250ml
+```
+
+**Missing fields on `MenuItemModifierOptionState`:**
+- `ServingSize: decimal` - The quantity consumed from inventory
+- `ServingUnit: string` - Unit of measure ("ml", "g", "oz")
+- Or: `QuantityMultiplier: decimal` - Multiplier against base recipe (0.5 for half pint)
+
 **Retail variants only needed for:** T-Shirts (Size × Color = 12 SKUs), shoes, apparel with distinct inventory per variant.
 
 ### 3. Customer - Missing Fields
@@ -733,15 +760,31 @@ For F&B, DarkVelocity uses **modifiers with options** which is the correct appro
 
 | Gap | Impact | Effort | F&B Relevance |
 |-----|--------|--------|---------------|
+| **Modifier serving size** | Can't track inventory per portion size (pint vs half) | Low | **Critical** (beverage inventory) |
 | Price types (PER_UNIT, VARIABLE) | Can't do weigh scale or open-price items | Medium | Medium (deli, cheese counters) |
 | Item availability flag | Can't temporarily 86 items without deactivating | Low | **High** (kitchen runs out) |
 | Opening hours | No business hour validation | Low | Low |
+
+### F&B-Specific Gap: Modifier Serving Size
+
+**Problem:** `MenuItemModifierOptionState` lacks `ServingSize`/`ServingUnit` fields.
+
+When selling drinks by size (Pint/Half, 125ml/175ml/250ml), the system can't calculate inventory consumption:
+
+```
+Keg (50L) → "Pint" sold → Should decrement 568ml → ❌ No serving size on modifier
+```
+
+**Solution:** Add to `MenuItemModifierOptionState`:
+- `ServingSize: decimal` (e.g., 568 for Pint)
+- `ServingUnit: string` (e.g., "ml")
+- Or: `QuantityMultiplier: decimal` (0.5 = half of base recipe)
 
 ### Not a Gap for F&B
 
 | Clover Feature | Why Not Needed |
 |----------------|----------------|
-| Item variants/attributes | F&B uses modifiers for sizes (Pint/Half, 125ml/175ml/250ml). Variants are for retail (T-Shirt Size × Color = distinct SKUs with separate inventory). DarkVelocity's modifier system handles this correctly. |
+| Item variants/attributes | F&B uses modifiers for sizes. Variants are for retail (T-Shirt Size × Color = distinct SKUs). DarkVelocity's modifier approach is correct - just needs serving size. |
 
 ### Important Gaps (Common use cases)
 
