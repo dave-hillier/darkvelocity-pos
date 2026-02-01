@@ -2,17 +2,21 @@ using DarkVelocity.Host.State;
 
 namespace DarkVelocity.Host.Grains;
 
+[GenerateSerializer]
 public record CreateOrganizationCommand(
-    string Name,
-    string Slug,
-    OrganizationSettings? Settings = null);
+    [property: Id(0)] string Name,
+    [property: Id(1)] string Slug,
+    [property: Id(2)] OrganizationSettings? Settings = null);
 
+[GenerateSerializer]
 public record UpdateOrganizationCommand(
-    string? Name = null,
-    OrganizationSettings? Settings = null);
+    [property: Id(0)] string? Name = null,
+    [property: Id(1)] OrganizationSettings? Settings = null);
 
-public record OrganizationCreatedResult(Guid Id, string Slug, DateTime CreatedAt);
-public record OrganizationUpdatedResult(int Version, DateTime UpdatedAt);
+[GenerateSerializer]
+public record OrganizationCreatedResult([property: Id(0)] Guid Id, [property: Id(1)] string Slug, [property: Id(2)] DateTime CreatedAt);
+[GenerateSerializer]
+public record OrganizationUpdatedResult([property: Id(0)] int Version, [property: Id(1)] DateTime UpdatedAt);
 
 public interface IOrganizationGrain : IGrainWithStringKey
 {

@@ -17,20 +17,21 @@ public enum EarningType
     SignupBonus
 }
 
+[GenerateSerializer]
 public record EarningRule
 {
-    public Guid Id { get; init; }
-    public string Name { get; init; } = string.Empty;
-    public EarningType Type { get; init; }
-    public decimal? PointsPerDollar { get; init; }
-    public int? PointsPerVisit { get; init; }
-    public decimal? BonusMultiplier { get; init; }
-    public List<DayOfWeek>? ApplicableDays { get; init; }
-    public TimeOnly? StartTime { get; init; }
-    public TimeOnly? EndTime { get; init; }
-    public List<Guid>? ApplicableSites { get; init; }
-    public decimal? MinimumSpend { get; init; }
-    public bool IsActive { get; init; }
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public string Name { get; init; } = string.Empty;
+    [Id(2)] public EarningType Type { get; init; }
+    [Id(3)] public decimal? PointsPerDollar { get; init; }
+    [Id(4)] public int? PointsPerVisit { get; init; }
+    [Id(5)] public decimal? BonusMultiplier { get; init; }
+    [Id(6)] public List<DayOfWeek>? ApplicableDays { get; init; }
+    [Id(7)] public TimeOnly? StartTime { get; init; }
+    [Id(8)] public TimeOnly? EndTime { get; init; }
+    [Id(9)] public List<Guid>? ApplicableSites { get; init; }
+    [Id(10)] public decimal? MinimumSpend { get; init; }
+    [Id(11)] public bool IsActive { get; init; }
 }
 
 public enum BenefitType
@@ -45,25 +46,27 @@ public enum BenefitType
     Custom
 }
 
+[GenerateSerializer]
 public record TierBenefit
 {
-    public string Name { get; init; } = string.Empty;
-    public string Description { get; init; } = string.Empty;
-    public BenefitType Type { get; init; }
-    public decimal? Value { get; init; }
+    [Id(0)] public string Name { get; init; } = string.Empty;
+    [Id(1)] public string Description { get; init; } = string.Empty;
+    [Id(2)] public BenefitType Type { get; init; }
+    [Id(3)] public decimal? Value { get; init; }
 }
 
+[GenerateSerializer]
 public record LoyaltyTier
 {
-    public Guid Id { get; init; }
-    public string Name { get; init; } = string.Empty;
-    public int Level { get; init; }
-    public int PointsRequired { get; init; }
-    public List<TierBenefit> Benefits { get; init; } = [];
-    public decimal EarningMultiplier { get; init; } = 1m;
-    public int? MaintenancePoints { get; init; }
-    public int? GracePeriodDays { get; init; }
-    public string Color { get; init; } = "#808080";
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public string Name { get; init; } = string.Empty;
+    [Id(2)] public int Level { get; init; }
+    [Id(3)] public int PointsRequired { get; init; }
+    [Id(4)] public List<TierBenefit> Benefits { get; init; } = [];
+    [Id(5)] public decimal EarningMultiplier { get; init; } = 1m;
+    [Id(6)] public int? MaintenancePoints { get; init; }
+    [Id(7)] public int? GracePeriodDays { get; init; }
+    [Id(8)] public string Color { get; init; } = "#808080";
 }
 
 public enum RewardType
@@ -86,38 +89,41 @@ public enum LimitPeriod
     Lifetime
 }
 
+[GenerateSerializer]
 public record RewardDefinition
 {
-    public Guid Id { get; init; }
-    public string Name { get; init; } = string.Empty;
-    public string Description { get; init; } = string.Empty;
-    public RewardType Type { get; init; }
-    public int PointsCost { get; init; }
-    public decimal? DiscountValue { get; init; }
-    public DiscountType? DiscountType { get; init; }
-    public Guid? FreeItemId { get; init; }
-    public int? MinimumTierLevel { get; init; }
-    public int? LimitPerCustomer { get; init; }
-    public LimitPeriod? LimitPeriod { get; init; }
-    public int? ValidDays { get; init; }
-    public string? ImageUrl { get; init; }
-    public bool IsActive { get; init; }
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public string Name { get; init; } = string.Empty;
+    [Id(2)] public string Description { get; init; } = string.Empty;
+    [Id(3)] public RewardType Type { get; init; }
+    [Id(4)] public int PointsCost { get; init; }
+    [Id(5)] public decimal? DiscountValue { get; init; }
+    [Id(6)] public DiscountType? DiscountType { get; init; }
+    [Id(7)] public Guid? FreeItemId { get; init; }
+    [Id(8)] public int? MinimumTierLevel { get; init; }
+    [Id(9)] public int? LimitPerCustomer { get; init; }
+    [Id(10)] public LimitPeriod? LimitPeriod { get; init; }
+    [Id(11)] public int? ValidDays { get; init; }
+    [Id(12)] public string? ImageUrl { get; init; }
+    [Id(13)] public bool IsActive { get; init; }
 }
 
+[GenerateSerializer]
 public record PointsExpiryConfig
 {
-    public bool Enabled { get; init; }
-    public int ExpiryMonths { get; init; } = 12;
-    public int WarningDays { get; init; } = 30;
+    [Id(0)] public bool Enabled { get; init; }
+    [Id(1)] public int ExpiryMonths { get; init; } = 12;
+    [Id(2)] public int WarningDays { get; init; } = 30;
 }
 
+[GenerateSerializer]
 public record ReferralConfig
 {
-    public bool Enabled { get; init; }
-    public int ReferrerPoints { get; init; }
-    public int RefereePoints { get; init; }
-    public decimal? MinimumQualifyingSpend { get; init; }
-    public int? CodeValidityDays { get; init; }
+    [Id(0)] public bool Enabled { get; init; }
+    [Id(1)] public int ReferrerPoints { get; init; }
+    [Id(2)] public int RefereePoints { get; init; }
+    [Id(3)] public decimal? MinimumQualifyingSpend { get; init; }
+    [Id(4)] public int? CodeValidityDays { get; init; }
 }
 
 [GenerateSerializer]

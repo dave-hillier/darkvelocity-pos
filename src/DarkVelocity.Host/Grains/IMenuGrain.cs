@@ -4,29 +4,32 @@ namespace DarkVelocity.Host.Grains;
 // Menu Category Grain
 // ============================================================================
 
+[GenerateSerializer]
 public record CreateMenuCategoryCommand(
-    Guid LocationId,
-    string Name,
-    string? Description,
-    int DisplayOrder,
-    string? Color);
+    [property: Id(0)] Guid LocationId,
+    [property: Id(1)] string Name,
+    [property: Id(2)] string? Description,
+    [property: Id(3)] int DisplayOrder,
+    [property: Id(4)] string? Color);
 
+[GenerateSerializer]
 public record UpdateMenuCategoryCommand(
-    string? Name,
-    string? Description,
-    int? DisplayOrder,
-    string? Color,
-    bool? IsActive);
+    [property: Id(0)] string? Name,
+    [property: Id(1)] string? Description,
+    [property: Id(2)] int? DisplayOrder,
+    [property: Id(3)] string? Color,
+    [property: Id(4)] bool? IsActive);
 
+[GenerateSerializer]
 public record MenuCategorySnapshot(
-    Guid CategoryId,
-    Guid LocationId,
-    string Name,
-    string? Description,
-    int DisplayOrder,
-    string? Color,
-    bool IsActive,
-    int ItemCount);
+    [property: Id(0)] Guid CategoryId,
+    [property: Id(1)] Guid LocationId,
+    [property: Id(2)] string Name,
+    [property: Id(3)] string? Description,
+    [property: Id(4)] int DisplayOrder,
+    [property: Id(5)] string? Color,
+    [property: Id(6)] bool IsActive,
+    [property: Id(7)] int ItemCount);
 
 /// <summary>
 /// Grain for menu category management.
@@ -46,62 +49,67 @@ public interface IMenuCategoryGrain : IGrainWithStringKey
 // Menu Item Grain
 // ============================================================================
 
+[GenerateSerializer]
 public record CreateMenuItemCommand(
-    Guid LocationId,
-    Guid CategoryId,
-    Guid? AccountingGroupId,
-    Guid? RecipeId,
-    string Name,
-    string? Description,
-    decimal Price,
-    string? ImageUrl,
-    string? Sku,
-    bool TrackInventory);
+    [property: Id(0)] Guid LocationId,
+    [property: Id(1)] Guid CategoryId,
+    [property: Id(2)] Guid? AccountingGroupId,
+    [property: Id(3)] Guid? RecipeId,
+    [property: Id(4)] string Name,
+    [property: Id(5)] string? Description,
+    [property: Id(6)] decimal Price,
+    [property: Id(7)] string? ImageUrl,
+    [property: Id(8)] string? Sku,
+    [property: Id(9)] bool TrackInventory);
 
+[GenerateSerializer]
 public record UpdateMenuItemCommand(
-    Guid? CategoryId,
-    Guid? AccountingGroupId,
-    Guid? RecipeId,
-    string? Name,
-    string? Description,
-    decimal? Price,
-    string? ImageUrl,
-    string? Sku,
-    bool? IsActive,
-    bool? TrackInventory);
+    [property: Id(0)] Guid? CategoryId,
+    [property: Id(1)] Guid? AccountingGroupId,
+    [property: Id(2)] Guid? RecipeId,
+    [property: Id(3)] string? Name,
+    [property: Id(4)] string? Description,
+    [property: Id(5)] decimal? Price,
+    [property: Id(6)] string? ImageUrl,
+    [property: Id(7)] string? Sku,
+    [property: Id(8)] bool? IsActive,
+    [property: Id(9)] bool? TrackInventory);
 
+[GenerateSerializer]
 public record MenuItemModifier(
-    Guid ModifierId,
-    string Name,
-    decimal PriceAdjustment,
-    bool IsRequired,
-    int MinSelections,
-    int MaxSelections,
-    IReadOnlyList<MenuItemModifierOption> Options);
+    [property: Id(0)] Guid ModifierId,
+    [property: Id(1)] string Name,
+    [property: Id(2)] decimal PriceAdjustment,
+    [property: Id(3)] bool IsRequired,
+    [property: Id(4)] int MinSelections,
+    [property: Id(5)] int MaxSelections,
+    [property: Id(6)] IReadOnlyList<MenuItemModifierOption> Options);
 
+[GenerateSerializer]
 public record MenuItemModifierOption(
-    Guid OptionId,
-    string Name,
-    decimal Price,
-    bool IsDefault);
+    [property: Id(0)] Guid OptionId,
+    [property: Id(1)] string Name,
+    [property: Id(2)] decimal Price,
+    [property: Id(3)] bool IsDefault);
 
+[GenerateSerializer]
 public record MenuItemSnapshot(
-    Guid MenuItemId,
-    Guid LocationId,
-    Guid CategoryId,
-    string CategoryName,
-    Guid? AccountingGroupId,
-    Guid? RecipeId,
-    string Name,
-    string? Description,
-    decimal Price,
-    string? ImageUrl,
-    string? Sku,
-    bool IsActive,
-    bool TrackInventory,
-    decimal? TheoreticalCost,
-    decimal? CostPercent,
-    IReadOnlyList<MenuItemModifier> Modifiers);
+    [property: Id(0)] Guid MenuItemId,
+    [property: Id(1)] Guid LocationId,
+    [property: Id(2)] Guid CategoryId,
+    [property: Id(3)] string CategoryName,
+    [property: Id(4)] Guid? AccountingGroupId,
+    [property: Id(5)] Guid? RecipeId,
+    [property: Id(6)] string Name,
+    [property: Id(7)] string? Description,
+    [property: Id(8)] decimal Price,
+    [property: Id(9)] string? ImageUrl,
+    [property: Id(10)] string? Sku,
+    [property: Id(11)] bool IsActive,
+    [property: Id(12)] bool TrackInventory,
+    [property: Id(13)] decimal? TheoreticalCost,
+    [property: Id(14)] decimal? CostPercent,
+    [property: Id(15)] IReadOnlyList<MenuItemModifier> Modifiers);
 
 /// <summary>
 /// Grain for menu item management.
@@ -123,45 +131,50 @@ public interface IMenuItemGrain : IGrainWithStringKey
 // Menu Definition Grain
 // ============================================================================
 
+[GenerateSerializer]
 public record CreateMenuDefinitionCommand(
-    Guid LocationId,
-    string Name,
-    string? Description,
-    bool IsDefault);
+    [property: Id(0)] Guid LocationId,
+    [property: Id(1)] string Name,
+    [property: Id(2)] string? Description,
+    [property: Id(3)] bool IsDefault);
 
+[GenerateSerializer]
 public record UpdateMenuDefinitionCommand(
-    string? Name,
-    string? Description,
-    bool? IsDefault,
-    bool? IsActive);
+    [property: Id(0)] string? Name,
+    [property: Id(1)] string? Description,
+    [property: Id(2)] bool? IsDefault,
+    [property: Id(3)] bool? IsActive);
 
+[GenerateSerializer]
 public record MenuScreenDefinition(
-    Guid ScreenId,
-    string Name,
-    int Position,
-    string? Color,
-    int Rows,
-    int Columns,
-    IReadOnlyList<MenuButtonDefinition> Buttons);
+    [property: Id(0)] Guid ScreenId,
+    [property: Id(1)] string Name,
+    [property: Id(2)] int Position,
+    [property: Id(3)] string? Color,
+    [property: Id(4)] int Rows,
+    [property: Id(5)] int Columns,
+    [property: Id(6)] IReadOnlyList<MenuButtonDefinition> Buttons);
 
+[GenerateSerializer]
 public record MenuButtonDefinition(
-    Guid ButtonId,
-    Guid? MenuItemId,
-    Guid? SubScreenId,
-    int Row,
-    int Column,
-    string? Label,
-    string? Color,
-    string ButtonType);
+    [property: Id(0)] Guid ButtonId,
+    [property: Id(1)] Guid? MenuItemId,
+    [property: Id(2)] Guid? SubScreenId,
+    [property: Id(3)] int Row,
+    [property: Id(4)] int Column,
+    [property: Id(5)] string? Label,
+    [property: Id(6)] string? Color,
+    [property: Id(7)] string ButtonType);
 
+[GenerateSerializer]
 public record MenuDefinitionSnapshot(
-    Guid MenuId,
-    Guid LocationId,
-    string Name,
-    string? Description,
-    bool IsDefault,
-    bool IsActive,
-    IReadOnlyList<MenuScreenDefinition> Screens);
+    [property: Id(0)] Guid MenuId,
+    [property: Id(1)] Guid LocationId,
+    [property: Id(2)] string Name,
+    [property: Id(3)] string? Description,
+    [property: Id(4)] bool IsDefault,
+    [property: Id(5)] bool IsActive,
+    [property: Id(6)] IReadOnlyList<MenuScreenDefinition> Screens);
 
 /// <summary>
 /// Grain for menu definition management.
@@ -184,32 +197,35 @@ public interface IMenuDefinitionGrain : IGrainWithStringKey
 // Accounting Group Grain
 // ============================================================================
 
+[GenerateSerializer]
 public record CreateAccountingGroupCommand(
-    Guid LocationId,
-    string Name,
-    string Code,
-    string? Description,
-    string? RevenueAccountCode,
-    string? CogsAccountCode);
+    [property: Id(0)] Guid LocationId,
+    [property: Id(1)] string Name,
+    [property: Id(2)] string Code,
+    [property: Id(3)] string? Description,
+    [property: Id(4)] string? RevenueAccountCode,
+    [property: Id(5)] string? CogsAccountCode);
 
+[GenerateSerializer]
 public record UpdateAccountingGroupCommand(
-    string? Name,
-    string? Code,
-    string? Description,
-    string? RevenueAccountCode,
-    string? CogsAccountCode,
-    bool? IsActive);
+    [property: Id(0)] string? Name,
+    [property: Id(1)] string? Code,
+    [property: Id(2)] string? Description,
+    [property: Id(3)] string? RevenueAccountCode,
+    [property: Id(4)] string? CogsAccountCode,
+    [property: Id(5)] bool? IsActive);
 
+[GenerateSerializer]
 public record AccountingGroupSnapshot(
-    Guid AccountingGroupId,
-    Guid LocationId,
-    string Name,
-    string Code,
-    string? Description,
-    string? RevenueAccountCode,
-    string? CogsAccountCode,
-    bool IsActive,
-    int ItemCount);
+    [property: Id(0)] Guid AccountingGroupId,
+    [property: Id(1)] Guid LocationId,
+    [property: Id(2)] string Name,
+    [property: Id(3)] string Code,
+    [property: Id(4)] string? Description,
+    [property: Id(5)] string? RevenueAccountCode,
+    [property: Id(6)] string? CogsAccountCode,
+    [property: Id(7)] bool IsActive,
+    [property: Id(8)] int ItemCount);
 
 /// <summary>
 /// Grain for accounting group management.

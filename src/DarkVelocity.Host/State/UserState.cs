@@ -15,12 +15,13 @@ public enum UserType
     Owner
 }
 
+[GenerateSerializer]
 public record UserPreferences
 {
-    public string? Language { get; init; }
-    public string? Theme { get; init; }
-    public bool ReceiveEmailNotifications { get; init; } = true;
-    public bool ReceivePushNotifications { get; init; } = true;
+    [Id(0)] public string? Language { get; init; }
+    [Id(1)] public string? Theme { get; init; }
+    [Id(2)] public bool ReceiveEmailNotifications { get; init; } = true;
+    [Id(3)] public bool ReceivePushNotifications { get; init; } = true;
 }
 
 [GenerateSerializer]

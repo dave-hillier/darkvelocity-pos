@@ -2,61 +2,72 @@ using DarkVelocity.Host.State;
 
 namespace DarkVelocity.Host.Grains;
 
+[GenerateSerializer]
 public record CreateGiftCardCommand(
-    Guid OrganizationId,
-    string CardNumber,
-    GiftCardType Type,
-    decimal InitialValue,
-    string Currency = "USD",
-    DateTime? ExpiresAt = null,
-    string? Pin = null);
+    [property: Id(0)] Guid OrganizationId,
+    [property: Id(1)] string CardNumber,
+    [property: Id(2)] GiftCardType Type,
+    [property: Id(3)] decimal InitialValue,
+    [property: Id(4)] string Currency = "USD",
+    [property: Id(5)] DateTime? ExpiresAt = null,
+    [property: Id(6)] string? Pin = null);
 
+[GenerateSerializer]
 public record ActivateGiftCardCommand(
-    Guid ActivatedBy,
-    Guid SiteId,
-    Guid? OrderId = null,
-    Guid? PurchaserCustomerId = null,
-    string? PurchaserName = null,
-    string? PurchaserEmail = null);
+    [property: Id(0)] Guid ActivatedBy,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] Guid? OrderId = null,
+    [property: Id(3)] Guid? PurchaserCustomerId = null,
+    [property: Id(4)] string? PurchaserName = null,
+    [property: Id(5)] string? PurchaserEmail = null);
 
+[GenerateSerializer]
 public record SetRecipientCommand(
-    Guid? CustomerId = null,
-    string? Name = null,
-    string? Email = null,
-    string? Phone = null,
-    string? PersonalMessage = null);
+    [property: Id(0)] Guid? CustomerId = null,
+    [property: Id(1)] string? Name = null,
+    [property: Id(2)] string? Email = null,
+    [property: Id(3)] string? Phone = null,
+    [property: Id(4)] string? PersonalMessage = null);
 
+[GenerateSerializer]
 public record RedeemGiftCardCommand(
-    decimal Amount,
-    Guid OrderId,
-    Guid PaymentId,
-    Guid SiteId,
-    Guid PerformedBy);
+    [property: Id(0)] decimal Amount,
+    [property: Id(1)] Guid OrderId,
+    [property: Id(2)] Guid PaymentId,
+    [property: Id(3)] Guid SiteId,
+    [property: Id(4)] Guid PerformedBy);
 
+[GenerateSerializer]
 public record ReloadGiftCardCommand(
-    decimal Amount,
-    Guid SiteId,
-    Guid PerformedBy,
-    Guid? OrderId = null,
-    string? Notes = null);
+    [property: Id(0)] decimal Amount,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] Guid PerformedBy,
+    [property: Id(3)] Guid? OrderId = null,
+    [property: Id(4)] string? Notes = null);
 
+[GenerateSerializer]
 public record RefundToGiftCardCommand(
-    decimal Amount,
-    Guid OriginalPaymentId,
-    Guid SiteId,
-    Guid PerformedBy,
-    Guid? OriginalOrderId = null,
-    string? Notes = null);
+    [property: Id(0)] decimal Amount,
+    [property: Id(1)] Guid OriginalPaymentId,
+    [property: Id(2)] Guid SiteId,
+    [property: Id(3)] Guid PerformedBy,
+    [property: Id(4)] Guid? OriginalOrderId = null,
+    [property: Id(5)] string? Notes = null);
 
+[GenerateSerializer]
 public record AdjustGiftCardCommand(
-    decimal Amount, // positive or negative
-    string Reason,
-    Guid AdjustedBy);
+    [property: Id(0)] decimal Amount, // positive or negative
+    [property: Id(1)] string Reason,
+    [property: Id(2)] Guid AdjustedBy);
 
-public record GiftCardCreatedResult(Guid Id, string CardNumber, DateTime CreatedAt);
-public record GiftCardActivatedResult(decimal Balance, DateTime ActivatedAt);
-public record RedemptionResult(decimal AmountRedeemed, decimal RemainingBalance);
-public record GiftCardBalanceInfo(decimal CurrentBalance, GiftCardStatus Status, DateTime? ExpiresAt);
+[GenerateSerializer]
+public record GiftCardCreatedResult([property: Id(0)] Guid Id, [property: Id(1)] string CardNumber, [property: Id(2)] DateTime CreatedAt);
+[GenerateSerializer]
+public record GiftCardActivatedResult([property: Id(0)] decimal Balance, [property: Id(1)] DateTime ActivatedAt);
+[GenerateSerializer]
+public record RedemptionResult([property: Id(0)] decimal AmountRedeemed, [property: Id(1)] decimal RemainingBalance);
+[GenerateSerializer]
+public record GiftCardBalanceInfo([property: Id(0)] decimal CurrentBalance, [property: Id(1)] GiftCardStatus Status, [property: Id(2)] DateTime? ExpiresAt);
 
 public interface IGiftCardGrain : IGrainWithStringKey
 {

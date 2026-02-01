@@ -2,43 +2,52 @@ using DarkVelocity.Host.State;
 
 namespace DarkVelocity.Host.Grains;
 
+[GenerateSerializer]
 public record CreateEmployeeCommand(
-    Guid OrganizationId,
-    Guid UserId,
-    Guid DefaultSiteId,
-    string EmployeeNumber,
-    string FirstName,
-    string LastName,
-    string Email,
-    EmploymentType EmploymentType = EmploymentType.FullTime,
-    DateOnly? HireDate = null);
+    [property: Id(0)] Guid OrganizationId,
+    [property: Id(1)] Guid UserId,
+    [property: Id(2)] Guid DefaultSiteId,
+    [property: Id(3)] string EmployeeNumber,
+    [property: Id(4)] string FirstName,
+    [property: Id(5)] string LastName,
+    [property: Id(6)] string Email,
+    [property: Id(7)] EmploymentType EmploymentType = EmploymentType.FullTime,
+    [property: Id(8)] DateOnly? HireDate = null);
 
+[GenerateSerializer]
 public record UpdateEmployeeCommand(
-    string? FirstName = null,
-    string? LastName = null,
-    string? Email = null,
-    decimal? HourlyRate = null,
-    decimal? SalaryAmount = null,
-    string? PayFrequency = null);
+    [property: Id(0)] string? FirstName = null,
+    [property: Id(1)] string? LastName = null,
+    [property: Id(2)] string? Email = null,
+    [property: Id(3)] decimal? HourlyRate = null,
+    [property: Id(4)] decimal? SalaryAmount = null,
+    [property: Id(5)] string? PayFrequency = null);
 
+[GenerateSerializer]
 public record AssignRoleCommand(
-    Guid RoleId,
-    string RoleName,
-    string Department,
-    bool IsPrimary = false,
-    decimal? HourlyRateOverride = null);
+    [property: Id(0)] Guid RoleId,
+    [property: Id(1)] string RoleName,
+    [property: Id(2)] string Department,
+    [property: Id(3)] bool IsPrimary = false,
+    [property: Id(4)] decimal? HourlyRateOverride = null);
 
+[GenerateSerializer]
 public record ClockInCommand(
-    Guid SiteId,
-    Guid? ShiftId = null);
+    [property: Id(0)] Guid SiteId,
+    [property: Id(1)] Guid? ShiftId = null);
 
+[GenerateSerializer]
 public record ClockOutCommand(
-    string? Notes = null);
+    [property: Id(0)] string? Notes = null);
 
-public record EmployeeCreatedResult(Guid Id, string EmployeeNumber, DateTime CreatedAt);
-public record EmployeeUpdatedResult(int Version, DateTime UpdatedAt);
-public record ClockInResult(Guid TimeEntryId, DateTime ClockInTime);
-public record ClockOutResult(Guid TimeEntryId, DateTime ClockOutTime, decimal TotalHours);
+[GenerateSerializer]
+public record EmployeeCreatedResult([property: Id(0)] Guid Id, [property: Id(1)] string EmployeeNumber, [property: Id(2)] DateTime CreatedAt);
+[GenerateSerializer]
+public record EmployeeUpdatedResult([property: Id(0)] int Version, [property: Id(1)] DateTime UpdatedAt);
+[GenerateSerializer]
+public record ClockInResult([property: Id(0)] Guid TimeEntryId, [property: Id(1)] DateTime ClockInTime);
+[GenerateSerializer]
+public record ClockOutResult([property: Id(0)] Guid TimeEntryId, [property: Id(1)] DateTime ClockOutTime, [property: Id(2)] decimal TotalHours);
 
 public interface IEmployeeGrain : IGrainWithStringKey
 {

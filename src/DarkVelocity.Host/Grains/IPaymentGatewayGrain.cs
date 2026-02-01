@@ -4,64 +4,68 @@ namespace DarkVelocity.Host.Grains;
 // Merchant Grain
 // ============================================================================
 
+[GenerateSerializer]
 public record CreateMerchantCommand(
-    string Name,
-    string Email,
-    string BusinessName,
-    string? BusinessType,
-    string Country,
-    string DefaultCurrency,
-    string? StatementDescriptor,
-    string? AddressLine1,
-    string? AddressLine2,
-    string? City,
-    string? State,
-    string? PostalCode,
-    Dictionary<string, string>? Metadata);
+    [property: Id(0)] string Name,
+    [property: Id(1)] string Email,
+    [property: Id(2)] string BusinessName,
+    [property: Id(3)] string? BusinessType,
+    [property: Id(4)] string Country,
+    [property: Id(5)] string DefaultCurrency,
+    [property: Id(6)] string? StatementDescriptor,
+    [property: Id(7)] string? AddressLine1,
+    [property: Id(8)] string? AddressLine2,
+    [property: Id(9)] string? City,
+    [property: Id(10)] string? State,
+    [property: Id(11)] string? PostalCode,
+    [property: Id(12)] Dictionary<string, string>? Metadata);
 
+[GenerateSerializer]
 public record UpdateMerchantCommand(
-    string? Name,
-    string? BusinessName,
-    string? BusinessType,
-    string? StatementDescriptor,
-    string? AddressLine1,
-    string? AddressLine2,
-    string? City,
-    string? State,
-    string? PostalCode,
-    Dictionary<string, string>? Metadata);
+    [property: Id(0)] string? Name,
+    [property: Id(1)] string? BusinessName,
+    [property: Id(2)] string? BusinessType,
+    [property: Id(3)] string? StatementDescriptor,
+    [property: Id(4)] string? AddressLine1,
+    [property: Id(5)] string? AddressLine2,
+    [property: Id(6)] string? City,
+    [property: Id(7)] string? State,
+    [property: Id(8)] string? PostalCode,
+    [property: Id(9)] Dictionary<string, string>? Metadata);
 
+[GenerateSerializer]
 public record MerchantSnapshot(
-    Guid MerchantId,
-    string Name,
-    string Email,
-    string BusinessName,
-    string? BusinessType,
-    string Country,
-    string DefaultCurrency,
-    string Status,
-    bool PayoutsEnabled,
-    bool ChargesEnabled,
-    string? StatementDescriptor,
-    string? AddressLine1,
-    string? AddressLine2,
-    string? City,
-    string? State,
-    string? PostalCode,
-    DateTime CreatedAt,
-    DateTime? UpdatedAt);
+    [property: Id(0)] Guid MerchantId,
+    [property: Id(1)] string Name,
+    [property: Id(2)] string Email,
+    [property: Id(3)] string BusinessName,
+    [property: Id(4)] string? BusinessType,
+    [property: Id(5)] string Country,
+    [property: Id(6)] string DefaultCurrency,
+    [property: Id(7)] string Status,
+    [property: Id(8)] bool PayoutsEnabled,
+    [property: Id(9)] bool ChargesEnabled,
+    [property: Id(10)] string? StatementDescriptor,
+    [property: Id(11)] string? AddressLine1,
+    [property: Id(12)] string? AddressLine2,
+    [property: Id(13)] string? City,
+    [property: Id(14)] string? State,
+    [property: Id(15)] string? PostalCode,
+    [property: Id(16)] DateTime CreatedAt,
+    [property: Id(17)] DateTime? UpdatedAt);
 
+[GenerateSerializer]
 public record ApiKeySnapshot(
-    Guid KeyId,
-    string Name,
-    string KeyType,
-    string KeyPrefix,
-    string KeyHint,
-    bool IsLive,
-    bool IsActive,
-    DateTime? LastUsedAt,
-    DateTime? ExpiresAt,
-    DateTime CreatedAt);
+    [property: Id(0)] Guid KeyId,
+    [property: Id(1)] string Name,
+    [property: Id(2)] string KeyType,
+    [property: Id(3)] string KeyPrefix,
+    [property: Id(4)] string KeyHint,
+    [property: Id(5)] bool IsLive,
+    [property: Id(6)] bool IsActive,
+    [property: Id(7)] DateTime? LastUsedAt,
+    [property: Id(8)] DateTime? ExpiresAt,
+    [property: Id(9)] DateTime CreatedAt);
 
 /// <summary>
 /// Grain for merchant management.
@@ -99,32 +103,35 @@ public enum TerminalStatus
     Offline
 }
 
+[GenerateSerializer]
 public record RegisterTerminalCommand(
-    Guid LocationId,
-    string Label,
-    string? DeviceType,
-    string? SerialNumber,
-    Dictionary<string, string>? Metadata);
+    [property: Id(0)] Guid LocationId,
+    [property: Id(1)] string Label,
+    [property: Id(2)] string? DeviceType,
+    [property: Id(3)] string? SerialNumber,
+    [property: Id(4)] Dictionary<string, string>? Metadata);
 
+[GenerateSerializer]
 public record UpdateTerminalCommand(
-    string? Label,
-    Guid? LocationId,
-    Dictionary<string, string>? Metadata,
-    TerminalStatus? Status);
+    [property: Id(0)] string? Label,
+    [property: Id(1)] Guid? LocationId,
+    [property: Id(2)] Dictionary<string, string>? Metadata,
+    [property: Id(3)] TerminalStatus? Status);
 
+[GenerateSerializer]
 public record TerminalSnapshot(
-    Guid TerminalId,
-    Guid MerchantId,
-    Guid LocationId,
-    string Label,
-    string? DeviceType,
-    string? SerialNumber,
-    TerminalStatus Status,
-    DateTime? LastSeenAt,
-    string? IpAddress,
-    string? SoftwareVersion,
-    DateTime CreatedAt,
-    DateTime? UpdatedAt);
+    [property: Id(0)] Guid TerminalId,
+    [property: Id(1)] Guid MerchantId,
+    [property: Id(2)] Guid LocationId,
+    [property: Id(3)] string Label,
+    [property: Id(4)] string? DeviceType,
+    [property: Id(5)] string? SerialNumber,
+    [property: Id(6)] TerminalStatus Status,
+    [property: Id(7)] DateTime? LastSeenAt,
+    [property: Id(8)] string? IpAddress,
+    [property: Id(9)] string? SoftwareVersion,
+    [property: Id(10)] DateTime CreatedAt,
+    [property: Id(11)] DateTime? UpdatedAt);
 
 /// <summary>
 /// Grain for payment terminal management.
@@ -155,25 +162,27 @@ public enum RefundStatus
     Cancelled
 }
 
+[GenerateSerializer]
 public record CreateRefundCommand(
-    Guid PaymentIntentId,
-    long? Amount,
-    string Currency,
-    string? Reason,
-    Dictionary<string, string>? Metadata);
+    [property: Id(0)] Guid PaymentIntentId,
+    [property: Id(1)] long? Amount,
+    [property: Id(2)] string Currency,
+    [property: Id(3)] string? Reason,
+    [property: Id(4)] Dictionary<string, string>? Metadata);
 
+[GenerateSerializer]
 public record RefundSnapshot(
-    Guid RefundId,
-    Guid MerchantId,
-    Guid PaymentIntentId,
-    long Amount,
-    string Currency,
-    RefundStatus Status,
-    string? Reason,
-    string? ReceiptNumber,
-    string? FailureReason,
-    DateTime CreatedAt,
-    DateTime? SucceededAt);
+    [property: Id(0)] Guid RefundId,
+    [property: Id(1)] Guid MerchantId,
+    [property: Id(2)] Guid PaymentIntentId,
+    [property: Id(3)] long Amount,
+    [property: Id(4)] string Currency,
+    [property: Id(5)] RefundStatus Status,
+    [property: Id(6)] string? Reason,
+    [property: Id(7)] string? ReceiptNumber,
+    [property: Id(8)] string? FailureReason,
+    [property: Id(9)] DateTime CreatedAt,
+    [property: Id(10)] DateTime? SucceededAt);
 
 /// <summary>
 /// Grain for refund management.
@@ -195,36 +204,40 @@ public interface IRefundGrain : IGrainWithStringKey
 // Webhook Grain
 // ============================================================================
 
+[GenerateSerializer]
 public record CreateWebhookEndpointCommand(
-    string Url,
-    string? Description,
-    IReadOnlyList<string> EnabledEvents,
-    string? Secret);
+    [property: Id(0)] string Url,
+    [property: Id(1)] string? Description,
+    [property: Id(2)] IReadOnlyList<string> EnabledEvents,
+    [property: Id(3)] string? Secret);
 
+[GenerateSerializer]
 public record UpdateWebhookEndpointCommand(
-    string? Url,
-    string? Description,
-    IReadOnlyList<string>? EnabledEvents,
-    bool? Enabled);
+    [property: Id(0)] string? Url,
+    [property: Id(1)] string? Description,
+    [property: Id(2)] IReadOnlyList<string>? EnabledEvents,
+    [property: Id(3)] bool? Enabled);
 
+[GenerateSerializer]
 public record WebhookDeliveryAttempt(
-    DateTime AttemptedAt,
-    int StatusCode,
-    bool Success,
-    string? Error);
+    [property: Id(0)] DateTime AttemptedAt,
+    [property: Id(1)] int StatusCode,
+    [property: Id(2)] bool Success,
+    [property: Id(3)] string? Error);
 
+[GenerateSerializer]
 public record WebhookEndpointSnapshot(
-    Guid EndpointId,
-    Guid MerchantId,
-    string Url,
-    string? Description,
-    IReadOnlyList<string> EnabledEvents,
-    bool Enabled,
-    string Status,
-    DateTime? LastDeliveryAt,
-    IReadOnlyList<WebhookDeliveryAttempt> RecentDeliveries,
-    DateTime CreatedAt,
-    DateTime? UpdatedAt);
+    [property: Id(0)] Guid EndpointId,
+    [property: Id(1)] Guid MerchantId,
+    [property: Id(2)] string Url,
+    [property: Id(3)] string? Description,
+    [property: Id(4)] IReadOnlyList<string> EnabledEvents,
+    [property: Id(5)] bool Enabled,
+    [property: Id(6)] string Status,
+    [property: Id(7)] DateTime? LastDeliveryAt,
+    [property: Id(8)] IReadOnlyList<WebhookDeliveryAttempt> RecentDeliveries,
+    [property: Id(9)] DateTime CreatedAt,
+    [property: Id(10)] DateTime? UpdatedAt);
 
 /// <summary>
 /// Grain for webhook endpoint management.

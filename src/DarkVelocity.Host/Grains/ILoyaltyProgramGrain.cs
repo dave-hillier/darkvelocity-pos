@@ -2,64 +2,75 @@ using DarkVelocity.Host.State;
 
 namespace DarkVelocity.Host.Grains;
 
+[GenerateSerializer]
 public record CreateLoyaltyProgramCommand(
-    Guid OrganizationId,
-    string Name,
-    string? Description = null);
+    [property: Id(0)] Guid OrganizationId,
+    [property: Id(1)] string Name,
+    [property: Id(2)] string? Description = null);
 
+[GenerateSerializer]
 public record AddEarningRuleCommand(
-    string Name,
-    EarningType Type,
-    decimal? PointsPerDollar = null,
-    int? PointsPerVisit = null,
-    decimal? BonusMultiplier = null,
-    List<DayOfWeek>? ApplicableDays = null,
-    decimal? MinimumSpend = null);
+    [property: Id(0)] string Name,
+    [property: Id(1)] EarningType Type,
+    [property: Id(2)] decimal? PointsPerDollar = null,
+    [property: Id(3)] int? PointsPerVisit = null,
+    [property: Id(4)] decimal? BonusMultiplier = null,
+    [property: Id(5)] List<DayOfWeek>? ApplicableDays = null,
+    [property: Id(6)] decimal? MinimumSpend = null);
 
+[GenerateSerializer]
 public record AddTierCommand(
-    string Name,
-    int Level,
-    int PointsRequired,
-    List<TierBenefit>? Benefits = null,
-    decimal EarningMultiplier = 1m,
-    int? MaintenancePoints = null,
-    int? GracePeriodDays = null,
-    string Color = "#808080");
+    [property: Id(0)] string Name,
+    [property: Id(1)] int Level,
+    [property: Id(2)] int PointsRequired,
+    [property: Id(3)] List<TierBenefit>? Benefits = null,
+    [property: Id(4)] decimal EarningMultiplier = 1m,
+    [property: Id(5)] int? MaintenancePoints = null,
+    [property: Id(6)] int? GracePeriodDays = null,
+    [property: Id(7)] string Color = "#808080");
 
+[GenerateSerializer]
 public record AddRewardCommand(
-    string Name,
-    string Description,
-    RewardType Type,
-    int PointsCost,
-    decimal? DiscountValue = null,
-    DiscountType? DiscountType = null,
-    Guid? FreeItemId = null,
-    int? MinimumTierLevel = null,
-    int? LimitPerCustomer = null,
-    LimitPeriod? LimitPeriod = null,
-    int? ValidDays = null);
+    [property: Id(0)] string Name,
+    [property: Id(1)] string Description,
+    [property: Id(2)] RewardType Type,
+    [property: Id(3)] int PointsCost,
+    [property: Id(4)] decimal? DiscountValue = null,
+    [property: Id(5)] DiscountType? DiscountType = null,
+    [property: Id(6)] Guid? FreeItemId = null,
+    [property: Id(7)] int? MinimumTierLevel = null,
+    [property: Id(8)] int? LimitPerCustomer = null,
+    [property: Id(9)] LimitPeriod? LimitPeriod = null,
+    [property: Id(10)] int? ValidDays = null);
 
+[GenerateSerializer]
 public record ConfigurePointsExpiryCommand(
-    bool Enabled,
-    int ExpiryMonths = 12,
-    int WarningDays = 30);
+    [property: Id(0)] bool Enabled,
+    [property: Id(1)] int ExpiryMonths = 12,
+    [property: Id(2)] int WarningDays = 30);
 
+[GenerateSerializer]
 public record ConfigureReferralCommand(
-    bool Enabled,
-    int ReferrerPoints,
-    int RefereePoints,
-    decimal? MinimumQualifyingSpend = null);
+    [property: Id(0)] bool Enabled,
+    [property: Id(1)] int ReferrerPoints,
+    [property: Id(2)] int RefereePoints,
+    [property: Id(3)] decimal? MinimumQualifyingSpend = null);
 
-public record LoyaltyProgramCreatedResult(Guid Id, string Name, DateTime CreatedAt);
-public record EarningRuleResult(Guid RuleId);
-public record TierResult(Guid TierId);
-public record RewardDefinitionResult(Guid RewardId);
+[GenerateSerializer]
+public record LoyaltyProgramCreatedResult([property: Id(0)] Guid Id, [property: Id(1)] string Name, [property: Id(2)] DateTime CreatedAt);
+[GenerateSerializer]
+public record EarningRuleResult([property: Id(0)] Guid RuleId);
+[GenerateSerializer]
+public record TierResult([property: Id(0)] Guid TierId);
+[GenerateSerializer]
+public record RewardDefinitionResult([property: Id(0)] Guid RewardId);
 
+[GenerateSerializer]
 public record PointsCalculation(
-    int BasePoints,
-    decimal Multiplier,
-    int TotalPoints,
-    Guid? AppliedRuleId);
+    [property: Id(0)] int BasePoints,
+    [property: Id(1)] decimal Multiplier,
+    [property: Id(2)] int TotalPoints,
+    [property: Id(3)] Guid? AppliedRuleId);
 
 public interface ILoyaltyProgramGrain : IGrainWithStringKey
 {

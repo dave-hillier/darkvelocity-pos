@@ -16,22 +16,23 @@ public enum BatchStatus
     WrittenOff
 }
 
+[GenerateSerializer]
 public record StockBatch
 {
-    public Guid Id { get; init; }
-    public string BatchNumber { get; init; } = string.Empty;
-    public DateTime ReceivedDate { get; init; }
-    public DateTime? ExpiryDate { get; init; }
-    public decimal Quantity { get; init; }
-    public decimal OriginalQuantity { get; init; }
-    public decimal UnitCost { get; init; }
-    public decimal TotalCost { get; init; }
-    public Guid? SupplierId { get; init; }
-    public Guid? DeliveryId { get; init; }
-    public Guid? PurchaseOrderLineId { get; init; }
-    public BatchStatus Status { get; init; }
-    public string? Location { get; init; }
-    public string? Notes { get; init; }
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public string BatchNumber { get; init; } = string.Empty;
+    [Id(2)] public DateTime ReceivedDate { get; init; }
+    [Id(3)] public DateTime? ExpiryDate { get; init; }
+    [Id(4)] public decimal Quantity { get; init; }
+    [Id(5)] public decimal OriginalQuantity { get; init; }
+    [Id(6)] public decimal UnitCost { get; init; }
+    [Id(7)] public decimal TotalCost { get; init; }
+    [Id(8)] public Guid? SupplierId { get; init; }
+    [Id(9)] public Guid? DeliveryId { get; init; }
+    [Id(10)] public Guid? PurchaseOrderLineId { get; init; }
+    [Id(11)] public BatchStatus Status { get; init; }
+    [Id(12)] public string? Location { get; init; }
+    [Id(13)] public string? Notes { get; init; }
 }
 
 public enum MovementType
@@ -44,20 +45,21 @@ public enum MovementType
     Sample
 }
 
+[GenerateSerializer]
 public record StockMovement
 {
-    public Guid Id { get; init; }
-    public DateTime Timestamp { get; init; }
-    public MovementType Type { get; init; }
-    public decimal Quantity { get; init; }
-    public Guid? BatchId { get; init; }
-    public decimal UnitCost { get; init; }
-    public decimal TotalCost { get; init; }
-    public string Reason { get; init; } = string.Empty;
-    public string? ReferenceType { get; init; }
-    public Guid? ReferenceId { get; init; }
-    public Guid PerformedBy { get; init; }
-    public string? Notes { get; init; }
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public DateTime Timestamp { get; init; }
+    [Id(2)] public MovementType Type { get; init; }
+    [Id(3)] public decimal Quantity { get; init; }
+    [Id(4)] public Guid? BatchId { get; init; }
+    [Id(5)] public decimal UnitCost { get; init; }
+    [Id(6)] public decimal TotalCost { get; init; }
+    [Id(7)] public string Reason { get; init; } = string.Empty;
+    [Id(8)] public string? ReferenceType { get; init; }
+    [Id(9)] public Guid? ReferenceId { get; init; }
+    [Id(10)] public Guid PerformedBy { get; init; }
+    [Id(11)] public string? Notes { get; init; }
 }
 
 [GenerateSerializer]

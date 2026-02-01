@@ -8,56 +8,60 @@ namespace DarkVelocity.Host.Grains;
 // Daily Sales Aggregation Grain (per site per day)
 // ============================================================================
 
+[GenerateSerializer]
 public record DailySalesAggregationCommand(
-    DateTime BusinessDate,
-    Guid SiteId,
-    string SiteName);
+    [property: Id(0)] DateTime BusinessDate,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] string SiteName);
 
+[GenerateSerializer]
 public record RecordSaleCommand(
-    Guid CheckId,
-    SaleChannel Channel,
-    Guid ProductId,
-    string ProductName,
-    string Category,
-    int Quantity,
-    decimal GrossSales,
-    decimal Discounts,
-    decimal Voids,
-    decimal Comps,
-    decimal Tax,
-    decimal NetSales,
-    decimal TheoreticalCOGS,
-    decimal? ActualCOGS,
-    int GuestCount);
+    [property: Id(0)] Guid CheckId,
+    [property: Id(1)] SaleChannel Channel,
+    [property: Id(2)] Guid ProductId,
+    [property: Id(3)] string ProductName,
+    [property: Id(4)] string Category,
+    [property: Id(5)] int Quantity,
+    [property: Id(6)] decimal GrossSales,
+    [property: Id(7)] decimal Discounts,
+    [property: Id(8)] decimal Voids,
+    [property: Id(9)] decimal Comps,
+    [property: Id(10)] decimal Tax,
+    [property: Id(11)] decimal NetSales,
+    [property: Id(12)] decimal TheoreticalCOGS,
+    [property: Id(13)] decimal? ActualCOGS,
+    [property: Id(14)] int GuestCount);
 
+[GenerateSerializer]
 public record DailySalesSnapshot(
-    DateTime Date,
-    Guid SiteId,
-    string SiteName,
-    decimal GrossSales,
-    decimal NetSales,
-    decimal TheoreticalCOGS,
-    decimal ActualCOGS,
-    decimal GrossProfit,
-    decimal GrossProfitPercent,
-    int TransactionCount,
-    int GuestCount,
-    decimal AverageTicket,
-    IReadOnlyDictionary<SaleChannel, decimal> SalesByChannel,
-    IReadOnlyDictionary<string, decimal> SalesByCategory);
+    [property: Id(0)] DateTime Date,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] string SiteName,
+    [property: Id(3)] decimal GrossSales,
+    [property: Id(4)] decimal NetSales,
+    [property: Id(5)] decimal TheoreticalCOGS,
+    [property: Id(6)] decimal ActualCOGS,
+    [property: Id(7)] decimal GrossProfit,
+    [property: Id(8)] decimal GrossProfitPercent,
+    [property: Id(9)] int TransactionCount,
+    [property: Id(10)] int GuestCount,
+    [property: Id(11)] decimal AverageTicket,
+    [property: Id(12)] IReadOnlyDictionary<SaleChannel, decimal> SalesByChannel,
+    [property: Id(13)] IReadOnlyDictionary<string, decimal> SalesByCategory);
 
 /// <summary>
 /// Simplified sale command for stream-based aggregation.
 /// </summary>
+[GenerateSerializer]
 public record RecordSaleFromStreamCommand(
-    Guid OrderId,
-    decimal GrossSales,
-    decimal Discounts,
-    decimal Tax,
-    int GuestCount,
-    int ItemCount,
-    string Channel,
-    decimal TheoreticalCOGS);
+    [property: Id(0)] Guid OrderId,
+    [property: Id(1)] decimal GrossSales,
+    [property: Id(2)] decimal Discounts,
+    [property: Id(3)] decimal Tax,
+    [property: Id(4)] int GuestCount,
+    [property: Id(5)] int ItemCount,
+    [property: Id(6)] string Channel,
+    [property: Id(7)] decimal TheoreticalCOGS);
 
 /// <summary>
 /// Grain for daily sales aggregation at site level.
@@ -80,39 +84,42 @@ public interface IDailySalesGrain : IGrainWithStringKey
 // Inventory Snapshot Grain (per site per day)
 // ============================================================================
 
+[GenerateSerializer]
 public record InventorySnapshotCommand(
-    DateTime BusinessDate,
-    Guid SiteId,
-    string SiteName);
+    [property: Id(0)] DateTime BusinessDate,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] string SiteName);
 
+[GenerateSerializer]
 public record IngredientSnapshot(
-    Guid IngredientId,
-    string IngredientName,
-    string Sku,
-    string Category,
-    decimal OnHandQuantity,
-    decimal AvailableQuantity,
-    string Unit,
-    decimal WeightedAverageCost,
-    decimal TotalValue,
-    DateTime? EarliestExpiry,
-    bool IsLowStock,
-    bool IsOutOfStock,
-    bool IsExpiringSoon,
-    bool IsOverPar,
-    int ActiveBatchCount);
+    [property: Id(0)] Guid IngredientId,
+    [property: Id(1)] string IngredientName,
+    [property: Id(2)] string Sku,
+    [property: Id(3)] string Category,
+    [property: Id(4)] decimal OnHandQuantity,
+    [property: Id(5)] decimal AvailableQuantity,
+    [property: Id(6)] string Unit,
+    [property: Id(7)] decimal WeightedAverageCost,
+    [property: Id(8)] decimal TotalValue,
+    [property: Id(9)] DateTime? EarliestExpiry,
+    [property: Id(10)] bool IsLowStock,
+    [property: Id(11)] bool IsOutOfStock,
+    [property: Id(12)] bool IsExpiringSoon,
+    [property: Id(13)] bool IsOverPar,
+    [property: Id(14)] int ActiveBatchCount);
 
+[GenerateSerializer]
 public record DailyInventorySnapshot(
-    DateTime Date,
-    Guid SiteId,
-    string SiteName,
-    decimal TotalStockValue,
-    int TotalSkuCount,
-    int LowStockCount,
-    int OutOfStockCount,
-    int ExpiringSoonCount,
-    decimal ExpiringSoonValue,
-    IReadOnlyList<IngredientSnapshot> Ingredients);
+    [property: Id(0)] DateTime Date,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] string SiteName,
+    [property: Id(3)] decimal TotalStockValue,
+    [property: Id(4)] int TotalSkuCount,
+    [property: Id(5)] int LowStockCount,
+    [property: Id(6)] int OutOfStockCount,
+    [property: Id(7)] int ExpiringSoonCount,
+    [property: Id(8)] decimal ExpiringSoonValue,
+    [property: Id(9)] IReadOnlyList<IngredientSnapshot> Ingredients);
 
 /// <summary>
 /// Grain for daily inventory snapshot at site level.
@@ -132,28 +139,30 @@ public interface IDailyInventorySnapshotGrain : IGrainWithStringKey
 // Consumption Tracking Grain (per site per day)
 // ============================================================================
 
+[GenerateSerializer]
 public record RecordConsumptionCommand(
-    Guid IngredientId,
-    string IngredientName,
-    string Category,
-    string Unit,
-    decimal TheoreticalQuantity,
-    decimal TheoreticalCost,
-    decimal ActualQuantity,
-    decimal ActualCost,
-    CostingMethod CostingMethod,
-    Guid? OrderId,
-    Guid? MenuItemId,
-    Guid? RecipeVersionId);
+    [property: Id(0)] Guid IngredientId,
+    [property: Id(1)] string IngredientName,
+    [property: Id(2)] string Category,
+    [property: Id(3)] string Unit,
+    [property: Id(4)] decimal TheoreticalQuantity,
+    [property: Id(5)] decimal TheoreticalCost,
+    [property: Id(6)] decimal ActualQuantity,
+    [property: Id(7)] decimal ActualCost,
+    [property: Id(8)] CostingMethod CostingMethod,
+    [property: Id(9)] Guid? OrderId,
+    [property: Id(10)] Guid? MenuItemId,
+    [property: Id(11)] Guid? RecipeVersionId);
 
+[GenerateSerializer]
 public record DailyConsumptionSnapshot(
-    DateTime Date,
-    Guid SiteId,
-    decimal TotalTheoreticalCost,
-    decimal TotalActualCost,
-    decimal TotalVariance,
-    decimal VariancePercent,
-    IReadOnlyList<VarianceBreakdown> TopVariances);
+    [property: Id(0)] DateTime Date,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] decimal TotalTheoreticalCost,
+    [property: Id(3)] decimal TotalActualCost,
+    [property: Id(4)] decimal TotalVariance,
+    [property: Id(5)] decimal VariancePercent,
+    [property: Id(6)] IReadOnlyList<VarianceBreakdown> TopVariances);
 
 /// <summary>
 /// Grain for daily consumption tracking at site level.
@@ -172,29 +181,31 @@ public interface IDailyConsumptionGrain : IGrainWithStringKey
 // Waste Tracking Grain (per site per day)
 // ============================================================================
 
+[GenerateSerializer]
 public record RecordWasteFactCommand(
-    Guid WasteId,
-    Guid IngredientId,
-    string IngredientName,
-    string Sku,
-    string Category,
-    Guid? BatchId,
-    decimal Quantity,
-    string Unit,
-    WasteReason Reason,
-    string ReasonDetails,
-    decimal CostBasis,
-    Guid RecordedBy,
-    Guid? ApprovedBy,
-    string? PhotoUrl);
+    [property: Id(0)] Guid WasteId,
+    [property: Id(1)] Guid IngredientId,
+    [property: Id(2)] string IngredientName,
+    [property: Id(3)] string Sku,
+    [property: Id(4)] string Category,
+    [property: Id(5)] Guid? BatchId,
+    [property: Id(6)] decimal Quantity,
+    [property: Id(7)] string Unit,
+    [property: Id(8)] WasteReason Reason,
+    [property: Id(9)] string ReasonDetails,
+    [property: Id(10)] decimal CostBasis,
+    [property: Id(11)] Guid RecordedBy,
+    [property: Id(12)] Guid? ApprovedBy,
+    [property: Id(13)] string? PhotoUrl);
 
+[GenerateSerializer]
 public record DailyWasteSnapshot(
-    DateTime Date,
-    Guid SiteId,
-    decimal TotalWasteValue,
-    int TotalWasteCount,
-    IReadOnlyDictionary<WasteReason, decimal> WasteByReason,
-    IReadOnlyDictionary<string, decimal> WasteByCategory);
+    [property: Id(0)] DateTime Date,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] decimal TotalWasteValue,
+    [property: Id(3)] int TotalWasteCount,
+    [property: Id(4)] IReadOnlyDictionary<WasteReason, decimal> WasteByReason,
+    [property: Id(5)] IReadOnlyDictionary<string, decimal> WasteByCategory);
 
 /// <summary>
 /// Grain for daily waste tracking at site level.
@@ -221,23 +232,25 @@ public enum PeriodType
     Yearly
 }
 
+[GenerateSerializer]
 public record PeriodAggregationCommand(
-    PeriodType PeriodType,
-    DateTime PeriodStart,
-    DateTime PeriodEnd,
-    int PeriodNumber, // Week 1-52, Period 1-13
-    int FiscalYear);
+    [property: Id(0)] PeriodType PeriodType,
+    [property: Id(1)] DateTime PeriodStart,
+    [property: Id(2)] DateTime PeriodEnd,
+    [property: Id(3)] int PeriodNumber, // Week 1-52, Period 1-13
+    [property: Id(4)] int FiscalYear);
 
+[GenerateSerializer]
 public record PeriodSummary(
-    PeriodType PeriodType,
-    DateTime PeriodStart,
-    DateTime PeriodEnd,
-    int PeriodNumber,
-    SalesMetrics SalesMetrics,
-    GrossProfitMetrics FifoGrossProfit,
-    GrossProfitMetrics WacGrossProfit,
-    StockHealthMetrics StockHealth,
-    decimal TotalWasteValue);
+    [property: Id(0)] PeriodType PeriodType,
+    [property: Id(1)] DateTime PeriodStart,
+    [property: Id(2)] DateTime PeriodEnd,
+    [property: Id(3)] int PeriodNumber,
+    [property: Id(4)] SalesMetrics SalesMetrics,
+    [property: Id(5)] GrossProfitMetrics FifoGrossProfit,
+    [property: Id(6)] GrossProfitMetrics WacGrossProfit,
+    [property: Id(7)] StockHealthMetrics StockHealth,
+    [property: Id(8)] decimal TotalWasteValue);
 
 /// <summary>
 /// Grain for period aggregation (weekly, monthly).
@@ -257,32 +270,33 @@ public interface IPeriodAggregationGrain : IGrainWithStringKey
 // Site Dashboard Grain
 // ============================================================================
 
+[GenerateSerializer]
 public record DashboardMetrics(
     // Today
-    decimal TodayNetSales,
-    decimal TodayNetSalesVsLastWeek,
-    decimal TodayNetSalesVsLastYear,
-    decimal TodayGrossProfitPercent,
-    decimal TodayGrossProfitVsBudget,
+    [property: Id(0)] decimal TodayNetSales,
+    [property: Id(1)] decimal TodayNetSalesVsLastWeek,
+    [property: Id(2)] decimal TodayNetSalesVsLastYear,
+    [property: Id(3)] decimal TodayGrossProfitPercent,
+    [property: Id(4)] decimal TodayGrossProfitVsBudget,
 
     // Week to Date
-    decimal WtdNetSales,
-    decimal WtdGrossProfitPercent,
+    [property: Id(5)] decimal WtdNetSales,
+    [property: Id(6)] decimal WtdGrossProfitPercent,
 
     // Period to Date
-    decimal PtdNetSales,
-    decimal PtdGrossProfitPercent,
+    [property: Id(7)] decimal PtdNetSales,
+    [property: Id(8)] decimal PtdGrossProfitPercent,
 
     // Alerts
-    int LowStockAlertCount,
-    int OutOfStockAlertCount,
-    int ExpiryRiskCount,
-    int HighVarianceCount,
-    decimal OutstandingPOValue,
+    [property: Id(9)] int LowStockAlertCount,
+    [property: Id(10)] int OutOfStockAlertCount,
+    [property: Id(11)] int ExpiryRiskCount,
+    [property: Id(12)] int HighVarianceCount,
+    [property: Id(13)] decimal OutstandingPOValue,
 
     // Top issues
-    IReadOnlyList<VarianceBreakdown> TopVariances,
-    IReadOnlyList<IngredientSnapshot> LowStockItems);
+    [property: Id(14)] IReadOnlyList<VarianceBreakdown> TopVariances,
+    [property: Id(15)] IReadOnlyList<IngredientSnapshot> LowStockItems);
 
 /// <summary>
 /// Grain for site dashboard (GM view).

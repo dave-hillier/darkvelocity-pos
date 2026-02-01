@@ -2,51 +2,60 @@ using DarkVelocity.Host.State;
 
 namespace DarkVelocity.Host.Grains;
 
+[GenerateSerializer]
 public record CreateOrderCommand(
-    Guid OrganizationId,
-    Guid SiteId,
-    Guid CreatedBy,
-    OrderType Type,
-    Guid? TableId = null,
-    string? TableNumber = null,
-    Guid? CustomerId = null,
-    int GuestCount = 1);
+    [property: Id(0)] Guid OrganizationId,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] Guid CreatedBy,
+    [property: Id(3)] OrderType Type,
+    [property: Id(4)] Guid? TableId = null,
+    [property: Id(5)] string? TableNumber = null,
+    [property: Id(6)] Guid? CustomerId = null,
+    [property: Id(7)] int GuestCount = 1);
 
+[GenerateSerializer]
 public record AddLineCommand(
-    Guid MenuItemId,
-    string Name,
-    int Quantity,
-    decimal UnitPrice,
-    string? Notes = null,
-    List<OrderLineModifier>? Modifiers = null);
+    [property: Id(0)] Guid MenuItemId,
+    [property: Id(1)] string Name,
+    [property: Id(2)] int Quantity,
+    [property: Id(3)] decimal UnitPrice,
+    [property: Id(4)] string? Notes = null,
+    [property: Id(5)] List<OrderLineModifier>? Modifiers = null);
 
+[GenerateSerializer]
 public record UpdateLineCommand(
-    Guid LineId,
-    int? Quantity = null,
-    string? Notes = null);
+    [property: Id(0)] Guid LineId,
+    [property: Id(1)] int? Quantity = null,
+    [property: Id(2)] string? Notes = null);
 
+[GenerateSerializer]
 public record ApplyDiscountCommand(
-    string Name,
-    DiscountType Type,
-    decimal Value,
-    Guid AppliedBy,
-    Guid? DiscountId = null,
-    string? Reason = null,
-    Guid? ApprovedBy = null);
+    [property: Id(0)] string Name,
+    [property: Id(1)] DiscountType Type,
+    [property: Id(2)] decimal Value,
+    [property: Id(3)] Guid AppliedBy,
+    [property: Id(4)] Guid? DiscountId = null,
+    [property: Id(5)] string? Reason = null,
+    [property: Id(6)] Guid? ApprovedBy = null);
 
-public record VoidOrderCommand(Guid VoidedBy, string Reason);
-public record VoidLineCommand(Guid LineId, Guid VoidedBy, string Reason);
+[GenerateSerializer]
+public record VoidOrderCommand([property: Id(0)] Guid VoidedBy, [property: Id(1)] string Reason);
+[GenerateSerializer]
+public record VoidLineCommand([property: Id(0)] Guid LineId, [property: Id(1)] Guid VoidedBy, [property: Id(2)] string Reason);
 
-public record OrderCreatedResult(Guid Id, string OrderNumber, DateTime CreatedAt);
-public record AddLineResult(Guid LineId, decimal LineTotal, decimal GrandTotal);
+[GenerateSerializer]
+public record OrderCreatedResult([property: Id(0)] Guid Id, [property: Id(1)] string OrderNumber, [property: Id(2)] DateTime CreatedAt);
+[GenerateSerializer]
+public record AddLineResult([property: Id(0)] Guid LineId, [property: Id(1)] decimal LineTotal, [property: Id(2)] decimal GrandTotal);
+[GenerateSerializer]
 public record OrderTotals(
-    decimal Subtotal,
-    decimal DiscountTotal,
-    decimal ServiceChargeTotal,
-    decimal TaxTotal,
-    decimal GrandTotal,
-    decimal PaidAmount,
-    decimal BalanceDue);
+    [property: Id(0)] decimal Subtotal,
+    [property: Id(1)] decimal DiscountTotal,
+    [property: Id(2)] decimal ServiceChargeTotal,
+    [property: Id(3)] decimal TaxTotal,
+    [property: Id(4)] decimal GrandTotal,
+    [property: Id(5)] decimal PaidAmount,
+    [property: Id(6)] decimal BalanceDue);
 
 public interface IOrderGrain : IGrainWithStringKey
 {

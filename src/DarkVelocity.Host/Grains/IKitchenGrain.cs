@@ -2,36 +2,43 @@ using DarkVelocity.Host.State;
 
 namespace DarkVelocity.Host.Grains;
 
+[GenerateSerializer]
 public record CreateKitchenTicketCommand(
-    Guid OrganizationId,
-    Guid SiteId,
-    Guid OrderId,
-    string OrderNumber,
-    OrderType OrderType,
-    string? TableNumber = null,
-    int? GuestCount = null,
-    string? ServerName = null,
-    string? Notes = null,
-    TicketPriority Priority = TicketPriority.Normal,
-    int CourseNumber = 1);
+    [property: Id(0)] Guid OrganizationId,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] Guid OrderId,
+    [property: Id(3)] string OrderNumber,
+    [property: Id(4)] OrderType OrderType,
+    [property: Id(5)] string? TableNumber = null,
+    [property: Id(6)] int? GuestCount = null,
+    [property: Id(7)] string? ServerName = null,
+    [property: Id(8)] string? Notes = null,
+    [property: Id(9)] TicketPriority Priority = TicketPriority.Normal,
+    [property: Id(10)] int CourseNumber = 1);
 
+[GenerateSerializer]
 public record AddTicketItemCommand(
-    Guid OrderLineId,
-    Guid MenuItemId,
-    string Name,
-    int Quantity,
-    List<string>? Modifiers = null,
-    string? SpecialInstructions = null,
-    Guid? StationId = null,
-    string? StationName = null,
-    int? CourseNumber = null);
+    [property: Id(0)] Guid OrderLineId,
+    [property: Id(1)] Guid MenuItemId,
+    [property: Id(2)] string Name,
+    [property: Id(3)] int Quantity,
+    [property: Id(4)] List<string>? Modifiers = null,
+    [property: Id(5)] string? SpecialInstructions = null,
+    [property: Id(6)] Guid? StationId = null,
+    [property: Id(7)] string? StationName = null,
+    [property: Id(8)] int? CourseNumber = null);
 
-public record StartItemCommand(Guid ItemId, Guid? PreparedBy = null);
-public record CompleteItemCommand(Guid ItemId, Guid PreparedBy);
-public record VoidItemCommand(Guid ItemId, string Reason);
+[GenerateSerializer]
+public record StartItemCommand([property: Id(0)] Guid ItemId, [property: Id(1)] Guid? PreparedBy = null);
+[GenerateSerializer]
+public record CompleteItemCommand([property: Id(0)] Guid ItemId, [property: Id(1)] Guid PreparedBy);
+[GenerateSerializer]
+public record VoidItemCommand([property: Id(0)] Guid ItemId, [property: Id(1)] string Reason);
 
-public record KitchenTicketCreatedResult(Guid Id, string TicketNumber, DateTime CreatedAt);
-public record TicketTimings(TimeSpan? WaitTime, TimeSpan? PrepTime, DateTime? CompletedAt);
+[GenerateSerializer]
+public record KitchenTicketCreatedResult([property: Id(0)] Guid Id, [property: Id(1)] string TicketNumber, [property: Id(2)] DateTime CreatedAt);
+[GenerateSerializer]
+public record TicketTimings([property: Id(0)] TimeSpan? WaitTime, [property: Id(1)] TimeSpan? PrepTime, [property: Id(2)] DateTime? CompletedAt);
 
 public interface IKitchenTicketGrain : IGrainWithStringKey
 {
@@ -63,16 +70,18 @@ public interface IKitchenTicketGrain : IGrainWithStringKey
     Task<IReadOnlyList<TicketItem>> GetPendingItemsAsync();
 }
 
+[GenerateSerializer]
 public record OpenStationCommand(
-    Guid OrganizationId,
-    Guid SiteId,
-    string Name,
-    StationType Type,
-    int DisplayOrder = 0);
+    [property: Id(0)] Guid OrganizationId,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] string Name,
+    [property: Id(3)] StationType Type,
+    [property: Id(4)] int DisplayOrder = 0);
 
+[GenerateSerializer]
 public record AssignItemsToStationCommand(
-    List<Guid>? MenuItemCategories = null,
-    List<Guid>? MenuItemIds = null);
+    [property: Id(0)] List<Guid>? MenuItemCategories = null,
+    [property: Id(1)] List<Guid>? MenuItemIds = null);
 
 public interface IKitchenStationGrain : IGrainWithStringKey
 {

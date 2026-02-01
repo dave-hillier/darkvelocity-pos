@@ -20,26 +20,27 @@ public enum OrderType
     Tab
 }
 
+[GenerateSerializer]
 public record OrderLine
 {
-    public Guid Id { get; init; }
-    public Guid MenuItemId { get; init; }
-    public string Name { get; init; } = string.Empty;
-    public string? Sku { get; init; }
-    public int Quantity { get; init; }
-    public decimal UnitPrice { get; init; }
-    public decimal LineTotal { get; init; }
-    public decimal DiscountAmount { get; init; }
-    public decimal TaxAmount { get; init; }
-    public string? Notes { get; init; }
-    public List<OrderLineModifier> Modifiers { get; init; } = [];
-    public Guid? SentBy { get; init; }
-    public DateTime? SentAt { get; init; }
-    public OrderLineStatus Status { get; init; }
-    public DateTime CreatedAt { get; init; }
-    public Guid? VoidedBy { get; init; }
-    public DateTime? VoidedAt { get; init; }
-    public string? VoidReason { get; init; }
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public Guid MenuItemId { get; init; }
+    [Id(2)] public string Name { get; init; } = string.Empty;
+    [Id(3)] public string? Sku { get; init; }
+    [Id(4)] public int Quantity { get; init; }
+    [Id(5)] public decimal UnitPrice { get; init; }
+    [Id(6)] public decimal LineTotal { get; init; }
+    [Id(7)] public decimal DiscountAmount { get; init; }
+    [Id(8)] public decimal TaxAmount { get; init; }
+    [Id(9)] public string? Notes { get; init; }
+    [Id(10)] public List<OrderLineModifier> Modifiers { get; init; } = [];
+    [Id(11)] public Guid? SentBy { get; init; }
+    [Id(12)] public DateTime? SentAt { get; init; }
+    [Id(13)] public OrderLineStatus Status { get; init; }
+    [Id(14)] public DateTime CreatedAt { get; init; }
+    [Id(15)] public Guid? VoidedBy { get; init; }
+    [Id(16)] public DateTime? VoidedAt { get; init; }
+    [Id(17)] public string? VoidReason { get; init; }
 }
 
 public enum OrderLineStatus
@@ -52,26 +53,28 @@ public enum OrderLineStatus
     Voided
 }
 
+[GenerateSerializer]
 public record OrderLineModifier
 {
-    public Guid ModifierId { get; init; }
-    public string Name { get; init; } = string.Empty;
-    public decimal Price { get; init; }
-    public int Quantity { get; init; }
+    [Id(0)] public Guid ModifierId { get; init; }
+    [Id(1)] public string Name { get; init; } = string.Empty;
+    [Id(2)] public decimal Price { get; init; }
+    [Id(3)] public int Quantity { get; init; }
 }
 
+[GenerateSerializer]
 public record OrderDiscount
 {
-    public Guid Id { get; init; }
-    public Guid? DiscountId { get; init; }
-    public string Name { get; init; } = string.Empty;
-    public DiscountType Type { get; init; }
-    public decimal Value { get; init; }
-    public decimal Amount { get; init; }
-    public Guid AppliedBy { get; init; }
-    public DateTime AppliedAt { get; init; }
-    public string? Reason { get; init; }
-    public Guid? ApprovedBy { get; init; }
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public Guid? DiscountId { get; init; }
+    [Id(2)] public string Name { get; init; } = string.Empty;
+    [Id(3)] public DiscountType Type { get; init; }
+    [Id(4)] public decimal Value { get; init; }
+    [Id(5)] public decimal Amount { get; init; }
+    [Id(6)] public Guid AppliedBy { get; init; }
+    [Id(7)] public DateTime AppliedAt { get; init; }
+    [Id(8)] public string? Reason { get; init; }
+    [Id(9)] public Guid? ApprovedBy { get; init; }
 }
 
 public enum DiscountType
@@ -82,22 +85,24 @@ public enum DiscountType
     Loyalty
 }
 
+[GenerateSerializer]
 public record ServiceCharge
 {
-    public Guid Id { get; init; }
-    public string Name { get; init; } = string.Empty;
-    public decimal Rate { get; init; }
-    public decimal Amount { get; init; }
-    public bool IsTaxable { get; init; }
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public string Name { get; init; } = string.Empty;
+    [Id(2)] public decimal Rate { get; init; }
+    [Id(3)] public decimal Amount { get; init; }
+    [Id(4)] public bool IsTaxable { get; init; }
 }
 
+[GenerateSerializer]
 public record OrderPaymentSummary
 {
-    public Guid PaymentId { get; init; }
-    public decimal Amount { get; init; }
-    public decimal TipAmount { get; init; }
-    public string Method { get; init; } = string.Empty;
-    public DateTime PaidAt { get; init; }
+    [Id(0)] public Guid PaymentId { get; init; }
+    [Id(1)] public decimal Amount { get; init; }
+    [Id(2)] public decimal TipAmount { get; init; }
+    [Id(3)] public string Method { get; init; } = string.Empty;
+    [Id(4)] public DateTime PaidAt { get; init; }
 }
 
 [GenerateSerializer]

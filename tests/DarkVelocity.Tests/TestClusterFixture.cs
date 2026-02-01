@@ -1,4 +1,5 @@
 using DarkVelocity.Host.Streams;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans.TestingHost;
@@ -13,6 +14,7 @@ public class TestClusterFixture : IDisposable
     {
         var builder = new TestClusterBuilder();
         builder.AddSiloBuilderConfigurator<TestSiloConfigurator>();
+        builder.AddClientBuilderConfigurator<TestClientConfigurator>();
         Cluster = builder.Build();
         Cluster.Deploy();
     }
@@ -27,13 +29,22 @@ public class TestSiloConfigurator : ISiloConfigurator
 {
     public void Configure(ISiloBuilder siloBuilder)
     {
+        siloBuilder.AddMemoryGrainStorageAsDefault();
         siloBuilder.AddMemoryGrainStorage("OrleansStorage");
+        siloBuilder.AddMemoryGrainStorage("PubSubStore");
 
-        // Add memory stream provider for pub/sub testing
+        // Add memory stream provider for pub/sub testing with implicit subscription support
         siloBuilder.AddMemoryStreams(StreamConstants.DefaultStreamProvider);
 
-        siloBuilder.Services.AddSingleton<IGrainFactory>(sp => sp.GetRequiredService<IGrainFactory>());
         siloBuilder.Services.AddLogging(logging => logging.SetMinimumLevel(LogLevel.Warning));
+    }
+}
+
+public class TestClientConfigurator : IClientBuilderConfigurator
+{
+    public void Configure(IConfiguration configuration, IClientBuilder clientBuilder)
+    {
+        clientBuilder.AddMemoryStreams(StreamConstants.DefaultStreamProvider);
     }
 }
 

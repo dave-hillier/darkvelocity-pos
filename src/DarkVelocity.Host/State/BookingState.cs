@@ -43,35 +43,38 @@ public enum DepositStatus
     Refunded
 }
 
+[GenerateSerializer]
 public record GuestInfo
 {
-    public string Name { get; init; } = string.Empty;
-    public string? Phone { get; init; }
-    public string? Email { get; init; }
-    public string? Notes { get; init; }
-    public VipStatus VipStatus { get; init; }
-    public int VisitCount { get; init; }
+    [Id(0)] public string Name { get; init; } = string.Empty;
+    [Id(1)] public string? Phone { get; init; }
+    [Id(2)] public string? Email { get; init; }
+    [Id(3)] public string? Notes { get; init; }
+    [Id(4)] public VipStatus VipStatus { get; init; }
+    [Id(5)] public int VisitCount { get; init; }
 }
 
+[GenerateSerializer]
 public record DepositInfo
 {
-    public decimal Amount { get; init; }
-    public DepositStatus Status { get; init; }
-    public DateTime RequiredAt { get; init; }
-    public DateTime? PaidAt { get; init; }
-    public PaymentMethod? PaymentMethod { get; init; }
-    public string? PaymentReference { get; init; }
-    public DateTime? ForfeitedAt { get; init; }
-    public DateTime? RefundedAt { get; init; }
-    public string? RefundReason { get; init; }
+    [Id(0)] public decimal Amount { get; init; }
+    [Id(1)] public DepositStatus Status { get; init; }
+    [Id(2)] public DateTime RequiredAt { get; init; }
+    [Id(3)] public DateTime? PaidAt { get; init; }
+    [Id(4)] public PaymentMethod? PaymentMethod { get; init; }
+    [Id(5)] public string? PaymentReference { get; init; }
+    [Id(6)] public DateTime? ForfeitedAt { get; init; }
+    [Id(7)] public DateTime? RefundedAt { get; init; }
+    [Id(8)] public string? RefundReason { get; init; }
 }
 
+[GenerateSerializer]
 public record TableAssignment
 {
-    public Guid TableId { get; init; }
-    public string TableNumber { get; init; } = string.Empty;
-    public int Capacity { get; init; }
-    public DateTime? AssignedAt { get; init; }
+    [Id(0)] public Guid TableId { get; init; }
+    [Id(1)] public string TableNumber { get; init; } = string.Empty;
+    [Id(2)] public int Capacity { get; init; }
+    [Id(3)] public DateTime? AssignedAt { get; init; }
 }
 
 [GenerateSerializer]
@@ -135,21 +138,22 @@ public enum NotificationMethod
     Display
 }
 
+[GenerateSerializer]
 public record WaitlistEntry
 {
-    public Guid Id { get; init; }
-    public int Position { get; init; }
-    public GuestInfo Guest { get; init; } = new();
-    public int PartySize { get; init; }
-    public DateTime CheckedInAt { get; init; }
-    public TimeSpan QuotedWait { get; init; }
-    public WaitlistStatus Status { get; init; }
-    public string? TablePreferences { get; init; }
-    public NotificationMethod NotificationMethod { get; init; }
-    public DateTime? NotifiedAt { get; init; }
-    public DateTime? SeatedAt { get; init; }
-    public DateTime? LeftAt { get; init; }
-    public Guid? ConvertedToBookingId { get; init; }
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public int Position { get; init; }
+    [Id(2)] public GuestInfo Guest { get; init; } = new();
+    [Id(3)] public int PartySize { get; init; }
+    [Id(4)] public DateTime CheckedInAt { get; init; }
+    [Id(5)] public TimeSpan QuotedWait { get; init; }
+    [Id(6)] public WaitlistStatus Status { get; init; }
+    [Id(7)] public string? TablePreferences { get; init; }
+    [Id(8)] public NotificationMethod NotificationMethod { get; init; }
+    [Id(9)] public DateTime? NotifiedAt { get; init; }
+    [Id(10)] public DateTime? SeatedAt { get; init; }
+    [Id(11)] public DateTime? LeftAt { get; init; }
+    [Id(12)] public Guid? ConvertedToBookingId { get; init; }
 }
 
 [GenerateSerializer]

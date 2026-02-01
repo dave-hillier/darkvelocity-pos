@@ -36,112 +36,116 @@ public enum MenuClass
 // Menu Item Analysis Records
 // ============================================================================
 
+[GenerateSerializer]
 public record MenuItemAnalysis
 {
-    public required Guid ProductId { get; init; }
-    public required string ProductName { get; init; }
-    public required string Category { get; init; }
+    [Id(0)] public required Guid ProductId { get; init; }
+    [Id(1)] public required string ProductName { get; init; }
+    [Id(2)] public required string Category { get; init; }
 
     // Pricing
-    public required decimal SellingPrice { get; init; }
-    public required decimal TheoreticalCost { get; init; }
-    public required decimal ContributionMargin { get; init; }
-    public required decimal ContributionMarginPercent { get; init; }
+    [Id(3)] public required decimal SellingPrice { get; init; }
+    [Id(4)] public required decimal TheoreticalCost { get; init; }
+    [Id(5)] public required decimal ContributionMargin { get; init; }
+    [Id(6)] public required decimal ContributionMarginPercent { get; init; }
 
     // Sales volume
-    public required int UnitsSold { get; init; }
-    public required decimal TotalRevenue { get; init; }
-    public required decimal TotalContribution { get; init; }
+    [Id(7)] public required int UnitsSold { get; init; }
+    [Id(8)] public required decimal TotalRevenue { get; init; }
+    [Id(9)] public required decimal TotalContribution { get; init; }
 
     // Mix analysis
-    public required decimal MenuMix { get; init; } // Units / Category units
-    public required decimal RevenueMix { get; init; } // Revenue / Category revenue
-    public required decimal ContributionMix { get; init; } // Contribution / Category contribution
+    [Id(10)] public required decimal MenuMix { get; init; } // Units / Category units
+    [Id(11)] public required decimal RevenueMix { get; init; } // Revenue / Category revenue
+    [Id(12)] public required decimal ContributionMix { get; init; } // Contribution / Category contribution
 
     // Classification
-    public required MenuClass Classification { get; init; }
-    public required decimal PopularityIndex { get; init; } // vs category average
-    public required decimal ProfitabilityIndex { get; init; } // vs category average
+    [Id(13)] public required MenuClass Classification { get; init; }
+    [Id(14)] public required decimal PopularityIndex { get; init; } // vs category average
+    [Id(15)] public required decimal ProfitabilityIndex { get; init; } // vs category average
 
     // Recipe info
-    public Guid? RecipeId { get; init; }
-    public Guid? RecipeVersionId { get; init; }
+    [Id(16)] public Guid? RecipeId { get; init; }
+    [Id(17)] public Guid? RecipeVersionId { get; init; }
 }
 
+[GenerateSerializer]
 public record CategoryAnalysis
 {
-    public required string Category { get; init; }
-    public required int ItemCount { get; init; }
-    public required int TotalUnitsSold { get; init; }
-    public required decimal TotalRevenue { get; init; }
-    public required decimal TotalCost { get; init; }
-    public required decimal TotalContribution { get; init; }
-    public required decimal AverageContributionMargin { get; init; }
-    public required decimal AverageContributionMarginPercent { get; init; }
-    public required decimal AverageSellingPrice { get; init; }
-    public required decimal AverageUnitsSold { get; init; }
+    [Id(0)] public required string Category { get; init; }
+    [Id(1)] public required int ItemCount { get; init; }
+    [Id(2)] public required int TotalUnitsSold { get; init; }
+    [Id(3)] public required decimal TotalRevenue { get; init; }
+    [Id(4)] public required decimal TotalCost { get; init; }
+    [Id(5)] public required decimal TotalContribution { get; init; }
+    [Id(6)] public required decimal AverageContributionMargin { get; init; }
+    [Id(7)] public required decimal AverageContributionMarginPercent { get; init; }
+    [Id(8)] public required decimal AverageSellingPrice { get; init; }
+    [Id(9)] public required decimal AverageUnitsSold { get; init; }
 
     // Classification breakdown
-    public required int StarCount { get; init; }
-    public required int PlowhorseCount { get; init; }
-    public required int PuzzleCount { get; init; }
-    public required int DogCount { get; init; }
+    [Id(10)] public required int StarCount { get; init; }
+    [Id(11)] public required int PlowhorseCount { get; init; }
+    [Id(12)] public required int PuzzleCount { get; init; }
+    [Id(13)] public required int DogCount { get; init; }
 }
 
+[GenerateSerializer]
 public record MenuEngineeringReport
 {
-    public required Guid OrgId { get; init; }
-    public required Guid SiteId { get; init; }
-    public required DateTime PeriodStart { get; init; }
-    public required DateTime PeriodEnd { get; init; }
+    [Id(0)] public required Guid OrgId { get; init; }
+    [Id(1)] public required Guid SiteId { get; init; }
+    [Id(2)] public required DateTime PeriodStart { get; init; }
+    [Id(3)] public required DateTime PeriodEnd { get; init; }
 
     // Overall metrics
-    public required decimal TotalRevenue { get; init; }
-    public required decimal TotalCost { get; init; }
-    public required decimal TotalContribution { get; init; }
-    public required decimal OverallMarginPercent { get; init; }
-    public required int TotalItemsSold { get; init; }
-    public required int TotalMenuItems { get; init; }
+    [Id(4)] public required decimal TotalRevenue { get; init; }
+    [Id(5)] public required decimal TotalCost { get; init; }
+    [Id(6)] public required decimal TotalContribution { get; init; }
+    [Id(7)] public required decimal OverallMarginPercent { get; init; }
+    [Id(8)] public required int TotalItemsSold { get; init; }
+    [Id(9)] public required int TotalMenuItems { get; init; }
 
     // Items by category
-    public required IReadOnlyList<MenuItemAnalysis> Items { get; init; }
-    public required IReadOnlyList<CategoryAnalysis> Categories { get; init; }
+    [Id(10)] public required IReadOnlyList<MenuItemAnalysis> Items { get; init; }
+    [Id(11)] public required IReadOnlyList<CategoryAnalysis> Categories { get; init; }
 
     // Classification summary
-    public required int StarCount { get; init; }
-    public required int PlowhorseCount { get; init; }
-    public required int PuzzleCount { get; init; }
-    public required int DogCount { get; init; }
+    [Id(12)] public required int StarCount { get; init; }
+    [Id(13)] public required int PlowhorseCount { get; init; }
+    [Id(14)] public required int PuzzleCount { get; init; }
+    [Id(15)] public required int DogCount { get; init; }
 
     // Top performers
-    public required IReadOnlyList<MenuItemAnalysis> TopStars { get; init; }
-    public required IReadOnlyList<MenuItemAnalysis> TopContributors { get; init; }
+    [Id(16)] public required IReadOnlyList<MenuItemAnalysis> TopStars { get; init; }
+    [Id(17)] public required IReadOnlyList<MenuItemAnalysis> TopContributors { get; init; }
 
     // Items needing attention
-    public required IReadOnlyList<MenuItemAnalysis> LowMarginHighVolume { get; init; }
-    public required IReadOnlyList<MenuItemAnalysis> HighMarginLowVolume { get; init; }
-    public required IReadOnlyList<MenuItemAnalysis> DogsToReview { get; init; }
+    [Id(18)] public required IReadOnlyList<MenuItemAnalysis> LowMarginHighVolume { get; init; }
+    [Id(19)] public required IReadOnlyList<MenuItemAnalysis> HighMarginLowVolume { get; init; }
+    [Id(20)] public required IReadOnlyList<MenuItemAnalysis> DogsToReview { get; init; }
 }
 
 // ============================================================================
 // Price Optimization Records
 // ============================================================================
 
+[GenerateSerializer]
 public record PriceOptimizationSuggestion
 {
-    public required Guid ProductId { get; init; }
-    public required string ProductName { get; init; }
-    public required string Category { get; init; }
-    public required decimal CurrentPrice { get; init; }
-    public required decimal SuggestedPrice { get; init; }
-    public required decimal PriceChange { get; init; }
-    public required decimal PriceChangePercent { get; init; }
-    public required decimal CurrentMargin { get; init; }
-    public required decimal ProjectedMargin { get; init; }
-    public required decimal TargetMargin { get; init; }
-    public required string Rationale { get; init; }
-    public required PriceSuggestionType SuggestionType { get; init; }
-    public required decimal ConfidenceScore { get; init; }
+    [Id(0)] public required Guid ProductId { get; init; }
+    [Id(1)] public required string ProductName { get; init; }
+    [Id(2)] public required string Category { get; init; }
+    [Id(3)] public required decimal CurrentPrice { get; init; }
+    [Id(4)] public required decimal SuggestedPrice { get; init; }
+    [Id(5)] public required decimal PriceChange { get; init; }
+    [Id(6)] public required decimal PriceChangePercent { get; init; }
+    [Id(7)] public required decimal CurrentMargin { get; init; }
+    [Id(8)] public required decimal ProjectedMargin { get; init; }
+    [Id(9)] public required decimal TargetMargin { get; init; }
+    [Id(10)] public required string Rationale { get; init; }
+    [Id(11)] public required PriceSuggestionType SuggestionType { get; init; }
+    [Id(12)] public required decimal ConfidenceScore { get; init; }
 }
 
 public enum PriceSuggestionType
@@ -158,27 +162,30 @@ public enum PriceSuggestionType
 // Commands
 // ============================================================================
 
+[GenerateSerializer]
 public record InitializeMenuEngineeringCommand(
-    Guid OrgId,
-    Guid SiteId,
-    string SiteName,
-    decimal TargetMarginPercent = 70m);
+    [property: Id(0)] Guid OrgId,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] string SiteName,
+    [property: Id(3)] decimal TargetMarginPercent = 70m);
 
+[GenerateSerializer]
 public record AnalyzeMenuCommand(
-    DateTime PeriodStart,
-    DateTime PeriodEnd,
-    CostingMethod CostingMethod = CostingMethod.Standard);
+    [property: Id(0)] DateTime PeriodStart,
+    [property: Id(1)] DateTime PeriodEnd,
+    [property: Id(2)] CostingMethod CostingMethod = CostingMethod.Standard);
 
+[GenerateSerializer]
 public record RecordItemSalesCommand(
-    Guid ProductId,
-    string ProductName,
-    string Category,
-    decimal SellingPrice,
-    decimal TheoreticalCost,
-    int UnitsSold,
-    decimal TotalRevenue,
-    Guid? RecipeId = null,
-    Guid? RecipeVersionId = null);
+    [property: Id(0)] Guid ProductId,
+    [property: Id(1)] string ProductName,
+    [property: Id(2)] string Category,
+    [property: Id(3)] decimal SellingPrice,
+    [property: Id(4)] decimal TheoreticalCost,
+    [property: Id(5)] int UnitsSold,
+    [property: Id(6)] decimal TotalRevenue,
+    [property: Id(7)] Guid? RecipeId = null,
+    [property: Id(8)] Guid? RecipeVersionId = null);
 
 // ============================================================================
 // Menu Engineering Grain Interface

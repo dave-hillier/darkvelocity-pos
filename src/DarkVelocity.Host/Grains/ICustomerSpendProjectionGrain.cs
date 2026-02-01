@@ -5,62 +5,68 @@ namespace DarkVelocity.Host.Grains;
 /// <summary>
 /// Command to record customer spend from an order.
 /// </summary>
+[GenerateSerializer]
 public record RecordSpendCommand(
-    Guid OrderId,
-    Guid SiteId,
-    decimal NetSpend,
-    decimal GrossSpend,
-    decimal DiscountAmount,
-    int ItemCount,
-    DateOnly TransactionDate);
+    [property: Id(0)] Guid OrderId,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] decimal NetSpend,
+    [property: Id(3)] decimal GrossSpend,
+    [property: Id(4)] decimal DiscountAmount,
+    [property: Id(5)] int ItemCount,
+    [property: Id(6)] DateOnly TransactionDate);
 
 /// <summary>
 /// Command to reverse spend (for voids/refunds).
 /// </summary>
+[GenerateSerializer]
 public record ReverseSpendCommand(
-    Guid OrderId,
-    decimal Amount,
-    string Reason);
+    [property: Id(0)] Guid OrderId,
+    [property: Id(1)] decimal Amount,
+    [property: Id(2)] string Reason);
 
 /// <summary>
 /// Command to redeem loyalty points.
 /// </summary>
+[GenerateSerializer]
 public record RedeemSpendPointsCommand(
-    Guid OrderId,
-    int Points,
-    string RewardType);
+    [property: Id(0)] Guid OrderId,
+    [property: Id(1)] int Points,
+    [property: Id(2)] string RewardType);
 
 /// <summary>
 /// Result of recording spend.
 /// </summary>
+[GenerateSerializer]
 public record RecordSpendResult(
-    int PointsEarned,
-    int TotalPoints,
-    string CurrentTier,
-    bool TierChanged,
-    string? NewTier);
+    [property: Id(0)] int PointsEarned,
+    [property: Id(1)] int TotalPoints,
+    [property: Id(2)] string CurrentTier,
+    [property: Id(3)] bool TierChanged,
+    [property: Id(4)] string? NewTier);
 
 /// <summary>
 /// Result of redeeming points.
 /// </summary>
+[GenerateSerializer]
 public record RedeemPointsResult(
-    decimal DiscountValue,
-    int RemainingPoints);
+    [property: Id(0)] decimal DiscountValue,
+    [property: Id(1)] int RemainingPoints);
 
 /// <summary>
 /// Snapshot of customer loyalty status.
 /// </summary>
+[GenerateSerializer]
 public record CustomerLoyaltySnapshot(
-    Guid CustomerId,
-    decimal LifetimeSpend,
-    decimal YearToDateSpend,
-    int AvailablePoints,
-    string CurrentTier,
-    decimal TierMultiplier,
-    decimal SpendToNextTier,
-    string? NextTier,
-    int LifetimeTransactions,
-    DateTime? LastTransactionAt);
+    [property: Id(0)] Guid CustomerId,
+    [property: Id(1)] decimal LifetimeSpend,
+    [property: Id(2)] decimal YearToDateSpend,
+    [property: Id(3)] int AvailablePoints,
+    [property: Id(4)] string CurrentTier,
+    [property: Id(5)] decimal TierMultiplier,
+    [property: Id(6)] decimal SpendToNextTier,
+    [property: Id(7)] string? NextTier,
+    [property: Id(8)] int LifetimeTransactions,
+    [property: Id(9)] DateTime? LastTransactionAt);
 
 /// <summary>
 /// Grain that maintains a projection of customer spend for loyalty calculations.

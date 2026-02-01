@@ -2,43 +2,53 @@ using DarkVelocity.Host.State;
 
 namespace DarkVelocity.Host.Grains;
 
+[GenerateSerializer]
 public record InitiatePaymentCommand(
-    Guid OrganizationId,
-    Guid SiteId,
-    Guid OrderId,
-    PaymentMethod Method,
-    decimal Amount,
-    Guid CashierId,
-    Guid? CustomerId = null,
-    Guid? DrawerId = null);
+    [property: Id(0)] Guid OrganizationId,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] Guid OrderId,
+    [property: Id(3)] PaymentMethod Method,
+    [property: Id(4)] decimal Amount,
+    [property: Id(5)] Guid CashierId,
+    [property: Id(6)] Guid? CustomerId = null,
+    [property: Id(7)] Guid? DrawerId = null);
 
+[GenerateSerializer]
 public record CompleteCashPaymentCommand(
-    decimal AmountTendered,
-    decimal TipAmount = 0);
+    [property: Id(0)] decimal AmountTendered,
+    [property: Id(1)] decimal TipAmount = 0);
 
+[GenerateSerializer]
 public record ProcessCardPaymentCommand(
-    string GatewayReference,
-    string AuthorizationCode,
-    CardInfo CardInfo,
-    string GatewayName,
-    decimal TipAmount = 0);
+    [property: Id(0)] string GatewayReference,
+    [property: Id(1)] string AuthorizationCode,
+    [property: Id(2)] CardInfo CardInfo,
+    [property: Id(3)] string GatewayName,
+    [property: Id(4)] decimal TipAmount = 0);
 
+[GenerateSerializer]
 public record ProcessGiftCardPaymentCommand(
-    Guid GiftCardId,
-    string CardNumber);
+    [property: Id(0)] Guid GiftCardId,
+    [property: Id(1)] string CardNumber);
 
-public record VoidPaymentCommand(Guid VoidedBy, string Reason);
+[GenerateSerializer]
+public record VoidPaymentCommand([property: Id(0)] Guid VoidedBy, [property: Id(1)] string Reason);
 
+[GenerateSerializer]
 public record RefundPaymentCommand(
-    decimal Amount,
-    string Reason,
-    Guid IssuedBy);
+    [property: Id(0)] decimal Amount,
+    [property: Id(1)] string Reason,
+    [property: Id(2)] Guid IssuedBy);
 
-public record AdjustTipCommand(decimal NewTipAmount, Guid AdjustedBy);
+[GenerateSerializer]
+public record AdjustTipCommand([property: Id(0)] decimal NewTipAmount, [property: Id(1)] Guid AdjustedBy);
 
-public record PaymentInitiatedResult(Guid Id, DateTime CreatedAt);
-public record PaymentCompletedResult(decimal TotalAmount, decimal? ChangeGiven);
-public record RefundResult(Guid RefundId, decimal RefundedAmount, decimal RemainingBalance);
+[GenerateSerializer]
+public record PaymentInitiatedResult([property: Id(0)] Guid Id, [property: Id(1)] DateTime CreatedAt);
+[GenerateSerializer]
+public record PaymentCompletedResult([property: Id(0)] decimal TotalAmount, [property: Id(1)] decimal? ChangeGiven);
+[GenerateSerializer]
+public record RefundResult([property: Id(0)] Guid RefundId, [property: Id(1)] decimal RefundedAmount, [property: Id(2)] decimal RemainingBalance);
 
 public interface IPaymentGrain : IGrainWithStringKey
 {
@@ -69,20 +79,28 @@ public interface IPaymentGrain : IGrainWithStringKey
     Task<PaymentStatus> GetStatusAsync();
 }
 
+[GenerateSerializer]
 public record OpenDrawerCommand(
-    Guid OrganizationId,
-    Guid SiteId,
-    Guid UserId,
-    decimal OpeningFloat);
+    [property: Id(0)] Guid OrganizationId,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] Guid UserId,
+    [property: Id(3)] decimal OpeningFloat);
 
-public record RecordCashInCommand(Guid PaymentId, decimal Amount);
-public record RecordCashOutCommand(decimal Amount, string Reason, Guid? ApprovedBy = null);
-public record CashDropCommand(decimal Amount, string? Notes = null);
-public record CountDrawerCommand(decimal CountedAmount, Guid CountedBy);
-public record CloseDrawerCommand(decimal ActualBalance, Guid ClosedBy);
+[GenerateSerializer]
+public record RecordCashInCommand([property: Id(0)] Guid PaymentId, [property: Id(1)] decimal Amount);
+[GenerateSerializer]
+public record RecordCashOutCommand([property: Id(0)] decimal Amount, [property: Id(1)] string Reason, [property: Id(2)] Guid? ApprovedBy = null);
+[GenerateSerializer]
+public record CashDropCommand([property: Id(0)] decimal Amount, [property: Id(1)] string? Notes = null);
+[GenerateSerializer]
+public record CountDrawerCommand([property: Id(0)] decimal CountedAmount, [property: Id(1)] Guid CountedBy);
+[GenerateSerializer]
+public record CloseDrawerCommand([property: Id(0)] decimal ActualBalance, [property: Id(1)] Guid ClosedBy);
 
-public record DrawerOpenedResult(Guid Id, DateTime OpenedAt);
-public record DrawerClosedResult(decimal ExpectedBalance, decimal ActualBalance, decimal Variance);
+[GenerateSerializer]
+public record DrawerOpenedResult([property: Id(0)] Guid Id, [property: Id(1)] DateTime OpenedAt);
+[GenerateSerializer]
+public record DrawerClosedResult([property: Id(0)] decimal ExpectedBalance, [property: Id(1)] decimal ActualBalance, [property: Id(2)] decimal Variance);
 
 public interface ICashDrawerGrain : IGrainWithStringKey
 {

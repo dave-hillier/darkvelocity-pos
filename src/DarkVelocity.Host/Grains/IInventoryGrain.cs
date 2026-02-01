@@ -2,79 +2,90 @@ using DarkVelocity.Host.State;
 
 namespace DarkVelocity.Host.Grains;
 
+[GenerateSerializer]
 public record InitializeInventoryCommand(
-    Guid OrganizationId,
-    Guid SiteId,
-    Guid IngredientId,
-    string IngredientName,
-    string Sku,
-    string Unit,
-    string Category,
-    decimal ReorderPoint = 0,
-    decimal ParLevel = 0);
+    [property: Id(0)] Guid OrganizationId,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] Guid IngredientId,
+    [property: Id(3)] string IngredientName,
+    [property: Id(4)] string Sku,
+    [property: Id(5)] string Unit,
+    [property: Id(6)] string Category,
+    [property: Id(7)] decimal ReorderPoint = 0,
+    [property: Id(8)] decimal ParLevel = 0);
 
+[GenerateSerializer]
 public record ReceiveBatchCommand(
-    string BatchNumber,
-    decimal Quantity,
-    decimal UnitCost,
-    DateTime? ExpiryDate = null,
-    Guid? SupplierId = null,
-    Guid? DeliveryId = null,
-    string? Location = null,
-    string? Notes = null,
-    Guid? ReceivedBy = null);
+    [property: Id(0)] string BatchNumber,
+    [property: Id(1)] decimal Quantity,
+    [property: Id(2)] decimal UnitCost,
+    [property: Id(3)] DateTime? ExpiryDate = null,
+    [property: Id(4)] Guid? SupplierId = null,
+    [property: Id(5)] Guid? DeliveryId = null,
+    [property: Id(6)] string? Location = null,
+    [property: Id(7)] string? Notes = null,
+    [property: Id(8)] Guid? ReceivedBy = null);
 
+[GenerateSerializer]
 public record ConsumeStockCommand(
-    decimal Quantity,
-    string Reason,
-    Guid? OrderId = null,
-    Guid? PerformedBy = null);
+    [property: Id(0)] decimal Quantity,
+    [property: Id(1)] string Reason,
+    [property: Id(2)] Guid? OrderId = null,
+    [property: Id(3)] Guid? PerformedBy = null);
 
+[GenerateSerializer]
 public record RecordWasteCommand(
-    decimal Quantity,
-    string Reason,
-    string WasteCategory,
-    Guid RecordedBy);
+    [property: Id(0)] decimal Quantity,
+    [property: Id(1)] string Reason,
+    [property: Id(2)] string WasteCategory,
+    [property: Id(3)] Guid RecordedBy);
 
+[GenerateSerializer]
 public record AdjustQuantityCommand(
-    decimal NewQuantity,
-    string Reason,
-    Guid AdjustedBy,
-    Guid? ApprovedBy = null);
+    [property: Id(0)] decimal NewQuantity,
+    [property: Id(1)] string Reason,
+    [property: Id(2)] Guid AdjustedBy,
+    [property: Id(3)] Guid? ApprovedBy = null);
 
+[GenerateSerializer]
 public record TransferOutCommand(
-    decimal Quantity,
-    Guid DestinationSiteId,
-    Guid TransferId,
-    Guid TransferredBy);
+    [property: Id(0)] decimal Quantity,
+    [property: Id(1)] Guid DestinationSiteId,
+    [property: Id(2)] Guid TransferId,
+    [property: Id(3)] Guid TransferredBy);
 
+[GenerateSerializer]
 public record ReceiveTransferCommand(
-    decimal Quantity,
-    decimal UnitCost,
-    Guid SourceSiteId,
-    Guid TransferId,
-    string? BatchNumber = null);
+    [property: Id(0)] decimal Quantity,
+    [property: Id(1)] decimal UnitCost,
+    [property: Id(2)] Guid SourceSiteId,
+    [property: Id(3)] Guid TransferId,
+    [property: Id(4)] string? BatchNumber = null);
 
-public record BatchReceivedResult(Guid BatchId, decimal NewQuantityOnHand, decimal NewWeightedAverageCost);
+[GenerateSerializer]
+public record BatchReceivedResult([property: Id(0)] Guid BatchId, [property: Id(1)] decimal NewQuantityOnHand, [property: Id(2)] decimal NewWeightedAverageCost);
 
+[GenerateSerializer]
 public record ConsumptionResult(
-    decimal QuantityConsumed,
-    decimal TotalCost,
-    IReadOnlyList<BatchConsumptionDetail> BatchBreakdown);
+    [property: Id(0)] decimal QuantityConsumed,
+    [property: Id(1)] decimal TotalCost,
+    [property: Id(2)] IReadOnlyList<BatchConsumptionDetail> BatchBreakdown);
 
+[GenerateSerializer]
 public record BatchConsumptionDetail(
-    Guid BatchId,
-    string BatchNumber,
-    decimal Quantity,
-    decimal UnitCost,
-    decimal TotalCost);
+    [property: Id(0)] Guid BatchId,
+    [property: Id(1)] string BatchNumber,
+    [property: Id(2)] decimal Quantity,
+    [property: Id(3)] decimal UnitCost,
+    [property: Id(4)] decimal TotalCost);
 
+[GenerateSerializer]
 public record InventoryLevelInfo(
-    decimal QuantityOnHand,
-    decimal QuantityAvailable,
-    decimal WeightedAverageCost,
-    StockLevel Level,
-    DateTime? EarliestExpiry);
+    [property: Id(0)] decimal QuantityOnHand,
+    [property: Id(1)] decimal QuantityAvailable,
+    [property: Id(2)] decimal WeightedAverageCost,
+    [property: Id(3)] StockLevel Level,
+    [property: Id(4)] DateTime? EarliestExpiry);
 
 public interface IInventoryGrain : IGrainWithStringKey
 {

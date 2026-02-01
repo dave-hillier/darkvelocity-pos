@@ -24,39 +24,43 @@ public enum DeliveryPlatformStatus
     Error
 }
 
+[GenerateSerializer]
 public record ConnectDeliveryPlatformCommand(
-    DeliveryPlatformType PlatformType,
-    string Name,
-    string? ApiCredentialsEncrypted,
-    string? WebhookSecret,
-    string? MerchantId,
-    string? Settings);
+    [property: Id(0)] DeliveryPlatformType PlatformType,
+    [property: Id(1)] string Name,
+    [property: Id(2)] string? ApiCredentialsEncrypted,
+    [property: Id(3)] string? WebhookSecret,
+    [property: Id(4)] string? MerchantId,
+    [property: Id(5)] string? Settings);
 
+[GenerateSerializer]
 public record UpdateDeliveryPlatformCommand(
-    string? Name,
-    DeliveryPlatformStatus? Status,
-    string? ApiCredentialsEncrypted,
-    string? WebhookSecret,
-    string? Settings);
+    [property: Id(0)] string? Name,
+    [property: Id(1)] DeliveryPlatformStatus? Status,
+    [property: Id(2)] string? ApiCredentialsEncrypted,
+    [property: Id(3)] string? WebhookSecret,
+    [property: Id(4)] string? Settings);
 
+[GenerateSerializer]
 public record PlatformLocationMapping(
-    Guid LocationId,
-    string PlatformStoreId,
-    bool IsActive,
-    string? OperatingHoursOverride);
+    [property: Id(0)] Guid LocationId,
+    [property: Id(1)] string PlatformStoreId,
+    [property: Id(2)] bool IsActive,
+    [property: Id(3)] string? OperatingHoursOverride);
 
+[GenerateSerializer]
 public record DeliveryPlatformSnapshot(
-    Guid DeliveryPlatformId,
-    DeliveryPlatformType PlatformType,
-    string Name,
-    DeliveryPlatformStatus Status,
-    string? MerchantId,
-    DateTime? ConnectedAt,
-    DateTime? LastSyncAt,
-    DateTime? LastOrderAt,
-    IReadOnlyList<PlatformLocationMapping> Locations,
-    int TotalOrdersToday,
-    decimal TotalRevenueToday);
+    [property: Id(0)] Guid DeliveryPlatformId,
+    [property: Id(1)] DeliveryPlatformType PlatformType,
+    [property: Id(2)] string Name,
+    [property: Id(3)] DeliveryPlatformStatus Status,
+    [property: Id(4)] string? MerchantId,
+    [property: Id(5)] DateTime? ConnectedAt,
+    [property: Id(6)] DateTime? LastSyncAt,
+    [property: Id(7)] DateTime? LastOrderAt,
+    [property: Id(8)] IReadOnlyList<PlatformLocationMapping> Locations,
+    [property: Id(9)] int TotalOrdersToday,
+    [property: Id(10)] decimal TotalRevenueToday);
 
 /// <summary>
 /// Grain for delivery platform management.
@@ -99,69 +103,74 @@ public enum ExternalOrderType
     Pickup
 }
 
+[GenerateSerializer]
 public record ExternalOrderCustomer(
-    string Name,
-    string? Phone,
-    string? DeliveryAddress);
+    [property: Id(0)] string Name,
+    [property: Id(1)] string? Phone,
+    [property: Id(2)] string? DeliveryAddress);
 
+[GenerateSerializer]
 public record ExternalOrderItem(
-    string PlatformItemId,
-    Guid? InternalMenuItemId,
-    string Name,
-    int Quantity,
-    decimal UnitPrice,
-    decimal TotalPrice,
-    string? SpecialInstructions,
-    IReadOnlyList<ExternalOrderModifier>? Modifiers);
+    [property: Id(0)] string PlatformItemId,
+    [property: Id(1)] Guid? InternalMenuItemId,
+    [property: Id(2)] string Name,
+    [property: Id(3)] int Quantity,
+    [property: Id(4)] decimal UnitPrice,
+    [property: Id(5)] decimal TotalPrice,
+    [property: Id(6)] string? SpecialInstructions,
+    [property: Id(7)] IReadOnlyList<ExternalOrderModifier>? Modifiers);
 
+[GenerateSerializer]
 public record ExternalOrderModifier(
-    string Name,
-    decimal Price);
+    [property: Id(0)] string Name,
+    [property: Id(1)] decimal Price);
 
+[GenerateSerializer]
 public record CreateExternalOrderCommand(
-    Guid LocationId,
-    Guid DeliveryPlatformId,
-    string PlatformOrderId,
-    string PlatformOrderNumber,
-    ExternalOrderType OrderType,
-    DateTime PlacedAt,
-    ExternalOrderCustomer Customer,
-    IReadOnlyList<ExternalOrderItem> Items,
-    decimal Subtotal,
-    decimal DeliveryFee,
-    decimal ServiceFee,
-    decimal Tax,
-    decimal Tip,
-    decimal Total,
-    string Currency,
-    string? SpecialInstructions,
-    string? PlatformRawPayload);
+    [property: Id(0)] Guid LocationId,
+    [property: Id(1)] Guid DeliveryPlatformId,
+    [property: Id(2)] string PlatformOrderId,
+    [property: Id(3)] string PlatformOrderNumber,
+    [property: Id(4)] ExternalOrderType OrderType,
+    [property: Id(5)] DateTime PlacedAt,
+    [property: Id(6)] ExternalOrderCustomer Customer,
+    [property: Id(7)] IReadOnlyList<ExternalOrderItem> Items,
+    [property: Id(8)] decimal Subtotal,
+    [property: Id(9)] decimal DeliveryFee,
+    [property: Id(10)] decimal ServiceFee,
+    [property: Id(11)] decimal Tax,
+    [property: Id(12)] decimal Tip,
+    [property: Id(13)] decimal Total,
+    [property: Id(14)] string Currency,
+    [property: Id(15)] string? SpecialInstructions,
+    [property: Id(16)] string? PlatformRawPayload);
 
+[GenerateSerializer]
 public record ExternalOrderSnapshot(
-    Guid ExternalOrderId,
-    Guid LocationId,
-    Guid DeliveryPlatformId,
-    string PlatformOrderId,
-    string PlatformOrderNumber,
-    Guid? InternalOrderId,
-    ExternalOrderStatus Status,
-    ExternalOrderType OrderType,
-    DateTime PlacedAt,
-    DateTime? AcceptedAt,
-    DateTime? EstimatedPickupAt,
-    DateTime? ActualPickupAt,
-    ExternalOrderCustomer Customer,
-    IReadOnlyList<ExternalOrderItem> Items,
-    decimal Subtotal,
-    decimal DeliveryFee,
-    decimal ServiceFee,
-    decimal Tax,
-    decimal Tip,
-    decimal Total,
-    string Currency,
-    string? SpecialInstructions,
-    string? ErrorMessage,
-    int RetryCount);
+    [property: Id(0)] Guid ExternalOrderId,
+    [property: Id(1)] Guid LocationId,
+    [property: Id(2)] Guid DeliveryPlatformId,
+    [property: Id(3)] string PlatformOrderId,
+    [property: Id(4)] string PlatformOrderNumber,
+    [property: Id(5)] Guid? InternalOrderId,
+    [property: Id(6)] ExternalOrderStatus Status,
+    [property: Id(7)] ExternalOrderType OrderType,
+    [property: Id(8)] DateTime PlacedAt,
+    [property: Id(9)] DateTime? AcceptedAt,
+    [property: Id(10)] DateTime? EstimatedPickupAt,
+    [property: Id(11)] DateTime? ActualPickupAt,
+    [property: Id(12)] ExternalOrderCustomer Customer,
+    [property: Id(13)] IReadOnlyList<ExternalOrderItem> Items,
+    [property: Id(14)] decimal Subtotal,
+    [property: Id(15)] decimal DeliveryFee,
+    [property: Id(16)] decimal ServiceFee,
+    [property: Id(17)] decimal Tax,
+    [property: Id(18)] decimal Tip,
+    [property: Id(19)] decimal Total,
+    [property: Id(20)] string Currency,
+    [property: Id(21)] string? SpecialInstructions,
+    [property: Id(22)] string? ErrorMessage,
+    [property: Id(23)] int RetryCount);
 
 /// <summary>
 /// Grain for external order management.
@@ -195,27 +204,30 @@ public enum MenuSyncStatus
     Failed
 }
 
+[GenerateSerializer]
 public record StartMenuSyncCommand(
-    Guid DeliveryPlatformId,
-    Guid? LocationId);
+    [property: Id(0)] Guid DeliveryPlatformId,
+    [property: Id(1)] Guid? LocationId);
 
+[GenerateSerializer]
 public record MenuItemMappingRecord(
-    Guid InternalMenuItemId,
-    string PlatformItemId,
-    string? PlatformCategoryId,
-    decimal? PriceOverride,
-    bool IsAvailable);
+    [property: Id(0)] Guid InternalMenuItemId,
+    [property: Id(1)] string PlatformItemId,
+    [property: Id(2)] string? PlatformCategoryId,
+    [property: Id(3)] decimal? PriceOverride,
+    [property: Id(4)] bool IsAvailable);
 
+[GenerateSerializer]
 public record MenuSyncSnapshot(
-    Guid MenuSyncId,
-    Guid DeliveryPlatformId,
-    Guid? LocationId,
-    MenuSyncStatus Status,
-    DateTime StartedAt,
-    DateTime? CompletedAt,
-    int ItemsSynced,
-    int ItemsFailed,
-    IReadOnlyList<string> Errors);
+    [property: Id(0)] Guid MenuSyncId,
+    [property: Id(1)] Guid DeliveryPlatformId,
+    [property: Id(2)] Guid? LocationId,
+    [property: Id(3)] MenuSyncStatus Status,
+    [property: Id(4)] DateTime StartedAt,
+    [property: Id(5)] DateTime? CompletedAt,
+    [property: Id(6)] int ItemsSynced,
+    [property: Id(7)] int ItemsFailed,
+    [property: Id(8)] IReadOnlyList<string> Errors);
 
 /// <summary>
 /// Grain for menu sync management.
@@ -243,30 +255,32 @@ public enum PayoutStatus
     Failed
 }
 
+[GenerateSerializer]
 public record CreatePayoutCommand(
-    Guid DeliveryPlatformId,
-    Guid LocationId,
-    DateTime PeriodStart,
-    DateTime PeriodEnd,
-    decimal GrossAmount,
-    decimal PlatformFees,
-    decimal NetAmount,
-    string Currency,
-    string? PayoutReference);
+    [property: Id(0)] Guid DeliveryPlatformId,
+    [property: Id(1)] Guid LocationId,
+    [property: Id(2)] DateTime PeriodStart,
+    [property: Id(3)] DateTime PeriodEnd,
+    [property: Id(4)] decimal GrossAmount,
+    [property: Id(5)] decimal PlatformFees,
+    [property: Id(6)] decimal NetAmount,
+    [property: Id(7)] string Currency,
+    [property: Id(8)] string? PayoutReference);
 
+[GenerateSerializer]
 public record PayoutSnapshot(
-    Guid PayoutId,
-    Guid DeliveryPlatformId,
-    Guid LocationId,
-    DateTime PeriodStart,
-    DateTime PeriodEnd,
-    decimal GrossAmount,
-    decimal PlatformFees,
-    decimal NetAmount,
-    string Currency,
-    PayoutStatus Status,
-    string? PayoutReference,
-    DateTime? ProcessedAt);
+    [property: Id(0)] Guid PayoutId,
+    [property: Id(1)] Guid DeliveryPlatformId,
+    [property: Id(2)] Guid LocationId,
+    [property: Id(3)] DateTime PeriodStart,
+    [property: Id(4)] DateTime PeriodEnd,
+    [property: Id(5)] decimal GrossAmount,
+    [property: Id(6)] decimal PlatformFees,
+    [property: Id(7)] decimal NetAmount,
+    [property: Id(8)] string Currency,
+    [property: Id(9)] PayoutStatus Status,
+    [property: Id(10)] string? PayoutReference,
+    [property: Id(11)] DateTime? ProcessedAt);
 
 /// <summary>
 /// Grain for platform payout management.

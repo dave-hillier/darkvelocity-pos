@@ -13,31 +13,34 @@ public enum Department
 // Role Grain
 // ============================================================================
 
+[GenerateSerializer]
 public record CreateRoleCommand(
-    string Name,
-    Department Department,
-    decimal DefaultHourlyRate,
-    string Color,
-    int SortOrder,
-    IReadOnlyList<string> RequiredCertifications);
+    [property: Id(0)] string Name,
+    [property: Id(1)] Department Department,
+    [property: Id(2)] decimal DefaultHourlyRate,
+    [property: Id(3)] string Color,
+    [property: Id(4)] int SortOrder,
+    [property: Id(5)] IReadOnlyList<string> RequiredCertifications);
 
+[GenerateSerializer]
 public record UpdateRoleCommand(
-    string? Name,
-    Department? Department,
-    decimal? DefaultHourlyRate,
-    string? Color,
-    int? SortOrder,
-    bool? IsActive);
+    [property: Id(0)] string? Name,
+    [property: Id(1)] Department? Department,
+    [property: Id(2)] decimal? DefaultHourlyRate,
+    [property: Id(3)] string? Color,
+    [property: Id(4)] int? SortOrder,
+    [property: Id(5)] bool? IsActive);
 
+[GenerateSerializer]
 public record RoleSnapshot(
-    Guid RoleId,
-    string Name,
-    Department Department,
-    decimal DefaultHourlyRate,
-    string Color,
-    int SortOrder,
-    IReadOnlyList<string> RequiredCertifications,
-    bool IsActive);
+    [property: Id(0)] Guid RoleId,
+    [property: Id(1)] string Name,
+    [property: Id(2)] Department Department,
+    [property: Id(3)] decimal DefaultHourlyRate,
+    [property: Id(4)] string Color,
+    [property: Id(5)] int SortOrder,
+    [property: Id(6)] IReadOnlyList<string> RequiredCertifications,
+    [property: Id(7)] bool IsActive);
 
 /// <summary>
 /// Grain for role management.
@@ -61,48 +64,53 @@ public enum ScheduleStatus
     Locked
 }
 
+[GenerateSerializer]
 public record CreateScheduleCommand(
-    Guid LocationId,
-    DateTime WeekStartDate,
-    string? Notes);
+    [property: Id(0)] Guid LocationId,
+    [property: Id(1)] DateTime WeekStartDate,
+    [property: Id(2)] string? Notes);
 
+[GenerateSerializer]
 public record PublishScheduleCommand(
-    Guid PublishedByUserId);
+    [property: Id(0)] Guid PublishedByUserId);
 
+[GenerateSerializer]
 public record AddShiftCommand(
-    Guid ShiftId,
-    Guid EmployeeId,
-    Guid RoleId,
-    DateTime Date,
-    TimeSpan StartTime,
-    TimeSpan EndTime,
-    int BreakMinutes,
-    decimal HourlyRate,
-    string? Notes);
+    [property: Id(0)] Guid ShiftId,
+    [property: Id(1)] Guid EmployeeId,
+    [property: Id(2)] Guid RoleId,
+    [property: Id(3)] DateTime Date,
+    [property: Id(4)] TimeSpan StartTime,
+    [property: Id(5)] TimeSpan EndTime,
+    [property: Id(6)] int BreakMinutes,
+    [property: Id(7)] decimal HourlyRate,
+    [property: Id(8)] string? Notes);
 
+[GenerateSerializer]
 public record UpdateShiftCommand(
-    Guid ShiftId,
-    TimeSpan? StartTime,
-    TimeSpan? EndTime,
-    int? BreakMinutes,
-    Guid? EmployeeId,
-    Guid? RoleId,
-    string? Notes);
+    [property: Id(0)] Guid ShiftId,
+    [property: Id(1)] TimeSpan? StartTime,
+    [property: Id(2)] TimeSpan? EndTime,
+    [property: Id(3)] int? BreakMinutes,
+    [property: Id(4)] Guid? EmployeeId,
+    [property: Id(5)] Guid? RoleId,
+    [property: Id(6)] string? Notes);
 
+[GenerateSerializer]
 public record ShiftSnapshot(
-    Guid ShiftId,
-    Guid EmployeeId,
-    Guid RoleId,
-    DateTime Date,
-    TimeSpan StartTime,
-    TimeSpan EndTime,
-    int BreakMinutes,
-    decimal ScheduledHours,
-    decimal HourlyRate,
-    decimal LaborCost,
-    ShiftStatus Status,
-    bool IsOvertime,
-    string? Notes);
+    [property: Id(0)] Guid ShiftId,
+    [property: Id(1)] Guid EmployeeId,
+    [property: Id(2)] Guid RoleId,
+    [property: Id(3)] DateTime Date,
+    [property: Id(4)] TimeSpan StartTime,
+    [property: Id(5)] TimeSpan EndTime,
+    [property: Id(6)] int BreakMinutes,
+    [property: Id(7)] decimal ScheduledHours,
+    [property: Id(8)] decimal HourlyRate,
+    [property: Id(9)] decimal LaborCost,
+    [property: Id(10)] ShiftStatus Status,
+    [property: Id(11)] bool IsOvertime,
+    [property: Id(12)] string? Notes);
 
 public enum ShiftStatus
 {
@@ -114,17 +122,18 @@ public enum ShiftStatus
     Cancelled
 }
 
+[GenerateSerializer]
 public record ScheduleSnapshot(
-    Guid ScheduleId,
-    Guid LocationId,
-    DateTime WeekStartDate,
-    ScheduleStatus Status,
-    DateTime? PublishedAt,
-    Guid? PublishedByUserId,
-    decimal TotalScheduledHours,
-    decimal TotalLaborCost,
-    IReadOnlyList<ShiftSnapshot> Shifts,
-    string? Notes);
+    [property: Id(0)] Guid ScheduleId,
+    [property: Id(1)] Guid LocationId,
+    [property: Id(2)] DateTime WeekStartDate,
+    [property: Id(3)] ScheduleStatus Status,
+    [property: Id(4)] DateTime? PublishedAt,
+    [property: Id(5)] Guid? PublishedByUserId,
+    [property: Id(6)] decimal TotalScheduledHours,
+    [property: Id(7)] decimal TotalLaborCost,
+    [property: Id(8)] IReadOnlyList<ShiftSnapshot> Shifts,
+    [property: Id(9)] string? Notes);
 
 /// <summary>
 /// Grain for schedule management.
@@ -165,56 +174,62 @@ public enum TimeEntryStatus
     Disputed
 }
 
+[GenerateSerializer]
 public record TimeEntryClockInCommand(
-    Guid EmployeeId,
-    Guid LocationId,
-    Guid RoleId,
-    Guid? ShiftId,
-    ClockMethod Method,
-    string? Notes);
+    [property: Id(0)] Guid EmployeeId,
+    [property: Id(1)] Guid LocationId,
+    [property: Id(2)] Guid RoleId,
+    [property: Id(3)] Guid? ShiftId,
+    [property: Id(4)] ClockMethod Method,
+    [property: Id(5)] string? Notes);
 
+[GenerateSerializer]
 public record TimeEntryClockOutCommand(
-    ClockMethod Method,
-    string? Notes);
+    [property: Id(0)] ClockMethod Method,
+    [property: Id(1)] string? Notes);
 
+[GenerateSerializer]
 public record AddBreakCommand(
-    TimeSpan BreakStart,
-    TimeSpan? BreakEnd,
-    bool IsPaid);
+    [property: Id(0)] TimeSpan BreakStart,
+    [property: Id(1)] TimeSpan? BreakEnd,
+    [property: Id(2)] bool IsPaid);
 
+[GenerateSerializer]
 public record AdjustTimeEntryCommand(
-    Guid AdjustedByUserId,
-    DateTime? ClockInAt,
-    DateTime? ClockOutAt,
-    int? BreakMinutes,
-    string Reason);
+    [property: Id(0)] Guid AdjustedByUserId,
+    [property: Id(1)] DateTime? ClockInAt,
+    [property: Id(2)] DateTime? ClockOutAt,
+    [property: Id(3)] int? BreakMinutes,
+    [property: Id(4)] string Reason);
 
+[GenerateSerializer]
 public record ApproveTimeEntryCommand(
-    Guid ApprovedByUserId);
+    [property: Id(0)] Guid ApprovedByUserId);
 
+[GenerateSerializer]
 public record TimeEntrySnapshot(
-    Guid TimeEntryId,
-    Guid EmployeeId,
-    Guid LocationId,
-    Guid RoleId,
-    Guid? ShiftId,
-    DateTime ClockInAt,
-    DateTime? ClockOutAt,
-    ClockMethod ClockInMethod,
-    ClockMethod? ClockOutMethod,
-    int BreakMinutes,
-    decimal? ActualHours,
-    decimal? RegularHours,
-    decimal? OvertimeHours,
-    decimal HourlyRate,
-    decimal OvertimeRate,
-    decimal? GrossPay,
-    TimeEntryStatus Status,
-    Guid? AdjustedByUserId,
-    string? AdjustmentReason,
-    Guid? ApprovedByUserId,
-    DateTime? ApprovedAt,
-    string? Notes);
+    [property: Id(0)] Guid TimeEntryId,
+    [property: Id(1)] Guid EmployeeId,
+    [property: Id(2)] Guid LocationId,
+    [property: Id(3)] Guid RoleId,
+    [property: Id(4)] Guid? ShiftId,
+    [property: Id(5)] DateTime ClockInAt,
+    [property: Id(6)] DateTime? ClockOutAt,
+    [property: Id(7)] ClockMethod ClockInMethod,
+    [property: Id(8)] ClockMethod? ClockOutMethod,
+    [property: Id(9)] int BreakMinutes,
+    [property: Id(10)] decimal? ActualHours,
+    [property: Id(11)] decimal? RegularHours,
+    [property: Id(12)] decimal? OvertimeHours,
+    [property: Id(13)] decimal HourlyRate,
+    [property: Id(14)] decimal OvertimeRate,
+    [property: Id(15)] decimal? GrossPay,
+    [property: Id(16)] TimeEntryStatus Status,
+    [property: Id(17)] Guid? AdjustedByUserId,
+    [property: Id(18)] string? AdjustmentReason,
+    [property: Id(19)] Guid? ApprovedByUserId,
+    [property: Id(20)] DateTime? ApprovedAt,
+    [property: Id(21)] string? Notes);
 
 /// <summary>
 /// Grain for time entry management.
@@ -242,39 +257,44 @@ public enum TipPoolMethod
     ByPoints
 }
 
+[GenerateSerializer]
 public record CreateTipPoolCommand(
-    Guid LocationId,
-    DateTime BusinessDate,
-    string Name,
-    TipPoolMethod Method,
-    IReadOnlyList<Guid> EligibleRoleIds);
+    [property: Id(0)] Guid LocationId,
+    [property: Id(1)] DateTime BusinessDate,
+    [property: Id(2)] string Name,
+    [property: Id(3)] TipPoolMethod Method,
+    [property: Id(4)] IReadOnlyList<Guid> EligibleRoleIds);
 
+[GenerateSerializer]
 public record AddTipsCommand(
-    decimal Amount,
-    string Source);
+    [property: Id(0)] decimal Amount,
+    [property: Id(1)] string Source);
 
+[GenerateSerializer]
 public record DistributeTipsCommand(
-    Guid DistributedByUserId);
+    [property: Id(0)] Guid DistributedByUserId);
 
+[GenerateSerializer]
 public record TipDistribution(
-    Guid EmployeeId,
-    string EmployeeName,
-    Guid RoleId,
-    decimal HoursWorked,
-    decimal Points,
-    decimal TipAmount);
+    [property: Id(0)] Guid EmployeeId,
+    [property: Id(1)] string EmployeeName,
+    [property: Id(2)] Guid RoleId,
+    [property: Id(3)] decimal HoursWorked,
+    [property: Id(4)] decimal Points,
+    [property: Id(5)] decimal TipAmount);
 
+[GenerateSerializer]
 public record TipPoolSnapshot(
-    Guid TipPoolId,
-    Guid LocationId,
-    DateTime BusinessDate,
-    string Name,
-    TipPoolMethod Method,
-    decimal TotalTips,
-    bool IsDistributed,
-    DateTime? DistributedAt,
-    Guid? DistributedByUserId,
-    IReadOnlyList<TipDistribution> Distributions);
+    [property: Id(0)] Guid TipPoolId,
+    [property: Id(1)] Guid LocationId,
+    [property: Id(2)] DateTime BusinessDate,
+    [property: Id(3)] string Name,
+    [property: Id(4)] TipPoolMethod Method,
+    [property: Id(5)] decimal TotalTips,
+    [property: Id(6)] bool IsDistributed,
+    [property: Id(7)] DateTime? DistributedAt,
+    [property: Id(8)] Guid? DistributedByUserId,
+    [property: Id(9)] IReadOnlyList<TipDistribution> Distributions);
 
 /// <summary>
 /// Grain for tip pool management.
@@ -302,38 +322,41 @@ public enum PayrollStatus
     Processed
 }
 
+[GenerateSerializer]
 public record CreatePayrollPeriodCommand(
-    Guid LocationId,
-    DateTime PeriodStart,
-    DateTime PeriodEnd);
+    [property: Id(0)] Guid LocationId,
+    [property: Id(1)] DateTime PeriodStart,
+    [property: Id(2)] DateTime PeriodEnd);
 
+[GenerateSerializer]
 public record PayrollEntrySnapshot(
-    Guid EmployeeId,
-    string EmployeeName,
-    decimal RegularHours,
-    decimal OvertimeHours,
-    decimal RegularPay,
-    decimal OvertimePay,
-    decimal TipsReceived,
-    decimal GrossPay,
-    decimal Deductions,
-    decimal NetPay);
+    [property: Id(0)] Guid EmployeeId,
+    [property: Id(1)] string EmployeeName,
+    [property: Id(2)] decimal RegularHours,
+    [property: Id(3)] decimal OvertimeHours,
+    [property: Id(4)] decimal RegularPay,
+    [property: Id(5)] decimal OvertimePay,
+    [property: Id(6)] decimal TipsReceived,
+    [property: Id(7)] decimal GrossPay,
+    [property: Id(8)] decimal Deductions,
+    [property: Id(9)] decimal NetPay);
 
+[GenerateSerializer]
 public record PayrollPeriodSnapshot(
-    Guid PayrollPeriodId,
-    Guid LocationId,
-    DateTime PeriodStart,
-    DateTime PeriodEnd,
-    PayrollStatus Status,
-    decimal TotalRegularHours,
-    decimal TotalOvertimeHours,
-    decimal TotalRegularPay,
-    decimal TotalOvertimePay,
-    decimal TotalTips,
-    decimal TotalGrossPay,
-    decimal TotalDeductions,
-    decimal TotalNetPay,
-    IReadOnlyList<PayrollEntrySnapshot> Entries);
+    [property: Id(0)] Guid PayrollPeriodId,
+    [property: Id(1)] Guid LocationId,
+    [property: Id(2)] DateTime PeriodStart,
+    [property: Id(3)] DateTime PeriodEnd,
+    [property: Id(4)] PayrollStatus Status,
+    [property: Id(5)] decimal TotalRegularHours,
+    [property: Id(6)] decimal TotalOvertimeHours,
+    [property: Id(7)] decimal TotalRegularPay,
+    [property: Id(8)] decimal TotalOvertimePay,
+    [property: Id(9)] decimal TotalTips,
+    [property: Id(10)] decimal TotalGrossPay,
+    [property: Id(11)] decimal TotalDeductions,
+    [property: Id(12)] decimal TotalNetPay,
+    [property: Id(13)] IReadOnlyList<PayrollEntrySnapshot> Entries);
 
 /// <summary>
 /// Grain for payroll period management.
@@ -353,31 +376,34 @@ public interface IPayrollPeriodGrain : IGrainWithStringKey
 // Employee Availability Grain
 // ============================================================================
 
+[GenerateSerializer]
 public record SetAvailabilityCommand(
-    int DayOfWeek,
-    TimeSpan? StartTime,
-    TimeSpan? EndTime,
-    bool IsAvailable,
-    bool IsPreferred,
-    DateOnly? EffectiveFrom,
-    DateOnly? EffectiveTo,
-    string? Notes);
+    [property: Id(0)] int DayOfWeek,
+    [property: Id(1)] TimeSpan? StartTime,
+    [property: Id(2)] TimeSpan? EndTime,
+    [property: Id(3)] bool IsAvailable,
+    [property: Id(4)] bool IsPreferred,
+    [property: Id(5)] DateOnly? EffectiveFrom,
+    [property: Id(6)] DateOnly? EffectiveTo,
+    [property: Id(7)] string? Notes);
 
+[GenerateSerializer]
 public record AvailabilityEntrySnapshot(
-    Guid Id,
-    int DayOfWeek,
-    string DayOfWeekName,
-    TimeSpan? StartTime,
-    TimeSpan? EndTime,
-    bool IsAvailable,
-    bool IsPreferred,
-    DateOnly EffectiveFrom,
-    DateOnly? EffectiveTo,
-    string? Notes);
+    [property: Id(0)] Guid Id,
+    [property: Id(1)] int DayOfWeek,
+    [property: Id(2)] string DayOfWeekName,
+    [property: Id(3)] TimeSpan? StartTime,
+    [property: Id(4)] TimeSpan? EndTime,
+    [property: Id(5)] bool IsAvailable,
+    [property: Id(6)] bool IsPreferred,
+    [property: Id(7)] DateOnly EffectiveFrom,
+    [property: Id(8)] DateOnly? EffectiveTo,
+    [property: Id(9)] string? Notes);
 
+[GenerateSerializer]
 public record EmployeeAvailabilitySnapshot(
-    Guid EmployeeId,
-    IReadOnlyList<AvailabilityEntrySnapshot> Availabilities);
+    [property: Id(0)] Guid EmployeeId,
+    [property: Id(1)] IReadOnlyList<AvailabilityEntrySnapshot> Availabilities);
 
 /// <summary>
 /// Grain for employee availability management.
@@ -415,33 +441,36 @@ public enum ShiftSwapStatus
     Cancelled
 }
 
+[GenerateSerializer]
 public record CreateShiftSwapCommand(
-    Guid RequestingEmployeeId,
-    Guid RequestingShiftId,
-    Guid? TargetEmployeeId,
-    Guid? TargetShiftId,
-    ShiftSwapType Type,
-    string? Reason);
+    [property: Id(0)] Guid RequestingEmployeeId,
+    [property: Id(1)] Guid RequestingShiftId,
+    [property: Id(2)] Guid? TargetEmployeeId,
+    [property: Id(3)] Guid? TargetShiftId,
+    [property: Id(4)] ShiftSwapType Type,
+    [property: Id(5)] string? Reason);
 
+[GenerateSerializer]
 public record RespondToShiftSwapCommand(
-    Guid RespondingUserId,
-    string? Notes);
+    [property: Id(0)] Guid RespondingUserId,
+    [property: Id(1)] string? Notes);
 
+[GenerateSerializer]
 public record ShiftSwapSnapshot(
-    Guid SwapRequestId,
-    Guid RequestingEmployeeId,
-    string RequestingEmployeeName,
-    Guid RequestingShiftId,
-    Guid? TargetEmployeeId,
-    string? TargetEmployeeName,
-    Guid? TargetShiftId,
-    ShiftSwapType Type,
-    ShiftSwapStatus Status,
-    DateTime RequestedAt,
-    DateTime? RespondedAt,
-    Guid? ManagerApprovedByUserId,
-    string? Reason,
-    string? Notes);
+    [property: Id(0)] Guid SwapRequestId,
+    [property: Id(1)] Guid RequestingEmployeeId,
+    [property: Id(2)] string RequestingEmployeeName,
+    [property: Id(3)] Guid RequestingShiftId,
+    [property: Id(4)] Guid? TargetEmployeeId,
+    [property: Id(5)] string? TargetEmployeeName,
+    [property: Id(6)] Guid? TargetShiftId,
+    [property: Id(7)] ShiftSwapType Type,
+    [property: Id(8)] ShiftSwapStatus Status,
+    [property: Id(9)] DateTime RequestedAt,
+    [property: Id(10)] DateTime? RespondedAt,
+    [property: Id(11)] Guid? ManagerApprovedByUserId,
+    [property: Id(12)] string? Reason,
+    [property: Id(13)] string? Notes);
 
 /// <summary>
 /// Grain for shift swap request management.
@@ -481,39 +510,43 @@ public enum TimeOffStatus
     Cancelled
 }
 
+[GenerateSerializer]
 public record CreateTimeOffCommand(
-    Guid EmployeeId,
-    TimeOffType Type,
-    DateOnly StartDate,
-    DateOnly EndDate,
-    string? Reason);
+    [property: Id(0)] Guid EmployeeId,
+    [property: Id(1)] TimeOffType Type,
+    [property: Id(2)] DateOnly StartDate,
+    [property: Id(3)] DateOnly EndDate,
+    [property: Id(4)] string? Reason);
 
+[GenerateSerializer]
 public record RespondToTimeOffCommand(
-    Guid ReviewedByUserId,
-    string? Notes);
+    [property: Id(0)] Guid ReviewedByUserId,
+    [property: Id(1)] string? Notes);
 
+[GenerateSerializer]
 public record TimeOffBalanceSnapshot(
-    TimeOffType Type,
-    decimal Accrued,
-    decimal Used,
-    decimal Pending,
-    decimal Available);
+    [property: Id(0)] TimeOffType Type,
+    [property: Id(1)] decimal Accrued,
+    [property: Id(2)] decimal Used,
+    [property: Id(3)] decimal Pending,
+    [property: Id(4)] decimal Available);
 
+[GenerateSerializer]
 public record TimeOffSnapshot(
-    Guid TimeOffRequestId,
-    Guid EmployeeId,
-    string EmployeeName,
-    TimeOffType Type,
-    DateOnly StartDate,
-    DateOnly EndDate,
-    int TotalDays,
-    bool IsPaid,
-    TimeOffStatus Status,
-    DateTime RequestedAt,
-    Guid? ReviewedByUserId,
-    DateTime? ReviewedAt,
-    string? Reason,
-    string? Notes);
+    [property: Id(0)] Guid TimeOffRequestId,
+    [property: Id(1)] Guid EmployeeId,
+    [property: Id(2)] string EmployeeName,
+    [property: Id(3)] TimeOffType Type,
+    [property: Id(4)] DateOnly StartDate,
+    [property: Id(5)] DateOnly EndDate,
+    [property: Id(6)] int TotalDays,
+    [property: Id(7)] bool IsPaid,
+    [property: Id(8)] TimeOffStatus Status,
+    [property: Id(9)] DateTime RequestedAt,
+    [property: Id(10)] Guid? ReviewedByUserId,
+    [property: Id(11)] DateTime? ReviewedAt,
+    [property: Id(12)] string? Reason,
+    [property: Id(13)] string? Notes);
 
 /// <summary>
 /// Grain for time off request management.

@@ -7,88 +7,95 @@ namespace DarkVelocity.Host.Grains;
 /// <summary>
 /// Command to create/initialize an account.
 /// </summary>
+[GenerateSerializer]
 public record CreateAccountCommand(
-    Guid OrganizationId,
-    Guid AccountId,
-    string AccountCode,
-    string Name,
-    AccountType AccountType,
-    Guid CreatedBy,
-    string? SubType = null,
-    string? Description = null,
-    Guid? ParentAccountId = null,
-    bool IsSystemAccount = false,
-    string? TaxCode = null,
-    string? ExternalReference = null,
-    string Currency = "USD",
-    decimal OpeningBalance = 0);
+    [property: Id(0)] Guid OrganizationId,
+    [property: Id(1)] Guid AccountId,
+    [property: Id(2)] string AccountCode,
+    [property: Id(3)] string Name,
+    [property: Id(4)] AccountType AccountType,
+    [property: Id(5)] Guid CreatedBy,
+    [property: Id(6)] string? SubType = null,
+    [property: Id(7)] string? Description = null,
+    [property: Id(8)] Guid? ParentAccountId = null,
+    [property: Id(9)] bool IsSystemAccount = false,
+    [property: Id(10)] string? TaxCode = null,
+    [property: Id(11)] string? ExternalReference = null,
+    [property: Id(12)] string Currency = "USD",
+    [property: Id(13)] decimal OpeningBalance = 0);
 
 /// <summary>
 /// Command to post a debit entry.
 /// </summary>
+[GenerateSerializer]
 public record PostDebitCommand(
-    decimal Amount,
-    string Description,
-    Guid PerformedBy,
-    string? ReferenceNumber = null,
-    string? ReferenceType = null,
-    Guid? ReferenceId = null,
-    Guid? AccountingJournalEntryId = null,
-    Guid? CostCenterId = null,
-    string? Notes = null);
+    [property: Id(0)] decimal Amount,
+    [property: Id(1)] string Description,
+    [property: Id(2)] Guid PerformedBy,
+    [property: Id(3)] string? ReferenceNumber = null,
+    [property: Id(4)] string? ReferenceType = null,
+    [property: Id(5)] Guid? ReferenceId = null,
+    [property: Id(6)] Guid? AccountingJournalEntryId = null,
+    [property: Id(7)] Guid? CostCenterId = null,
+    [property: Id(8)] string? Notes = null);
 
 /// <summary>
 /// Command to post a credit entry.
 /// </summary>
+[GenerateSerializer]
 public record PostCreditCommand(
-    decimal Amount,
-    string Description,
-    Guid PerformedBy,
-    string? ReferenceNumber = null,
-    string? ReferenceType = null,
-    Guid? ReferenceId = null,
-    Guid? AccountingJournalEntryId = null,
-    Guid? CostCenterId = null,
-    string? Notes = null);
+    [property: Id(0)] decimal Amount,
+    [property: Id(1)] string Description,
+    [property: Id(2)] Guid PerformedBy,
+    [property: Id(3)] string? ReferenceNumber = null,
+    [property: Id(4)] string? ReferenceType = null,
+    [property: Id(5)] Guid? ReferenceId = null,
+    [property: Id(6)] Guid? AccountingJournalEntryId = null,
+    [property: Id(7)] Guid? CostCenterId = null,
+    [property: Id(8)] string? Notes = null);
 
 /// <summary>
 /// Command to adjust the account balance.
 /// </summary>
+[GenerateSerializer]
 public record AdjustBalanceCommand(
-    decimal NewBalance,
-    string Reason,
-    Guid AdjustedBy,
-    Guid? ApprovedBy = null,
-    string? Notes = null);
+    [property: Id(0)] decimal NewBalance,
+    [property: Id(1)] string Reason,
+    [property: Id(2)] Guid AdjustedBy,
+    [property: Id(3)] Guid? ApprovedBy = null,
+    [property: Id(4)] string? Notes = null);
 
 /// <summary>
 /// Command to reverse a previous entry.
 /// </summary>
+[GenerateSerializer]
 public record ReverseEntryCommand(
-    Guid EntryId,
-    string Reason,
-    Guid ReversedBy);
+    [property: Id(0)] Guid EntryId,
+    [property: Id(1)] string Reason,
+    [property: Id(2)] Guid ReversedBy);
 
 /// <summary>
 /// Command to close a period.
 /// </summary>
+[GenerateSerializer]
 public record ClosePeriodCommand(
-    int Year,
-    int Month,
-    Guid ClosedBy,
-    decimal? ClosingBalance = null);
+    [property: Id(0)] int Year,
+    [property: Id(1)] int Month,
+    [property: Id(2)] Guid ClosedBy,
+    [property: Id(3)] decimal? ClosingBalance = null);
 
 /// <summary>
 /// Command to update account details.
 /// </summary>
+[GenerateSerializer]
 public record UpdateAccountCommand(
-    string? Name = null,
-    string? Description = null,
-    string? SubType = null,
-    string? TaxCode = null,
-    string? ExternalReference = null,
-    Guid? ParentAccountId = null,
-    Guid UpdatedBy = default);
+    [property: Id(0)] string? Name = null,
+    [property: Id(1)] string? Description = null,
+    [property: Id(2)] string? SubType = null,
+    [property: Id(3)] string? TaxCode = null,
+    [property: Id(4)] string? ExternalReference = null,
+    [property: Id(5)] Guid? ParentAccountId = null,
+    [property: Id(6)] Guid UpdatedBy = default);
 
 #endregion
 
@@ -97,52 +104,57 @@ public record UpdateAccountCommand(
 /// <summary>
 /// Result of creating an account.
 /// </summary>
+[GenerateSerializer]
 public record CreateAccountResult(
-    Guid AccountId,
-    string AccountCode,
-    decimal Balance);
+    [property: Id(0)] Guid AccountId,
+    [property: Id(1)] string AccountCode,
+    [property: Id(2)] decimal Balance);
 
 /// <summary>
 /// Result of posting an entry.
 /// </summary>
+[GenerateSerializer]
 public record PostEntryResult(
-    Guid EntryId,
-    decimal Amount,
-    decimal NewBalance,
-    JournalEntryType EntryType);
+    [property: Id(0)] Guid EntryId,
+    [property: Id(1)] decimal Amount,
+    [property: Id(2)] decimal NewBalance,
+    [property: Id(3)] JournalEntryType EntryType);
 
 /// <summary>
 /// Result of reversing an entry.
 /// </summary>
+[GenerateSerializer]
 public record ReverseEntryResult(
-    Guid ReversalEntryId,
-    Guid OriginalEntryId,
-    decimal Amount,
-    decimal NewBalance);
+    [property: Id(0)] Guid ReversalEntryId,
+    [property: Id(1)] Guid OriginalEntryId,
+    [property: Id(2)] decimal Amount,
+    [property: Id(3)] decimal NewBalance);
 
 /// <summary>
 /// Summary information about an account.
 /// </summary>
+[GenerateSerializer]
 public record AccountSummary(
-    Guid AccountId,
-    string AccountCode,
-    string Name,
-    AccountType AccountType,
-    decimal Balance,
-    decimal TotalDebits,
-    decimal TotalCredits,
-    long TotalEntryCount,
-    DateTime? LastEntryAt,
-    bool IsActive);
+    [property: Id(0)] Guid AccountId,
+    [property: Id(1)] string AccountCode,
+    [property: Id(2)] string Name,
+    [property: Id(3)] AccountType AccountType,
+    [property: Id(4)] decimal Balance,
+    [property: Id(5)] decimal TotalDebits,
+    [property: Id(6)] decimal TotalCredits,
+    [property: Id(7)] long TotalEntryCount,
+    [property: Id(8)] DateTime? LastEntryAt,
+    [property: Id(9)] bool IsActive);
 
 /// <summary>
 /// Balance information for an account.
 /// </summary>
+[GenerateSerializer]
 public record AccountBalance(
-    decimal Balance,
-    decimal TotalDebits,
-    decimal TotalCredits,
-    DateTime? LastEntryAt);
+    [property: Id(0)] decimal Balance,
+    [property: Id(1)] decimal TotalDebits,
+    [property: Id(2)] decimal TotalCredits,
+    [property: Id(3)] DateTime? LastEntryAt);
 
 #endregion
 

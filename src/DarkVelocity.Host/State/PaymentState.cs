@@ -26,24 +26,26 @@ public enum PaymentStatus
     PartiallyRefunded
 }
 
+[GenerateSerializer]
 public record CardInfo
 {
-    public string MaskedNumber { get; init; } = string.Empty; // e.g., "****4242"
-    public string Brand { get; init; } = string.Empty; // Visa, Mastercard, etc.
-    public string? ExpiryMonth { get; init; }
-    public string? ExpiryYear { get; init; }
-    public string EntryMethod { get; init; } = string.Empty; // chip, swipe, contactless, keyed
-    public string? CardholderName { get; init; }
+    [Id(0)] public string MaskedNumber { get; init; } = string.Empty; // e.g., "****4242"
+    [Id(1)] public string Brand { get; init; } = string.Empty; // Visa, Mastercard, etc.
+    [Id(2)] public string? ExpiryMonth { get; init; }
+    [Id(3)] public string? ExpiryYear { get; init; }
+    [Id(4)] public string EntryMethod { get; init; } = string.Empty; // chip, swipe, contactless, keyed
+    [Id(5)] public string? CardholderName { get; init; }
 }
 
+[GenerateSerializer]
 public record RefundInfo
 {
-    public Guid RefundId { get; init; }
-    public decimal Amount { get; init; }
-    public string Reason { get; init; } = string.Empty;
-    public Guid IssuedBy { get; init; }
-    public DateTime IssuedAt { get; init; }
-    public string? GatewayReference { get; init; }
+    [Id(0)] public Guid RefundId { get; init; }
+    [Id(1)] public decimal Amount { get; init; }
+    [Id(2)] public string Reason { get; init; } = string.Empty;
+    [Id(3)] public Guid IssuedBy { get; init; }
+    [Id(4)] public DateTime IssuedAt { get; init; }
+    [Id(5)] public string? GatewayReference { get; init; }
 }
 
 [GenerateSerializer]
@@ -110,23 +112,25 @@ public enum DrawerStatus
     Reconciling
 }
 
+[GenerateSerializer]
 public record CashDrop
 {
-    public Guid Id { get; init; }
-    public decimal Amount { get; init; }
-    public Guid DroppedBy { get; init; }
-    public DateTime DroppedAt { get; init; }
-    public string? Notes { get; init; }
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public decimal Amount { get; init; }
+    [Id(2)] public Guid DroppedBy { get; init; }
+    [Id(3)] public DateTime DroppedAt { get; init; }
+    [Id(4)] public string? Notes { get; init; }
 }
 
+[GenerateSerializer]
 public record DrawerTransaction
 {
-    public Guid Id { get; init; }
-    public DrawerTransactionType Type { get; init; }
-    public decimal Amount { get; init; }
-    public Guid? PaymentId { get; init; }
-    public string? Description { get; init; }
-    public DateTime Timestamp { get; init; }
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public DrawerTransactionType Type { get; init; }
+    [Id(2)] public decimal Amount { get; init; }
+    [Id(3)] public Guid? PaymentId { get; init; }
+    [Id(4)] public string? Description { get; init; }
+    [Id(5)] public DateTime Timestamp { get; init; }
 }
 
 public enum DrawerTransactionType

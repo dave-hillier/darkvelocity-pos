@@ -28,72 +28,78 @@ public enum CustomerSegment
     Lost
 }
 
+[GenerateSerializer]
 public record ContactInfo
 {
-    public string? Email { get; init; }
-    public string? Phone { get; init; }
-    public string? PhoneType { get; init; }
-    public Address? Address { get; init; }
-    public bool EmailOptIn { get; init; }
-    public bool SmsOptIn { get; init; }
+    [Id(0)] public string? Email { get; init; }
+    [Id(1)] public string? Phone { get; init; }
+    [Id(2)] public string? PhoneType { get; init; }
+    [Id(3)] public Address? Address { get; init; }
+    [Id(4)] public bool EmailOptIn { get; init; }
+    [Id(5)] public bool SmsOptIn { get; init; }
 }
 
+[GenerateSerializer]
 public record CustomerPreferences
 {
-    public List<Guid> FavoriteItemIds { get; init; } = [];
-    public List<string> DietaryRestrictions { get; init; } = [];
-    public List<string> Allergens { get; init; } = [];
-    public string? SeatingPreference { get; init; }
-    public string? Notes { get; init; }
+    [Id(0)] public List<Guid> FavoriteItemIds { get; init; } = [];
+    [Id(1)] public List<string> DietaryRestrictions { get; init; } = [];
+    [Id(2)] public List<string> Allergens { get; init; } = [];
+    [Id(3)] public string? SeatingPreference { get; init; }
+    [Id(4)] public string? Notes { get; init; }
 }
 
+[GenerateSerializer]
 public record CustomerNote
 {
-    public Guid Id { get; init; }
-    public string Content { get; init; } = string.Empty;
-    public Guid CreatedBy { get; init; }
-    public DateTime CreatedAt { get; init; }
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public string Content { get; init; } = string.Empty;
+    [Id(2)] public Guid CreatedBy { get; init; }
+    [Id(3)] public DateTime CreatedAt { get; init; }
 }
 
+[GenerateSerializer]
 public record LoyaltyStatus
 {
-    public DateTime EnrolledAt { get; init; }
-    public Guid ProgramId { get; init; }
-    public string MemberNumber { get; init; } = string.Empty;
-    public Guid TierId { get; init; }
-    public string TierName { get; init; } = string.Empty;
-    public int PointsBalance { get; init; }
-    public int LifetimePoints { get; init; }
-    public int YtdPoints { get; init; }
-    public int PointsToNextTier { get; init; }
-    public DateTime? TierExpiresAt { get; init; }
-    public int PointsExpiring { get; init; }
-    public DateTime? PointsExpiringAt { get; init; }
+    [Id(0)] public DateTime EnrolledAt { get; init; }
+    [Id(1)] public Guid ProgramId { get; init; }
+    [Id(2)] public string MemberNumber { get; init; } = string.Empty;
+    [Id(3)] public Guid TierId { get; init; }
+    [Id(4)] public string TierName { get; init; } = string.Empty;
+    [Id(5)] public int PointsBalance { get; init; }
+    [Id(6)] public int LifetimePoints { get; init; }
+    [Id(7)] public int YtdPoints { get; init; }
+    [Id(8)] public int PointsToNextTier { get; init; }
+    [Id(9)] public DateTime? TierExpiresAt { get; init; }
+    [Id(10)] public int PointsExpiring { get; init; }
+    [Id(11)] public DateTime? PointsExpiringAt { get; init; }
 }
 
+[GenerateSerializer]
 public record CustomerStats
 {
-    public int TotalVisits { get; init; }
-    public decimal TotalSpend { get; init; }
-    public decimal AverageCheck { get; init; }
-    public Guid? LastVisitSiteId { get; init; }
-    public Guid? FavoriteSiteId { get; init; }
-    public int DaysSinceLastVisit { get; init; }
-    public CustomerSegment Segment { get; init; }
+    [Id(0)] public int TotalVisits { get; init; }
+    [Id(1)] public decimal TotalSpend { get; init; }
+    [Id(2)] public decimal AverageCheck { get; init; }
+    [Id(3)] public Guid? LastVisitSiteId { get; init; }
+    [Id(4)] public Guid? FavoriteSiteId { get; init; }
+    [Id(5)] public int DaysSinceLastVisit { get; init; }
+    [Id(6)] public CustomerSegment Segment { get; init; }
 }
 
+[GenerateSerializer]
 public record CustomerReward
 {
-    public Guid Id { get; init; }
-    public Guid RewardDefinitionId { get; init; }
-    public string Name { get; init; } = string.Empty;
-    public RewardStatus Status { get; init; }
-    public int PointsSpent { get; init; }
-    public DateTime IssuedAt { get; init; }
-    public DateTime ExpiresAt { get; init; }
-    public DateTime? RedeemedAt { get; init; }
-    public Guid? RedemptionOrderId { get; init; }
-    public Guid? RedemptionSiteId { get; init; }
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public Guid RewardDefinitionId { get; init; }
+    [Id(2)] public string Name { get; init; } = string.Empty;
+    [Id(3)] public RewardStatus Status { get; init; }
+    [Id(4)] public int PointsSpent { get; init; }
+    [Id(5)] public DateTime IssuedAt { get; init; }
+    [Id(6)] public DateTime ExpiresAt { get; init; }
+    [Id(7)] public DateTime? RedeemedAt { get; init; }
+    [Id(8)] public Guid? RedemptionOrderId { get; init; }
+    [Id(9)] public Guid? RedemptionSiteId { get; init; }
 }
 
 public enum RewardStatus

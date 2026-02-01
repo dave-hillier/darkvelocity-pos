@@ -2,23 +2,28 @@ using DarkVelocity.Host.State;
 
 namespace DarkVelocity.Host.Grains;
 
+[GenerateSerializer]
 public record CreateUserCommand(
-    Guid OrganizationId,
-    string Email,
-    string DisplayName,
-    UserType Type = UserType.Employee,
-    string? FirstName = null,
-    string? LastName = null);
+    [property: Id(0)] Guid OrganizationId,
+    [property: Id(1)] string Email,
+    [property: Id(2)] string DisplayName,
+    [property: Id(3)] UserType Type = UserType.Employee,
+    [property: Id(4)] string? FirstName = null,
+    [property: Id(5)] string? LastName = null);
 
+[GenerateSerializer]
 public record UpdateUserCommand(
-    string? DisplayName = null,
-    string? FirstName = null,
-    string? LastName = null,
-    UserPreferences? Preferences = null);
+    [property: Id(0)] string? DisplayName = null,
+    [property: Id(1)] string? FirstName = null,
+    [property: Id(2)] string? LastName = null,
+    [property: Id(3)] UserPreferences? Preferences = null);
 
-public record UserCreatedResult(Guid Id, string Email, DateTime CreatedAt);
-public record UserUpdatedResult(int Version, DateTime UpdatedAt);
-public record AuthResult(bool Success, string? Error = null);
+[GenerateSerializer]
+public record UserCreatedResult([property: Id(0)] Guid Id, [property: Id(1)] string Email, [property: Id(2)] DateTime CreatedAt);
+[GenerateSerializer]
+public record UserUpdatedResult([property: Id(0)] int Version, [property: Id(1)] DateTime UpdatedAt);
+[GenerateSerializer]
+public record AuthResult([property: Id(0)] bool Success, [property: Id(1)] string? Error = null);
 
 public interface IUserGrain : IGrainWithStringKey
 {
@@ -40,12 +45,14 @@ public interface IUserGrain : IGrainWithStringKey
     Task<bool> ExistsAsync();
 }
 
+[GenerateSerializer]
 public record CreateUserGroupCommand(
-    Guid OrganizationId,
-    string Name,
-    string? Description = null);
+    [property: Id(0)] Guid OrganizationId,
+    [property: Id(1)] string Name,
+    [property: Id(2)] string? Description = null);
 
-public record UserGroupCreatedResult(Guid Id, DateTime CreatedAt);
+[GenerateSerializer]
+public record UserGroupCreatedResult([property: Id(0)] Guid Id, [property: Id(1)] DateTime CreatedAt);
 
 public interface IUserGroupGrain : IGrainWithStringKey
 {

@@ -16,18 +16,19 @@ public enum GiftCardType
     Promotional
 }
 
+[GenerateSerializer]
 public record GiftCardTransaction
 {
-    public Guid Id { get; init; }
-    public GiftCardTransactionType Type { get; init; }
-    public decimal Amount { get; init; }
-    public decimal BalanceAfter { get; init; }
-    public Guid? OrderId { get; init; }
-    public Guid? PaymentId { get; init; }
-    public Guid? SiteId { get; init; }
-    public Guid PerformedBy { get; init; }
-    public DateTime Timestamp { get; init; }
-    public string? Notes { get; init; }
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public GiftCardTransactionType Type { get; init; }
+    [Id(2)] public decimal Amount { get; init; }
+    [Id(3)] public decimal BalanceAfter { get; init; }
+    [Id(4)] public Guid? OrderId { get; init; }
+    [Id(5)] public Guid? PaymentId { get; init; }
+    [Id(6)] public Guid? SiteId { get; init; }
+    [Id(7)] public Guid PerformedBy { get; init; }
+    [Id(8)] public DateTime Timestamp { get; init; }
+    [Id(9)] public string? Notes { get; init; }
 }
 
 public enum GiftCardTransactionType

@@ -7,22 +7,24 @@ public enum OrganizationStatus
     Cancelled
 }
 
+[GenerateSerializer]
 public record OrganizationSettings
 {
-    public string DefaultCurrency { get; init; } = "USD";
-    public string DefaultTimezone { get; init; } = "America/New_York";
-    public string DefaultLocale { get; init; } = "en-US";
-    public bool RequirePinForVoids { get; init; } = true;
-    public bool RequireManagerApprovalForDiscounts { get; init; } = true;
-    public int DataRetentionDays { get; init; } = 365 * 7; // 7 years
+    [Id(0)] public string DefaultCurrency { get; init; } = "USD";
+    [Id(1)] public string DefaultTimezone { get; init; } = "America/New_York";
+    [Id(2)] public string DefaultLocale { get; init; } = "en-US";
+    [Id(3)] public bool RequirePinForVoids { get; init; } = true;
+    [Id(4)] public bool RequireManagerApprovalForDiscounts { get; init; } = true;
+    [Id(5)] public int DataRetentionDays { get; init; } = 365 * 7; // 7 years
 }
 
+[GenerateSerializer]
 public record BillingInfo
 {
-    public string? StripeCustomerId { get; init; }
-    public string? SubscriptionId { get; init; }
-    public string PlanId { get; init; } = "free";
-    public DateTime? TrialEndsAt { get; init; }
+    [Id(0)] public string? StripeCustomerId { get; init; }
+    [Id(1)] public string? SubscriptionId { get; init; }
+    [Id(2)] public string PlanId { get; init; } = "free";
+    [Id(3)] public DateTime? TrialEndsAt { get; init; }
 }
 
 [GenerateSerializer]

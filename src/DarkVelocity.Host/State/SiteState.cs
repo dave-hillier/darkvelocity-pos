@@ -7,64 +7,70 @@ public enum SiteStatus
     TemporarilyClosed
 }
 
+[GenerateSerializer]
 public record Address
 {
-    public string Street { get; init; } = string.Empty;
-    public string? Street2 { get; init; }
-    public string City { get; init; } = string.Empty;
-    public string State { get; init; } = string.Empty;
-    public string PostalCode { get; init; } = string.Empty;
-    public string Country { get; init; } = string.Empty;
-    public double? Latitude { get; init; }
-    public double? Longitude { get; init; }
+    [Id(0)] public string Street { get; init; } = string.Empty;
+    [Id(1)] public string? Street2 { get; init; }
+    [Id(2)] public string City { get; init; } = string.Empty;
+    [Id(3)] public string State { get; init; } = string.Empty;
+    [Id(4)] public string PostalCode { get; init; } = string.Empty;
+    [Id(5)] public string Country { get; init; } = string.Empty;
+    [Id(6)] public double? Latitude { get; init; }
+    [Id(7)] public double? Longitude { get; init; }
 }
 
+[GenerateSerializer]
 public record OperatingHours
 {
-    public IReadOnlyList<DaySchedule> Schedule { get; init; } = [];
+    [Id(0)] public IReadOnlyList<DaySchedule> Schedule { get; init; } = [];
 }
 
+[GenerateSerializer]
 public record DaySchedule
 {
-    public DayOfWeek Day { get; init; }
-    public bool IsClosed { get; init; }
-    public TimeOnly? OpenTime { get; init; }
-    public TimeOnly? CloseTime { get; init; }
-    public TimeOnly? BreakStart { get; init; }
-    public TimeOnly? BreakEnd { get; init; }
+    [Id(0)] public DayOfWeek Day { get; init; }
+    [Id(1)] public bool IsClosed { get; init; }
+    [Id(2)] public TimeOnly? OpenTime { get; init; }
+    [Id(3)] public TimeOnly? CloseTime { get; init; }
+    [Id(4)] public TimeOnly? BreakStart { get; init; }
+    [Id(5)] public TimeOnly? BreakEnd { get; init; }
 }
 
+[GenerateSerializer]
 public record TaxJurisdiction
 {
-    public string Country { get; init; } = string.Empty;
-    public string? State { get; init; }
-    public string? County { get; init; }
-    public string? City { get; init; }
-    public decimal DefaultTaxRate { get; init; }
+    [Id(0)] public string Country { get; init; } = string.Empty;
+    [Id(1)] public string? State { get; init; }
+    [Id(2)] public string? County { get; init; }
+    [Id(3)] public string? City { get; init; }
+    [Id(4)] public decimal DefaultTaxRate { get; init; }
 }
 
+[GenerateSerializer]
 public record BookingSettings
 {
-    public bool AcceptBookings { get; init; } = true;
-    public int MaxAdvanceBookingDays { get; init; } = 30;
-    public int MinAdvanceBookingHours { get; init; } = 2;
-    public int DefaultDurationMinutes { get; init; } = 90;
-    public int TurnTimeMinutes { get; init; } = 15;
-    public int GracePeriodMinutes { get; init; } = 15;
-    public bool RequireDeposit { get; init; }
-    public int DepositPartySizeThreshold { get; init; } = 6;
-    public decimal DepositAmountPerPerson { get; init; } = 25m;
+    [Id(0)] public bool AcceptBookings { get; init; } = true;
+    [Id(1)] public int MaxAdvanceBookingDays { get; init; } = 30;
+    [Id(2)] public int MinAdvanceBookingHours { get; init; } = 2;
+    [Id(3)] public int DefaultDurationMinutes { get; init; } = 90;
+    [Id(4)] public int TurnTimeMinutes { get; init; } = 15;
+    [Id(5)] public int GracePeriodMinutes { get; init; } = 15;
+    [Id(6)] public bool RequireDeposit { get; init; }
+    [Id(7)] public int DepositPartySizeThreshold { get; init; } = 6;
+    [Id(8)] public decimal DepositAmountPerPerson { get; init; } = 25m;
 }
 
+[GenerateSerializer]
 public record SiteSettings
 {
-    public Guid? ActiveMenuId { get; init; }
-    public Guid? DefaultPriceListId { get; init; }
-    public int DefaultGuestCount { get; init; } = 1;
-    public bool AutoPrintKitchenTickets { get; init; } = true;
-    public bool AutoPrintReceipts { get; init; }
-    public TimeSpan OrderTimeout { get; init; } = TimeSpan.FromHours(4);
-    public BookingSettings BookingSettings { get; init; } = new();
+    [Id(0)] public Guid? ActiveMenuId { get; init; }
+    [Id(1)] public Guid? DefaultPriceListId { get; init; }
+    [Id(2)] public int DefaultGuestCount { get; init; } = 1;
+    [Id(3)] public bool AutoPrintKitchenTickets { get; init; } = true;
+    [Id(4)] public bool AutoPrintReceipts { get; init; }
+    [Id(5)] public TimeSpan OrderTimeout { get; init; } = TimeSpan.FromHours(4);
+    [Id(6)] public BookingSettings BookingSettings { get; init; } = new();
 }
 
 [GenerateSerializer]

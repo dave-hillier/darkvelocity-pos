@@ -4,79 +4,86 @@ namespace DarkVelocity.Host.Grains;
 // Recipe Grain
 // ============================================================================
 
+[GenerateSerializer]
 public record CreateRecipeCommand(
-    Guid MenuItemId,
-    string MenuItemName,
-    string Code,
-    Guid? CategoryId,
-    string? CategoryName,
-    string? Description,
-    int PortionYield,
-    string? PrepInstructions);
+    [property: Id(0)] Guid MenuItemId,
+    [property: Id(1)] string MenuItemName,
+    [property: Id(2)] string Code,
+    [property: Id(3)] Guid? CategoryId,
+    [property: Id(4)] string? CategoryName,
+    [property: Id(5)] string? Description,
+    [property: Id(6)] int PortionYield,
+    [property: Id(7)] string? PrepInstructions);
 
+[GenerateSerializer]
 public record UpdateRecipeCommand(
-    string? MenuItemName,
-    string? Code,
-    Guid? CategoryId,
-    string? CategoryName,
-    string? Description,
-    int? PortionYield,
-    string? PrepInstructions,
-    bool? IsActive);
+    [property: Id(0)] string? MenuItemName,
+    [property: Id(1)] string? Code,
+    [property: Id(2)] Guid? CategoryId,
+    [property: Id(3)] string? CategoryName,
+    [property: Id(4)] string? Description,
+    [property: Id(5)] int? PortionYield,
+    [property: Id(6)] string? PrepInstructions,
+    [property: Id(7)] bool? IsActive);
 
+[GenerateSerializer]
 public record RecipeIngredientCommand(
-    Guid IngredientId,
-    string IngredientName,
-    decimal Quantity,
-    string UnitOfMeasure,
-    decimal WastePercentage,
-    decimal CurrentUnitCost);
+    [property: Id(0)] Guid IngredientId,
+    [property: Id(1)] string IngredientName,
+    [property: Id(2)] decimal Quantity,
+    [property: Id(3)] string UnitOfMeasure,
+    [property: Id(4)] decimal WastePercentage,
+    [property: Id(5)] decimal CurrentUnitCost);
 
+[GenerateSerializer]
 public record RecipeIngredientSnapshot(
-    Guid Id,
-    Guid IngredientId,
-    string IngredientName,
-    decimal Quantity,
-    string UnitOfMeasure,
-    decimal WastePercentage,
-    decimal EffectiveQuantity,
-    decimal CurrentUnitCost,
-    decimal CurrentLineCost,
-    decimal CostPercentOfTotal);
+    [property: Id(0)] Guid Id,
+    [property: Id(1)] Guid IngredientId,
+    [property: Id(2)] string IngredientName,
+    [property: Id(3)] decimal Quantity,
+    [property: Id(4)] string UnitOfMeasure,
+    [property: Id(5)] decimal WastePercentage,
+    [property: Id(6)] decimal EffectiveQuantity,
+    [property: Id(7)] decimal CurrentUnitCost,
+    [property: Id(8)] decimal CurrentLineCost,
+    [property: Id(9)] decimal CostPercentOfTotal);
 
+[GenerateSerializer]
 public record RecipeCostCalculation(
-    Guid RecipeId,
-    string RecipeName,
-    decimal TotalIngredientCost,
-    decimal CostPerPortion,
-    int PortionYield,
-    decimal? MenuPrice,
-    decimal? CostPercentage,
-    decimal? GrossMarginPercent,
-    IReadOnlyList<RecipeIngredientSnapshot> IngredientCosts);
+    [property: Id(0)] Guid RecipeId,
+    [property: Id(1)] string RecipeName,
+    [property: Id(2)] decimal TotalIngredientCost,
+    [property: Id(3)] decimal CostPerPortion,
+    [property: Id(4)] int PortionYield,
+    [property: Id(5)] decimal? MenuPrice,
+    [property: Id(6)] decimal? CostPercentage,
+    [property: Id(7)] decimal? GrossMarginPercent,
+    [property: Id(8)] IReadOnlyList<RecipeIngredientSnapshot> IngredientCosts);
 
+[GenerateSerializer]
 public record RecipeSnapshot(
-    Guid RecipeId,
-    Guid MenuItemId,
-    string MenuItemName,
-    string Code,
-    Guid? CategoryId,
-    string? CategoryName,
-    string? Description,
-    int PortionYield,
-    string? PrepInstructions,
-    decimal CurrentCostPerPortion,
-    DateTime? CostCalculatedAt,
-    bool IsActive,
-    IReadOnlyList<RecipeIngredientSnapshot> Ingredients);
+    [property: Id(0)] Guid RecipeId,
+    [property: Id(1)] Guid MenuItemId,
+    [property: Id(2)] string MenuItemName,
+    [property: Id(3)] string Code,
+    [property: Id(4)] Guid? CategoryId,
+    [property: Id(5)] string? CategoryName,
+    [property: Id(6)] string? Description,
+    [property: Id(7)] int PortionYield,
+    [property: Id(8)] string? PrepInstructions,
+    [property: Id(9)] decimal CurrentCostPerPortion,
+    [property: Id(10)] DateTime? CostCalculatedAt,
+    [property: Id(11)] bool IsActive,
+    [property: Id(12)] IReadOnlyList<RecipeIngredientSnapshot> Ingredients);
 
+[GenerateSerializer]
 public record RecipeCostSnapshotEntry(
-    Guid SnapshotId,
-    DateTime SnapshotDate,
-    decimal CostPerPortion,
-    decimal? MenuPrice,
-    decimal? MarginPercent,
-    string? Notes);
+    [property: Id(0)] Guid SnapshotId,
+    [property: Id(1)] DateTime SnapshotDate,
+    [property: Id(2)] decimal CostPerPortion,
+    [property: Id(3)] decimal? MenuPrice,
+    [property: Id(4)] decimal? MarginPercent,
+    [property: Id(5)] string? Notes);
 
 /// <summary>
 /// Grain for recipe management and cost calculation.
@@ -107,44 +114,48 @@ public interface IRecipeGrain : IGrainWithStringKey
 // Ingredient Price Grain
 // ============================================================================
 
+[GenerateSerializer]
 public record CreateIngredientPriceCommand(
-    Guid IngredientId,
-    string IngredientName,
-    decimal CurrentPrice,
-    string UnitOfMeasure,
-    decimal PackSize,
-    Guid? PreferredSupplierId,
-    string? PreferredSupplierName);
+    [property: Id(0)] Guid IngredientId,
+    [property: Id(1)] string IngredientName,
+    [property: Id(2)] decimal CurrentPrice,
+    [property: Id(3)] string UnitOfMeasure,
+    [property: Id(4)] decimal PackSize,
+    [property: Id(5)] Guid? PreferredSupplierId,
+    [property: Id(6)] string? PreferredSupplierName);
 
+[GenerateSerializer]
 public record UpdateIngredientPriceCommand(
-    decimal? CurrentPrice,
-    decimal? PackSize,
-    Guid? PreferredSupplierId,
-    string? PreferredSupplierName,
-    bool? IsActive);
+    [property: Id(0)] decimal? CurrentPrice,
+    [property: Id(1)] decimal? PackSize,
+    [property: Id(2)] Guid? PreferredSupplierId,
+    [property: Id(3)] string? PreferredSupplierName,
+    [property: Id(4)] bool? IsActive);
 
+[GenerateSerializer]
 public record IngredientPriceSnapshot(
-    Guid Id,
-    Guid IngredientId,
-    string IngredientName,
-    decimal CurrentPrice,
-    string UnitOfMeasure,
-    decimal PackSize,
-    decimal PricePerUnit,
-    Guid? PreferredSupplierId,
-    string? PreferredSupplierName,
-    decimal? PreviousPrice,
-    DateTime? PriceChangedAt,
-    decimal PriceChangePercent,
-    bool IsActive);
+    [property: Id(0)] Guid Id,
+    [property: Id(1)] Guid IngredientId,
+    [property: Id(2)] string IngredientName,
+    [property: Id(3)] decimal CurrentPrice,
+    [property: Id(4)] string UnitOfMeasure,
+    [property: Id(5)] decimal PackSize,
+    [property: Id(6)] decimal PricePerUnit,
+    [property: Id(7)] Guid? PreferredSupplierId,
+    [property: Id(8)] string? PreferredSupplierName,
+    [property: Id(9)] decimal? PreviousPrice,
+    [property: Id(10)] DateTime? PriceChangedAt,
+    [property: Id(11)] decimal PriceChangePercent,
+    [property: Id(12)] bool IsActive);
 
+[GenerateSerializer]
 public record PriceHistoryEntry(
-    DateTime Timestamp,
-    decimal Price,
-    decimal PricePerUnit,
-    decimal ChangePercent,
-    Guid? SupplierId,
-    string? ChangeReason);
+    [property: Id(0)] DateTime Timestamp,
+    [property: Id(1)] decimal Price,
+    [property: Id(2)] decimal PricePerUnit,
+    [property: Id(3)] decimal ChangePercent,
+    [property: Id(4)] Guid? SupplierId,
+    [property: Id(5)] string? ChangeReason);
 
 /// <summary>
 /// Grain for ingredient price management.
@@ -185,46 +196,49 @@ public enum CostAlertAction
     Ignored
 }
 
+[GenerateSerializer]
 public record CreateCostAlertCommand(
-    CostAlertType AlertType,
-    Guid? RecipeId,
-    string? RecipeName,
-    Guid? IngredientId,
-    string? IngredientName,
-    Guid? MenuItemId,
-    string? MenuItemName,
-    decimal PreviousValue,
-    decimal CurrentValue,
-    decimal? ThresholdValue,
-    string? ImpactDescription,
-    int AffectedRecipeCount);
+    [property: Id(0)] CostAlertType AlertType,
+    [property: Id(1)] Guid? RecipeId,
+    [property: Id(2)] string? RecipeName,
+    [property: Id(3)] Guid? IngredientId,
+    [property: Id(4)] string? IngredientName,
+    [property: Id(5)] Guid? MenuItemId,
+    [property: Id(6)] string? MenuItemName,
+    [property: Id(7)] decimal PreviousValue,
+    [property: Id(8)] decimal CurrentValue,
+    [property: Id(9)] decimal? ThresholdValue,
+    [property: Id(10)] string? ImpactDescription,
+    [property: Id(11)] int AffectedRecipeCount);
 
+[GenerateSerializer]
 public record AcknowledgeCostAlertCommand(
-    Guid AcknowledgedByUserId,
-    string? Notes,
-    CostAlertAction ActionTaken);
+    [property: Id(0)] Guid AcknowledgedByUserId,
+    [property: Id(1)] string? Notes,
+    [property: Id(2)] CostAlertAction ActionTaken);
 
+[GenerateSerializer]
 public record CostAlertSnapshot(
-    Guid AlertId,
-    CostAlertType AlertType,
-    Guid? RecipeId,
-    string? RecipeName,
-    Guid? IngredientId,
-    string? IngredientName,
-    Guid? MenuItemId,
-    string? MenuItemName,
-    decimal PreviousValue,
-    decimal CurrentValue,
-    decimal ChangePercent,
-    decimal? ThresholdValue,
-    string? ImpactDescription,
-    int AffectedRecipeCount,
-    bool IsAcknowledged,
-    DateTime? AcknowledgedAt,
-    Guid? AcknowledgedByUserId,
-    string? Notes,
-    CostAlertAction ActionTaken,
-    DateTime CreatedAt);
+    [property: Id(0)] Guid AlertId,
+    [property: Id(1)] CostAlertType AlertType,
+    [property: Id(2)] Guid? RecipeId,
+    [property: Id(3)] string? RecipeName,
+    [property: Id(4)] Guid? IngredientId,
+    [property: Id(5)] string? IngredientName,
+    [property: Id(6)] Guid? MenuItemId,
+    [property: Id(7)] string? MenuItemName,
+    [property: Id(8)] decimal PreviousValue,
+    [property: Id(9)] decimal CurrentValue,
+    [property: Id(10)] decimal ChangePercent,
+    [property: Id(11)] decimal? ThresholdValue,
+    [property: Id(12)] string? ImpactDescription,
+    [property: Id(13)] int AffectedRecipeCount,
+    [property: Id(14)] bool IsAcknowledged,
+    [property: Id(15)] DateTime? AcknowledgedAt,
+    [property: Id(16)] Guid? AcknowledgedByUserId,
+    [property: Id(17)] string? Notes,
+    [property: Id(18)] CostAlertAction ActionTaken,
+    [property: Id(19)] DateTime CreatedAt);
 
 /// <summary>
 /// Grain for cost alert management.
@@ -244,28 +258,30 @@ public interface ICostAlertGrain : IGrainWithStringKey
 // Costing Settings Grain
 // ============================================================================
 
+[GenerateSerializer]
 public record UpdateCostingSettingsCommand(
-    decimal? TargetFoodCostPercent,
-    decimal? TargetBeverageCostPercent,
-    decimal? MinimumMarginPercent,
-    decimal? WarningMarginPercent,
-    decimal? PriceChangeAlertThreshold,
-    decimal? CostIncreaseAlertThreshold,
-    bool? AutoRecalculateCosts,
-    bool? AutoCreateSnapshots,
-    int? SnapshotFrequencyDays);
+    [property: Id(0)] decimal? TargetFoodCostPercent,
+    [property: Id(1)] decimal? TargetBeverageCostPercent,
+    [property: Id(2)] decimal? MinimumMarginPercent,
+    [property: Id(3)] decimal? WarningMarginPercent,
+    [property: Id(4)] decimal? PriceChangeAlertThreshold,
+    [property: Id(5)] decimal? CostIncreaseAlertThreshold,
+    [property: Id(6)] bool? AutoRecalculateCosts,
+    [property: Id(7)] bool? AutoCreateSnapshots,
+    [property: Id(8)] int? SnapshotFrequencyDays);
 
+[GenerateSerializer]
 public record CostingSettingsSnapshot(
-    Guid LocationId,
-    decimal TargetFoodCostPercent,
-    decimal TargetBeverageCostPercent,
-    decimal MinimumMarginPercent,
-    decimal WarningMarginPercent,
-    decimal PriceChangeAlertThreshold,
-    decimal CostIncreaseAlertThreshold,
-    bool AutoRecalculateCosts,
-    bool AutoCreateSnapshots,
-    int SnapshotFrequencyDays);
+    [property: Id(0)] Guid LocationId,
+    [property: Id(1)] decimal TargetFoodCostPercent,
+    [property: Id(2)] decimal TargetBeverageCostPercent,
+    [property: Id(3)] decimal MinimumMarginPercent,
+    [property: Id(4)] decimal WarningMarginPercent,
+    [property: Id(5)] decimal PriceChangeAlertThreshold,
+    [property: Id(6)] decimal CostIncreaseAlertThreshold,
+    [property: Id(7)] bool AutoRecalculateCosts,
+    [property: Id(8)] bool AutoCreateSnapshots,
+    [property: Id(9)] int SnapshotFrequencyDays);
 
 /// <summary>
 /// Grain for costing settings management.

@@ -44,91 +44,93 @@ public enum JournalEntryStatus
 /// <summary>
 /// Represents a single journal entry in the account ledger.
 /// </summary>
+[GenerateSerializer]
 public record AccountJournalEntry
 {
-    public Guid Id { get; init; }
-    public DateTime Timestamp { get; init; }
-    public JournalEntryType EntryType { get; init; }
-    public JournalEntryStatus Status { get; init; }
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public DateTime Timestamp { get; init; }
+    [Id(2)] public JournalEntryType EntryType { get; init; }
+    [Id(3)] public JournalEntryStatus Status { get; init; }
 
     /// <summary>
     /// Amount of the entry (always positive; type determines effect).
     /// </summary>
-    public decimal Amount { get; init; }
+    [Id(4)] public decimal Amount { get; init; }
 
     /// <summary>
     /// Running balance after this entry.
     /// </summary>
-    public decimal BalanceAfter { get; init; }
+    [Id(5)] public decimal BalanceAfter { get; init; }
 
     /// <summary>
     /// Description or reason for the entry.
     /// </summary>
-    public string Description { get; init; } = string.Empty;
+    [Id(6)] public string Description { get; init; } = string.Empty;
 
     /// <summary>
     /// Reference to external document (invoice, order, etc.).
     /// </summary>
-    public string? ReferenceNumber { get; init; }
+    [Id(7)] public string? ReferenceNumber { get; init; }
 
     /// <summary>
     /// Type of the related entity (Order, Payment, Invoice, etc.).
     /// </summary>
-    public string? ReferenceType { get; init; }
+    [Id(8)] public string? ReferenceType { get; init; }
 
     /// <summary>
     /// ID of the related entity.
     /// </summary>
-    public Guid? ReferenceId { get; init; }
+    [Id(9)] public Guid? ReferenceId { get; init; }
 
     /// <summary>
     /// Link to accounting service journal entry.
     /// </summary>
-    public Guid? AccountingJournalEntryId { get; init; }
+    [Id(10)] public Guid? AccountingJournalEntryId { get; init; }
 
     /// <summary>
     /// User who performed this entry.
     /// </summary>
-    public Guid PerformedBy { get; init; }
+    [Id(11)] public Guid PerformedBy { get; init; }
 
     /// <summary>
     /// User who approved this entry (for entries requiring approval).
     /// </summary>
-    public Guid? ApprovedBy { get; init; }
+    [Id(12)] public Guid? ApprovedBy { get; init; }
 
     /// <summary>
     /// ID of the original entry if this is a reversal.
     /// </summary>
-    public Guid? ReversedEntryId { get; init; }
+    [Id(13)] public Guid? ReversedEntryId { get; init; }
 
     /// <summary>
     /// ID of the reversal entry if this entry was reversed.
     /// </summary>
-    public Guid? ReversalEntryId { get; init; }
+    [Id(14)] public Guid? ReversalEntryId { get; init; }
 
     /// <summary>
     /// Cost center for departmental tracking.
     /// </summary>
-    public Guid? CostCenterId { get; init; }
+    [Id(15)] public Guid? CostCenterId { get; init; }
 
     /// <summary>
     /// Additional notes or context.
     /// </summary>
-    public string? Notes { get; init; }
+    [Id(16)] public string? Notes { get; init; }
 }
 
 /// <summary>
 /// Summary of account activity for a period.
 /// </summary>
+[GenerateSerializer]
 public record AccountPeriodSummary
 {
-    public int Year { get; init; }
-    public int Month { get; init; }
-    public decimal OpeningBalance { get; init; }
-    public decimal TotalDebits { get; init; }
-    public decimal TotalCredits { get; init; }
-    public decimal ClosingBalance { get; init; }
-    public int EntryCount { get; init; }
+    [Id(0)] public int Year { get; init; }
+    [Id(1)] public int Month { get; init; }
+    [Id(2)] public decimal OpeningBalance { get; init; }
+    [Id(3)] public decimal TotalDebits { get; init; }
+    [Id(4)] public decimal TotalCredits { get; init; }
+    [Id(5)] public decimal ClosingBalance { get; init; }
+    [Id(6)] public int EntryCount { get; init; }
 }
 
 /// <summary>

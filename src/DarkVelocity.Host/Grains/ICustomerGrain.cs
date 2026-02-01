@@ -2,64 +2,76 @@ using DarkVelocity.Host.State;
 
 namespace DarkVelocity.Host.Grains;
 
+[GenerateSerializer]
 public record CreateCustomerCommand(
-    Guid OrganizationId,
-    string FirstName,
-    string LastName,
-    string? Email = null,
-    string? Phone = null,
-    CustomerSource Source = CustomerSource.Direct);
+    [property: Id(0)] Guid OrganizationId,
+    [property: Id(1)] string FirstName,
+    [property: Id(2)] string LastName,
+    [property: Id(3)] string? Email = null,
+    [property: Id(4)] string? Phone = null,
+    [property: Id(5)] CustomerSource Source = CustomerSource.Direct);
 
+[GenerateSerializer]
 public record UpdateCustomerCommand(
-    string? FirstName = null,
-    string? LastName = null,
-    string? Email = null,
-    string? Phone = null,
-    DateOnly? DateOfBirth = null,
-    CustomerPreferences? Preferences = null);
+    [property: Id(0)] string? FirstName = null,
+    [property: Id(1)] string? LastName = null,
+    [property: Id(2)] string? Email = null,
+    [property: Id(3)] string? Phone = null,
+    [property: Id(4)] DateOnly? DateOfBirth = null,
+    [property: Id(5)] CustomerPreferences? Preferences = null);
 
+[GenerateSerializer]
 public record EnrollLoyaltyCommand(
-    Guid ProgramId,
-    string MemberNumber,
-    Guid InitialTierId,
-    string TierName);
+    [property: Id(0)] Guid ProgramId,
+    [property: Id(1)] string MemberNumber,
+    [property: Id(2)] Guid InitialTierId,
+    [property: Id(3)] string TierName);
 
+[GenerateSerializer]
 public record EarnPointsCommand(
-    int Points,
-    string Reason,
-    Guid? OrderId = null,
-    Guid? SiteId = null,
-    decimal? SpendAmount = null);
+    [property: Id(0)] int Points,
+    [property: Id(1)] string Reason,
+    [property: Id(2)] Guid? OrderId = null,
+    [property: Id(3)] Guid? SiteId = null,
+    [property: Id(4)] decimal? SpendAmount = null);
 
+[GenerateSerializer]
 public record RedeemPointsCommand(
-    int Points,
-    Guid OrderId,
-    string Reason);
+    [property: Id(0)] int Points,
+    [property: Id(1)] Guid OrderId,
+    [property: Id(2)] string Reason);
 
+[GenerateSerializer]
 public record AdjustPointsCommand(
-    int Points,
-    string Reason,
-    Guid AdjustedBy);
+    [property: Id(0)] int Points,
+    [property: Id(1)] string Reason,
+    [property: Id(2)] Guid AdjustedBy);
 
+[GenerateSerializer]
 public record IssueRewardCommand(
-    Guid RewardDefinitionId,
-    string RewardName,
-    int PointsCost,
-    DateTime ExpiresAt);
+    [property: Id(0)] Guid RewardDefinitionId,
+    [property: Id(1)] string RewardName,
+    [property: Id(2)] int PointsCost,
+    [property: Id(3)] DateTime ExpiresAt);
 
+[GenerateSerializer]
 public record RedeemRewardCommand(
-    Guid RewardId,
-    Guid OrderId,
-    Guid SiteId);
+    [property: Id(0)] Guid RewardId,
+    [property: Id(1)] Guid OrderId,
+    [property: Id(2)] Guid SiteId);
 
+[GenerateSerializer]
 public record RecordVisitCommand(
-    Guid SiteId,
-    Guid? OrderId,
-    decimal SpendAmount);
+    [property: Id(0)] Guid SiteId,
+    [property: Id(1)] Guid? OrderId,
+    [property: Id(2)] decimal SpendAmount);
 
-public record CustomerCreatedResult(Guid Id, string DisplayName, DateTime CreatedAt);
-public record PointsResult(int NewBalance, int LifetimePoints);
-public record RewardResult(Guid RewardId, DateTime ExpiresAt);
+[GenerateSerializer]
+public record CustomerCreatedResult([property: Id(0)] Guid Id, [property: Id(1)] string DisplayName, [property: Id(2)] DateTime CreatedAt);
+[GenerateSerializer]
+public record PointsResult([property: Id(0)] int NewBalance, [property: Id(1)] int LifetimePoints);
+[GenerateSerializer]
+public record RewardResult([property: Id(0)] Guid RewardId, [property: Id(1)] DateTime ExpiresAt);
 
 public interface ICustomerGrain : IGrainWithStringKey
 {

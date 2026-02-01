@@ -26,22 +26,23 @@ public enum TicketPriority
     AllDay
 }
 
+[GenerateSerializer]
 public record TicketItem
 {
-    public Guid Id { get; init; }
-    public Guid OrderLineId { get; init; }
-    public Guid MenuItemId { get; init; }
-    public string Name { get; init; } = string.Empty;
-    public int Quantity { get; init; }
-    public TicketItemStatus Status { get; init; }
-    public List<string> Modifiers { get; init; } = [];
-    public string? SpecialInstructions { get; init; }
-    public Guid? StationId { get; init; }
-    public string? StationName { get; init; }
-    public DateTime? StartedAt { get; init; }
-    public DateTime? CompletedAt { get; init; }
-    public Guid? PreparedBy { get; init; }
-    public int? CourseNumber { get; init; }
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public Guid OrderLineId { get; init; }
+    [Id(2)] public Guid MenuItemId { get; init; }
+    [Id(3)] public string Name { get; init; } = string.Empty;
+    [Id(4)] public int Quantity { get; init; }
+    [Id(5)] public TicketItemStatus Status { get; init; }
+    [Id(6)] public List<string> Modifiers { get; init; } = [];
+    [Id(7)] public string? SpecialInstructions { get; init; }
+    [Id(8)] public Guid? StationId { get; init; }
+    [Id(9)] public string? StationName { get; init; }
+    [Id(10)] public DateTime? StartedAt { get; init; }
+    [Id(11)] public DateTime? CompletedAt { get; init; }
+    [Id(12)] public Guid? PreparedBy { get; init; }
+    [Id(13)] public int? CourseNumber { get; init; }
 }
 
 [GenerateSerializer]

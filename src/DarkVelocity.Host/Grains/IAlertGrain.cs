@@ -56,80 +56,88 @@ public enum AlertStatus
 // Alert Records
 // ============================================================================
 
+[GenerateSerializer]
 public record Alert
 {
-    public required Guid AlertId { get; init; }
-    public required AlertType Type { get; init; }
-    public required AlertSeverity Severity { get; init; }
-    public required string Title { get; init; }
-    public required string Message { get; init; }
-    public required Guid OrgId { get; init; }
-    public required Guid SiteId { get; init; }
-    public Guid? EntityId { get; init; }
-    public string? EntityType { get; init; }
-    public required DateTime TriggeredAt { get; init; }
-    public required AlertStatus Status { get; init; }
-    public DateTime? AcknowledgedAt { get; init; }
-    public Guid? AcknowledgedBy { get; init; }
-    public DateTime? ResolvedAt { get; init; }
-    public Guid? ResolvedBy { get; init; }
-    public string? ResolutionNotes { get; init; }
-    public DateTime? SnoozedUntil { get; init; }
-    public IReadOnlyDictionary<string, object>? Metadata { get; init; }
+    [Id(0)] public required Guid AlertId { get; init; }
+    [Id(1)] public required AlertType Type { get; init; }
+    [Id(2)] public required AlertSeverity Severity { get; init; }
+    [Id(3)] public required string Title { get; init; }
+    [Id(4)] public required string Message { get; init; }
+    [Id(5)] public required Guid OrgId { get; init; }
+    [Id(6)] public required Guid SiteId { get; init; }
+    [Id(7)] public Guid? EntityId { get; init; }
+    [Id(8)] public string? EntityType { get; init; }
+    [Id(9)] public required DateTime TriggeredAt { get; init; }
+    [Id(10)] public required AlertStatus Status { get; init; }
+    [Id(11)] public DateTime? AcknowledgedAt { get; init; }
+    [Id(12)] public Guid? AcknowledgedBy { get; init; }
+    [Id(13)] public DateTime? ResolvedAt { get; init; }
+    [Id(14)] public Guid? ResolvedBy { get; init; }
+    [Id(15)] public string? ResolutionNotes { get; init; }
+    [Id(16)] public DateTime? SnoozedUntil { get; init; }
+    [Id(17)] public IReadOnlyDictionary<string, object>? Metadata { get; init; }
 }
 
+[GenerateSerializer]
 public record CreateAlertCommand(
-    AlertType Type,
-    AlertSeverity Severity,
-    string Title,
-    string Message,
-    Guid? EntityId = null,
-    string? EntityType = null,
-    Dictionary<string, object>? Metadata = null);
+    [property: Id(0)] AlertType Type,
+    [property: Id(1)] AlertSeverity Severity,
+    [property: Id(2)] string Title,
+    [property: Id(3)] string Message,
+    [property: Id(4)] Guid? EntityId = null,
+    [property: Id(5)] string? EntityType = null,
+    [property: Id(6)] Dictionary<string, object>? Metadata = null);
 
+[GenerateSerializer]
 public record AcknowledgeAlertCommand(
-    Guid AlertId,
-    Guid AcknowledgedBy);
+    [property: Id(0)] Guid AlertId,
+    [property: Id(1)] Guid AcknowledgedBy);
 
+[GenerateSerializer]
 public record ResolveAlertCommand(
-    Guid AlertId,
-    Guid ResolvedBy,
-    string? ResolutionNotes = null);
+    [property: Id(0)] Guid AlertId,
+    [property: Id(1)] Guid ResolvedBy,
+    [property: Id(2)] string? ResolutionNotes = null);
 
+[GenerateSerializer]
 public record SnoozeAlertCommand(
-    Guid AlertId,
-    TimeSpan Duration,
-    Guid SnoozedBy);
+    [property: Id(0)] Guid AlertId,
+    [property: Id(1)] TimeSpan Duration,
+    [property: Id(2)] Guid SnoozedBy);
 
+[GenerateSerializer]
 public record DismissAlertCommand(
-    Guid AlertId,
-    Guid DismissedBy,
-    string? Reason = null);
+    [property: Id(0)] Guid AlertId,
+    [property: Id(1)] Guid DismissedBy,
+    [property: Id(2)] string? Reason = null);
 
 // ============================================================================
 // Alert Rules
 // ============================================================================
 
+[GenerateSerializer]
 public record AlertRule
 {
-    public required Guid RuleId { get; init; }
-    public required AlertType Type { get; init; }
-    public required string Name { get; init; }
-    public required string Description { get; init; }
-    public required bool IsEnabled { get; init; }
-    public required AlertSeverity DefaultSeverity { get; init; }
-    public required AlertRuleCondition Condition { get; init; }
-    public required IReadOnlyList<AlertAction> Actions { get; init; }
-    public TimeSpan? CooldownPeriod { get; init; }
+    [Id(0)] public required Guid RuleId { get; init; }
+    [Id(1)] public required AlertType Type { get; init; }
+    [Id(2)] public required string Name { get; init; }
+    [Id(3)] public required string Description { get; init; }
+    [Id(4)] public required bool IsEnabled { get; init; }
+    [Id(5)] public required AlertSeverity DefaultSeverity { get; init; }
+    [Id(6)] public required AlertRuleCondition Condition { get; init; }
+    [Id(7)] public required IReadOnlyList<AlertAction> Actions { get; init; }
+    [Id(8)] public TimeSpan? CooldownPeriod { get; init; }
 }
 
+[GenerateSerializer]
 public record AlertRuleCondition
 {
-    public required string Metric { get; init; }
-    public required ComparisonOperator Operator { get; init; }
-    public required decimal Threshold { get; init; }
-    public string? SecondaryMetric { get; init; }
-    public decimal? SecondaryThreshold { get; init; }
+    [Id(0)] public required string Metric { get; init; }
+    [Id(1)] public required ComparisonOperator Operator { get; init; }
+    [Id(2)] public required decimal Threshold { get; init; }
+    [Id(3)] public string? SecondaryMetric { get; init; }
+    [Id(4)] public decimal? SecondaryThreshold { get; init; }
 }
 
 public enum ComparisonOperator
@@ -143,10 +151,11 @@ public enum ComparisonOperator
     ChangedBy
 }
 
+[GenerateSerializer]
 public record AlertAction
 {
-    public required AlertActionType ActionType { get; init; }
-    public IReadOnlyDictionary<string, string>? Configuration { get; init; }
+    [Id(0)] public required AlertActionType ActionType { get; init; }
+    [Id(1)] public IReadOnlyDictionary<string, string>? Configuration { get; init; }
 }
 
 public enum AlertActionType
@@ -341,18 +350,20 @@ public interface IAlertGrain : IGrainWithStringKey
 // Notification Grain Interface
 // ============================================================================
 
+[GenerateSerializer]
 public record NotificationChannel
 {
-    public required string Type { get; init; } // slack, email, push, webhook
-    public required string Target { get; init; } // channel name, email, device token, url
-    public required bool IsEnabled { get; init; }
-    public IReadOnlyList<AlertType>? AlertTypes { get; init; } // null = all types
-    public AlertSeverity? MinimumSeverity { get; init; }
+    [Id(0)] public required string Type { get; init; } // slack, email, push, webhook
+    [Id(1)] public required string Target { get; init; } // channel name, email, device token, url
+    [Id(2)] public required bool IsEnabled { get; init; }
+    [Id(3)] public IReadOnlyList<AlertType>? AlertTypes { get; init; } // null = all types
+    [Id(4)] public AlertSeverity? MinimumSeverity { get; init; }
 }
 
+[GenerateSerializer]
 public record SendNotificationCommand(
-    Alert Alert,
-    IReadOnlyList<NotificationChannel> Channels);
+    [property: Id(0)] Alert Alert,
+    [property: Id(1)] IReadOnlyList<NotificationChannel> Channels);
 
 /// <summary>
 /// Grain for sending notifications.
