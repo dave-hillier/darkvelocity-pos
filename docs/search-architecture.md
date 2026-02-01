@@ -64,9 +64,38 @@ Search in an event-sourced system requires **projections**—read models built b
 - Eventually consistent
 - Additional sync complexity
 
-### Option 3: Hybrid (Recommended for Production)
+### Option 3: Hybrid (Recommended)
 
-PostgreSQL for transactional queries + Search engine for full-text. Start with Option 1, migrate to Option 3 when needed.
+Different search use cases have different requirements:
+
+| Search Type | Pattern | Fuzzy Tolerance | Recommendation |
+|-------------|---------|-----------------|----------------|
+| **Orders** | Filter-heavy: date, status, amount | Low—staff know order numbers | PostgreSQL |
+| **Payments** | Filter-heavy: date, method, amount | Low—reference numbers exact | PostgreSQL |
+| **Customers** | Fuzzy lookup: names, partial info | High—typos, partial recall | Meilisearch |
+
+**Why Customers need dedicated search (CRM functionality):**
+- Fuzzy name matching ("smyth" → "smith", "jon" → "john")
+- Phonetic search for names (Soundex/Metaphone)
+- Autocomplete as staff type at checkout
+- Partial matches ("starts with 'Mac'...")
+- Deduplication hints ("did you mean this existing customer?")
+
+**Architecture:**
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────────┐
+│   Order Grain   │────▶│  Orleans Stream  │────▶│ OrderSearchProjector    │──▶ PostgreSQL
+│  Payment Grain  │     │   (per org)      │     │ PaymentSearchProjector  │──▶ PostgreSQL
+└─────────────────┘     └──────────────────┘     └─────────────────────────┘
+
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────────┐
+│ Customer Grain  │────▶│  Orleans Stream  │────▶│ CustomerSearchProjector │──▶ Meilisearch
+└─────────────────┘     │   (per org)      │     └─────────────────────────┘
+                        └──────────────────┘
+```
+
+This keeps complexity contained to where it adds value. PostgreSQL's `pg_trgm` extension can provide basic fuzzy matching if Meilisearch is deferred.
 
 ## Recommended Implementation
 
