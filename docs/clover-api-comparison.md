@@ -226,6 +226,357 @@ This document compares the Clover POS REST API with the DarkVelocity POS API to 
 
 ---
 
+## Backend Capabilities: Grain Interface Comparison
+
+This section compares Clover API capabilities against DarkVelocity's **actual backend implementation** via Orleans grain interfaces. Many features exist in grains but aren't yet exposed via REST API.
+
+### Legend
+- ✅ **Grain Ready** - Backend fully implemented, needs API exposure
+- ⚠️ **Partial** - Some methods implemented
+- ❌ **Not Implemented** - No grain support
+
+### 1. Merchants / Organizations
+
+| Clover Feature | DarkVelocity Grain | Status | Grain Methods |
+|----------------|-------------------|--------|---------------|
+| Get/Update merchant | `IOrganizationGrain` | ✅ | `CreateAsync`, `UpdateAsync`, `GetStateAsync` |
+| Manage properties | `IOrganizationGrain` | ✅ | Part of state |
+| Default service charge | `IOrderGrain` | ✅ | `AddServiceChargeAsync` |
+| Tip suggestions | - | ❌ | Not implemented |
+| Order types | `IOrderGrain` | ✅ | OrderType enum in CreateOrderCommand |
+| Manage roles | `IRoleGrain` | ✅ | `CreateAsync`, `UpdateAsync`, `GetSnapshotAsync` |
+| Manage tenders | `IPaymentGrain` | ✅ | PaymentMethod enum |
+| Opening hours | - | ❌ | Not implemented |
+
+### 2. Sites (DarkVelocity Advantage)
+
+| Feature | Grain | Status | Methods |
+|---------|-------|--------|---------|
+| Site CRUD | `ISiteGrain` | ✅ | `CreateAsync`, `UpdateAsync`, `GetStateAsync` |
+| Open/Close site | `ISiteGrain` | ✅ | `OpenAsync`, `CloseAsync`, `CloseTemporarilyAsync` |
+| Floor plans | `IFloorPlanGrain` | ✅ | `CreateAsync`, `UpdateAsync`, `DeleteAsync` |
+| Kitchen stations | `IKitchenStationGrain` | ✅ | `OpenAsync`, `CloseAsync`, per-site |
+| Active menu | `ISiteGrain` | ✅ | `SetActiveMenuAsync` |
+
+### 3. Customers
+
+| Clover Feature | DarkVelocity Grain | Status | Grain Methods |
+|----------------|-------------------|--------|---------------|
+| Create customer | `ICustomerGrain` | ✅ | `CreateAsync` |
+| Update customer | `ICustomerGrain` | ✅ | `UpdateAsync` |
+| Delete customer | `ICustomerGrain` | ✅ | `DeleteAsync`, `AnonymizeAsync` (GDPR) |
+| Customer metadata | `ICustomerGrain` | ✅ | `AddTagAsync`, `AddNoteAsync` |
+| Customer cards | - | ❌ | Not implemented |
+| Loyalty programs | `ILoyaltyProgramGrain` | ✅ | Full program management |
+| Points | `ICustomerGrain` | ✅ | `EarnPointsAsync`, `RedeemPointsAsync`, `AdjustPointsAsync` |
+| Rewards | `ICustomerGrain` | ✅ | `IssueRewardAsync`, `RedeemRewardAsync` |
+| Referrals | `ICustomerGrain` | ✅ | `SetReferralCodeAsync`, `IncrementReferralCountAsync` |
+| Spend tracking | `ICustomerSpendProjectionGrain` | ✅ | `RecordSpendAsync`, `GetSnapshotAsync` |
+
+### 4. Employees / Labor
+
+| Clover Feature | DarkVelocity Grain | Status | Grain Methods |
+|----------------|-------------------|--------|---------------|
+| Employee CRUD | `IEmployeeGrain` | ✅ | `CreateAsync`, `UpdateAsync`, `GetStateAsync` |
+| Activate/Deactivate | `IEmployeeGrain` | ✅ | `ActivateAsync`, `DeactivateAsync`, `TerminateAsync` |
+| Role assignment | `IEmployeeGrain` | ✅ | `AssignRoleAsync`, `RemoveRoleAsync` |
+| Site access | `IEmployeeGrain` | ✅ | `GrantSiteAccessAsync`, `RevokeSiteAccessAsync` |
+| Shifts | `IScheduleGrain` | ✅ | `AddShiftAsync`, `UpdateShiftAsync`, `RemoveShiftAsync` |
+| Clock in/out | `IEmployeeGrain`, `ITimeEntryGrain` | ✅ | `ClockInAsync`, `ClockOutAsync` |
+| Time entries | `ITimeEntryGrain` | ✅ | `AdjustAsync`, `ApproveAsync`, `AddBreakAsync` |
+| Availability | `IEmployeeAvailabilityGrain` | ✅ | `SetAvailabilityAsync`, `IsAvailableOnAsync` |
+| Shift swaps | `IShiftSwapGrain` | ✅ | `CreateAsync`, `ApproveAsync`, `RejectAsync` |
+| Time-off requests | `ITimeOffGrain` | ✅ | `CreateAsync`, `ApproveAsync`, `RejectAsync` |
+| Tip pools | `ITipPoolGrain` | ✅ | `CreateAsync`, `AddTipsAsync`, `DistributeAsync` |
+| Payroll | `IPayrollPeriodGrain` | ✅ | `CreateAsync`, `CalculateAsync`, `ProcessAsync` |
+
+**DarkVelocity Labor Management: Far exceeds Clover's basic employee API**
+
+### 5. Inventory / Menu
+
+| Clover Feature | DarkVelocity Grain | Status | Grain Methods |
+|----------------|-------------------|--------|---------------|
+| Items CRUD | `IMenuItemGrain` | ✅ | `CreateAsync`, `UpdateAsync`, `DeactivateAsync` |
+| Item price | `IMenuItemGrain` | ✅ | `GetPriceAsync`, `UpdateCostAsync` |
+| Modifiers | `IMenuItemGrain` | ✅ | `AddModifierAsync`, `RemoveModifierAsync` |
+| Categories | `IMenuCategoryGrain` | ✅ | `CreateAsync`, `UpdateAsync`, `DeactivateAsync` |
+| Stock management | `IInventoryGrain` | ✅ | Full FIFO batch management |
+| Stock levels | `IInventoryGrain` | ✅ | `GetLevelInfoAsync`, `GetStockLevelAsync` |
+| Receive stock | `IInventoryGrain` | ✅ | `ReceiveBatchAsync`, `ReceiveTransferAsync` |
+| Consume stock | `IInventoryGrain` | ✅ | `ConsumeAsync`, `ConsumeForOrderAsync` |
+| Waste tracking | `IInventoryGrain` | ✅ | `RecordWasteAsync` |
+| Physical counts | `IInventoryGrain` | ✅ | `RecordPhysicalCountAsync` |
+| Transfers | `IInventoryGrain` | ✅ | `TransferOutAsync` |
+| Par levels | `IInventoryGrain` | ✅ | `SetParLevelAsync`, `SetReorderPointAsync` |
+| Batch expiry | `IInventoryGrain` | ✅ | `WriteOffExpiredBatchesAsync` |
+| Tax rates | `ITaxRateGrain` | ✅ | `CreateAsync`, `DeactivateAsync` |
+| Bulk operations | - | ❌ | Not implemented |
+| Tags | - | ❌ | Not implemented |
+| Accounting groups | `IAccountingGroupGrain` | ✅ | `CreateAsync`, `UpdateAsync` |
+
+**DarkVelocity Inventory: FIFO batch tracking with expiry far exceeds Clover**
+
+### 6. Menu Definitions (DarkVelocity Advantage)
+
+| Feature | Grain | Status | Methods |
+|---------|-------|--------|---------|
+| Menu definitions | `IMenuDefinitionGrain` | ✅ | `CreateAsync`, `UpdateAsync`, `SetAsDefaultAsync` |
+| POS screens | `IMenuDefinitionGrain` | ✅ | `AddScreenAsync`, `UpdateScreenAsync`, `RemoveScreenAsync` |
+| POS buttons | `IMenuDefinitionGrain` | ✅ | `AddButtonAsync`, `RemoveButtonAsync` |
+
+### 7. Orders
+
+| Clover Feature | DarkVelocity Grain | Status | Grain Methods |
+|----------------|-------------------|--------|---------------|
+| Create order | `IOrderGrain` | ✅ | `CreateAsync` |
+| Get order | `IOrderGrain` | ✅ | `GetStateAsync`, `GetLinesAsync`, `GetTotalsAsync` |
+| Add line items | `IOrderGrain` | ✅ | `AddLineAsync` |
+| Update line items | `IOrderGrain` | ✅ | `UpdateLineAsync` |
+| Void line items | `IOrderGrain` | ✅ | `VoidLineAsync` |
+| Remove line items | `IOrderGrain` | ✅ | `RemoveLineAsync` |
+| Discounts | `IOrderGrain` | ✅ | `ApplyDiscountAsync`, `RemoveDiscountAsync` |
+| Service charges | `IOrderGrain` | ✅ | `AddServiceChargeAsync` |
+| Assign customer | `IOrderGrain` | ✅ | `AssignCustomerAsync` |
+| Assign server | `IOrderGrain` | ✅ | `AssignServerAsync` |
+| Table transfer | `IOrderGrain` | ✅ | `TransferTableAsync` |
+| Send to kitchen | `IOrderGrain` | ✅ | `SendAsync` |
+| Record payment | `IOrderGrain` | ✅ | `RecordPaymentAsync`, `RemovePaymentAsync` |
+| Close order | `IOrderGrain` | ✅ | `CloseAsync` |
+| Void order | `IOrderGrain` | ✅ | `VoidAsync` |
+| Reopen order | `IOrderGrain` | ✅ | `ReopenAsync` |
+| Recalculate totals | `IOrderGrain` | ✅ | `RecalculateTotalsAsync` |
+
+**Order grain is feature-complete - just needs API exposure**
+
+### 8. Payments
+
+| Clover Feature | DarkVelocity Grain | Status | Grain Methods |
+|----------------|-------------------|--------|---------------|
+| Initiate payment | `IPaymentGrain` | ✅ | `InitiateAsync` |
+| Cash payment | `IPaymentGrain` | ✅ | `CompleteCashAsync` |
+| Card payment | `IPaymentGrain` | ✅ | `CompleteCardAsync` |
+| Gift card payment | `IPaymentGrain` | ✅ | `CompleteGiftCardAsync` |
+| Authorization | `IPaymentGrain` | ✅ | `RequestAuthorizationAsync`, `RecordAuthorizationAsync` |
+| Capture | `IPaymentGrain` | ✅ | `CaptureAsync` |
+| Decline handling | `IPaymentGrain` | ✅ | `RecordDeclineAsync` |
+| Full refund | `IPaymentGrain` | ✅ | `RefundAsync` |
+| Partial refund | `IPaymentGrain` | ✅ | `PartialRefundAsync` |
+| Void payment | `IPaymentGrain` | ✅ | `VoidAsync` |
+| Tip adjustment | `IPaymentGrain` | ✅ | `AdjustTipAsync` |
+| Batch assignment | `IPaymentGrain` | ✅ | `AssignToBatchAsync` |
+| Refund tracking | `IRefundGrain` | ✅ | `CreateAsync`, `ProcessAsync`, `FailAsync` |
+
+**Payment grain is feature-complete including tip adjustment**
+
+### 9. Cash Management
+
+| Clover Feature | DarkVelocity Grain | Status | Grain Methods |
+|----------------|-------------------|--------|---------------|
+| Open drawer | `ICashDrawerGrain` | ✅ | `OpenAsync` |
+| Close drawer | `ICashDrawerGrain` | ✅ | `CloseAsync` |
+| Cash in | `ICashDrawerGrain` | ✅ | `RecordCashInAsync` |
+| Cash out | `ICashDrawerGrain` | ✅ | `RecordCashOutAsync` |
+| Cash drop | `ICashDrawerGrain` | ✅ | `RecordDropAsync` |
+| No-sale open | `ICashDrawerGrain` | ✅ | `OpenNoSaleAsync` |
+| Count drawer | `ICashDrawerGrain` | ✅ | `CountAsync` |
+| Expected balance | `ICashDrawerGrain` | ✅ | `GetExpectedBalanceAsync` |
+
+### 10. Kitchen Display (DarkVelocity Advantage)
+
+| Feature | Grain | Status | Methods |
+|---------|-------|--------|---------|
+| Create ticket | `IKitchenTicketGrain` | ✅ | `CreateAsync` |
+| Add items | `IKitchenTicketGrain` | ✅ | `AddItemAsync` |
+| Start/Complete items | `IKitchenTicketGrain` | ✅ | `StartItemAsync`, `CompleteItemAsync` |
+| Void items | `IKitchenTicketGrain` | ✅ | `VoidItemAsync` |
+| Ticket workflow | `IKitchenTicketGrain` | ✅ | `ReceiveAsync`, `StartAsync`, `BumpAsync`, `VoidAsync` |
+| Rush/VIP priority | `IKitchenTicketGrain` | ✅ | `SetPriorityAsync`, `MarkRushAsync`, `MarkVipAsync` |
+| Fire all | `IKitchenTicketGrain` | ✅ | `FireAllAsync` |
+| Timings | `IKitchenTicketGrain` | ✅ | `GetTimingsAsync` |
+| Station management | `IKitchenStationGrain` | ✅ | `OpenAsync`, `CloseAsync`, `PauseAsync`, `ResumeAsync` |
+| Item routing | `IKitchenStationGrain` | ✅ | `AssignItemsAsync`, `ReceiveTicketAsync` |
+| Station printer/display | `IKitchenStationGrain` | ✅ | `SetPrinterAsync`, `SetDisplayAsync` |
+
+**Clover has no native KDS - relies on third-party apps**
+
+### 11. Hardware
+
+| Clover Feature | DarkVelocity Grain | Status | Grain Methods |
+|----------------|-------------------|--------|---------------|
+| POS devices | `IPosDeviceGrain` | ✅ | `RegisterAsync`, `UpdateAsync`, `DeactivateAsync` |
+| Device heartbeat | `IPosDeviceGrain` | ✅ | `RecordHeartbeatAsync` |
+| Device online status | `IPosDeviceGrain` | ✅ | `IsOnlineAsync`, `SetOfflineAsync` |
+| Printers | `IPrinterGrain` | ✅ | `RegisterAsync`, `UpdateAsync`, `RecordPrintAsync` |
+| Cash drawers | `ICashDrawerHardwareGrain` | ✅ | `RegisterAsync`, `UpdateAsync`, `GetKickCommandAsync` |
+| Device status overview | `IDeviceStatusGrain` | ✅ | `GetSummaryAsync`, `UpdateDeviceStatusAsync` |
+| Ping device | - | ❌ | Not implemented |
+| Display messages | - | ❌ | Not implemented |
+| Read signature | - | ❌ | Not implemented |
+
+### 12. Gift Cards
+
+| Clover Feature | DarkVelocity Grain | Status | Grain Methods |
+|----------------|-------------------|--------|---------------|
+| Create gift card | `IGiftCardGrain` | ✅ | `CreateAsync` |
+| Activate | `IGiftCardGrain` | ✅ | `ActivateAsync` |
+| Balance inquiry | `IGiftCardGrain` | ✅ | `GetBalanceInfoAsync`, `HasSufficientBalanceAsync` |
+| Redeem | `IGiftCardGrain` | ✅ | `RedeemAsync` |
+| Reload | `IGiftCardGrain` | ✅ | `ReloadAsync` |
+| Refund to card | `IGiftCardGrain` | ✅ | `RefundToCardAsync` |
+| Adjust balance | `IGiftCardGrain` | ✅ | `AdjustBalanceAsync` |
+| PIN validation | `IGiftCardGrain` | ✅ | `ValidatePinAsync` |
+| Expire | `IGiftCardGrain` | ✅ | `ExpireAsync` |
+| Cancel | `IGiftCardGrain` | ✅ | `CancelAsync` |
+| Void transaction | `IGiftCardGrain` | ✅ | `VoidTransactionAsync` |
+| Transaction history | `IGiftCardGrain` | ✅ | `GetTransactionsAsync` |
+| Set recipient | `IGiftCardGrain` | ✅ | `SetRecipientAsync` |
+
+**Gift card grain exceeds Clover's gift card API**
+
+### 13. Booking / Reservations (DarkVelocity Advantage)
+
+| Feature | Grain | Status | Methods |
+|---------|-------|--------|---------|
+| Request booking | `IBookingGrain` | ✅ | `RequestAsync` |
+| Confirm booking | `IBookingGrain` | ✅ | `ConfirmAsync` |
+| Modify booking | `IBookingGrain` | ✅ | `ModifyAsync` |
+| Cancel booking | `IBookingGrain` | ✅ | `CancelAsync` |
+| Table assignment | `IBookingGrain` | ✅ | `AssignTableAsync`, `ClearTableAssignmentAsync` |
+| Guest arrival | `IBookingGrain` | ✅ | `RecordArrivalAsync`, `SeatGuestAsync` |
+| Guest departure | `IBookingGrain` | ✅ | `RecordDepartureAsync` |
+| No-show handling | `IBookingGrain` | ✅ | `MarkNoShowAsync` |
+| Deposits | `IBookingGrain` | ✅ | `RequireDepositAsync`, `RecordDepositPaymentAsync`, `RefundDepositAsync` |
+| Special requests | `IBookingGrain` | ✅ | `AddSpecialRequestAsync`, `AddNoteAsync` |
+| Link to order | `IBookingGrain` | ✅ | `LinkToOrderAsync` |
+| Table management | `ITableGrain` | ✅ | Full table CRUD with status |
+| Floor plans | `IFloorPlanGrain` | ✅ | Floor plan management |
+| Waitlist | `IWaitlistGrain` | ✅ | `AddEntryAsync`, `SeatEntryAsync`, wait time estimation |
+| Booking settings | `IBookingSettingsGrain` | ✅ | Deposit rules, booking windows |
+
+**Clover has no native booking - relies on third-party apps**
+
+### 14. Procurement (DarkVelocity Advantage)
+
+| Feature | Grain | Status | Methods |
+|---------|-------|--------|---------|
+| Suppliers | `ISupplierGrain` | ✅ | `CreateAsync`, `UpdateAsync` |
+| Supplier ingredients | `ISupplierGrain` | ✅ | `AddIngredientAsync`, `UpdateIngredientPriceAsync` |
+| Purchase orders | `IPurchaseOrderGrain` | ✅ | `CreateAsync`, `SubmitAsync` |
+| PO lines | `IPurchaseOrderGrain` | ✅ | `AddLineAsync`, `UpdateLineAsync`, `RemoveLineAsync` |
+| Receive PO | `IPurchaseOrderGrain` | ✅ | `ReceiveLineAsync` |
+| Cancel PO | `IPurchaseOrderGrain` | ✅ | `CancelAsync` |
+| Deliveries | `IDeliveryGrain` | ✅ | `CreateAsync`, `AcceptAsync`, `RejectAsync` |
+| Discrepancies | `IDeliveryGrain` | ✅ | `RecordDiscrepancyAsync` |
+
+**Clover has no procurement capabilities**
+
+### 15. Costing & Menu Engineering (DarkVelocity Advantage)
+
+| Feature | Grain | Status | Methods |
+|---------|-------|--------|---------|
+| Recipes | `IRecipeGrain` | ✅ | `CreateAsync`, `UpdateAsync`, `DeleteAsync` |
+| Recipe ingredients | `IRecipeGrain` | ✅ | `AddIngredientAsync`, `UpdateIngredientAsync` |
+| Cost calculation | `IRecipeGrain` | ✅ | `CalculateCostAsync` |
+| Cost snapshots | `IRecipeGrain` | ✅ | `CreateCostSnapshotAsync`, `GetCostHistoryAsync` |
+| Ingredient prices | `IIngredientPriceGrain` | ✅ | `CreateAsync`, `UpdatePriceAsync` |
+| Price history | `IIngredientPriceGrain` | ✅ | `GetPriceHistoryAsync` |
+| Cost alerts | `ICostAlertGrain` | ✅ | `CreateAsync`, `AcknowledgeAsync` |
+| Costing settings | `ICostingSettingsGrain` | ✅ | Thresholds for alerts |
+| Menu engineering | `IMenuEngineeringGrain` | ✅ | `AnalyzeAsync`, Star/Plowhorse/Puzzle/Dog |
+| Price optimization | `IMenuEngineeringGrain` | ✅ | `GetPriceSuggestionsAsync` |
+
+**Clover has no recipe costing or menu engineering**
+
+### 16. Reporting & Analytics (DarkVelocity Advantage)
+
+| Feature | Grain | Status | Methods |
+|---------|-------|--------|---------|
+| Daily sales | `IDailySalesGrain` | ✅ | `RecordSaleAsync`, `GetMetricsAsync` |
+| Gross profit | `IDailySalesGrain` | ✅ | `GetGrossProfitMetricsAsync` |
+| Inventory snapshots | `IDailyInventorySnapshotGrain` | ✅ | Daily stock levels |
+| Consumption tracking | `IDailyConsumptionGrain` | ✅ | `RecordConsumptionAsync`, variance analysis |
+| Waste tracking | `IDailyWasteGrain` | ✅ | `RecordWasteAsync` |
+| Period aggregation | `IPeriodAggregationGrain` | ✅ | Weekly/monthly/yearly rollups |
+| Site dashboard | `ISiteDashboardGrain` | ✅ | `GetMetricsAsync`, `GetTopVariancesAsync` |
+
+**DarkVelocity has built-in analytics; Clover relies on apps/exports**
+
+### 17. Delivery Platform Integration (DarkVelocity Advantage)
+
+| Feature | Grain | Status | Methods |
+|---------|-------|--------|---------|
+| Platform connection | `IDeliveryPlatformGrain` | ✅ | `ConnectAsync`, `DisconnectAsync` |
+| Pause/Resume | `IDeliveryPlatformGrain` | ✅ | `PauseAsync`, `ResumeAsync` |
+| Location mapping | `IDeliveryPlatformGrain` | ✅ | `AddLocationMappingAsync` |
+| External orders | `IExternalOrderGrain` | ✅ | `CreateAsync`, `AcceptAsync`, `RejectAsync` |
+| Order status | `IExternalOrderGrain` | ✅ | `SetPreparingAsync`, `SetReadyAsync`, etc. |
+| Menu sync | `IMenuSyncGrain` | ✅ | `StartAsync`, `RecordItemSyncedAsync` |
+| Payouts | `IPlatformPayoutGrain` | ✅ | `CreateAsync`, `CompleteAsync` |
+
+**Native integration with Uber Eats, DoorDash, Deliveroo, etc.**
+
+### 18. Fiscalization & Compliance (DarkVelocity Advantage)
+
+| Feature | Grain | Status | Methods |
+|---------|-------|--------|---------|
+| Fiscal devices | `IFiscalDeviceGrain` | ✅ | `RegisterAsync`, Swissbit/Fiskaly/Epson |
+| Transaction signing | `IFiscalTransactionGrain` | ✅ | `CreateAsync`, `SignAsync` |
+| QR codes | `IFiscalTransactionGrain` | ✅ | `GetQrCodeDataAsync` |
+| Fiscal journal | `IFiscalJournalGrain` | ✅ | Audit logging |
+| Tax rates | `ITaxRateGrain` | ✅ | Multi-jurisdiction support |
+
+**European fiscalization compliance built-in**
+
+### 19. Accounting (DarkVelocity Advantage)
+
+| Feature | Grain | Status | Methods |
+|---------|-------|--------|---------|
+| Account management | `IAccountGrain` | ✅ | Double-entry accounting |
+| Debits/Credits | `IAccountGrain` | ✅ | `PostDebitAsync`, `PostCreditAsync` |
+| Journal entries | `IAccountGrain` | ✅ | `GetRecentEntriesAsync`, `GetEntriesInRangeAsync` |
+| Balance queries | `IAccountGrain` | ✅ | `GetBalanceAsync`, `GetBalanceAtAsync` |
+| Period closing | `IAccountGrain` | ✅ | `ClosePeriodAsync` |
+| Entry reversal | `IAccountGrain` | ✅ | `ReverseEntryAsync` |
+
+**Full double-entry accounting system**
+
+### 20. Alerts & Notifications (DarkVelocity Advantage)
+
+| Feature | Grain | Status | Methods |
+|---------|-------|--------|---------|
+| Alert creation | `IAlertGrain` | ✅ | `CreateAlertAsync` |
+| Alert management | `IAlertGrain` | ✅ | `AcknowledgeAsync`, `ResolveAsync`, `SnoozeAsync` |
+| Alert rules | `IAlertGrain` | ✅ | `EvaluateRulesAsync`, `UpdateRuleAsync` |
+| Notification channels | `INotificationGrain` | ✅ | Slack, Email, Push, Webhooks |
+| Multi-channel | `INotificationGrain` | ✅ | `SendAsync`, `AddChannelAsync` |
+
+---
+
+## Grain Coverage Summary
+
+| Category | Clover Endpoints | DarkVelocity Grains | Backend Ready? |
+|----------|-----------------|---------------------|----------------|
+| Organizations/Sites | 12 | 2 grains, 10+ methods | ✅ Yes |
+| Customers/Loyalty | 8 | 3 grains, 50+ methods | ✅ Yes |
+| Employees/Labor | 6 | 8 grains, 80+ methods | ✅ Yes |
+| Menu/Inventory | 20 | 6 grains, 60+ methods | ✅ Yes |
+| Orders | 15 | 1 grain, 25+ methods | ✅ Yes |
+| Payments | 10 | 4 grains, 40+ methods | ✅ Yes |
+| Hardware | 15 | 5 grains, 30+ methods | ⚠️ Partial |
+| Kitchen Display | 0 | 2 grains, 30+ methods | ✅ Yes |
+| Booking | 0 | 5 grains, 60+ methods | ✅ Yes |
+| Procurement | 0 | 3 grains, 30+ methods | ✅ Yes |
+| Costing | 0 | 5 grains, 40+ methods | ✅ Yes |
+| Reporting | 0 | 6 grains, 40+ methods | ✅ Yes |
+| Delivery Platforms | 0 | 4 grains, 30+ methods | ✅ Yes |
+| Fiscalization | 0 | 4 grains, 20+ methods | ✅ Yes |
+| Accounting | 0 | 1 grain, 20+ methods | ✅ Yes |
+| Alerts | 1 | 2 grains, 20+ methods | ✅ Yes |
+
+**Total: 48 grains with 500+ methods ready for API exposure**
+
+---
+
 ## Features DarkVelocity Has That Clover Lacks
 
 | Feature | Description |
