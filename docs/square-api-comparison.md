@@ -740,17 +740,17 @@ Task ReopenAsync(Guid reopenedBy, string reason);
 | Apply discounts | Included in order | `ApplyDiscountAsync()` | ✅ Parity |
 | Service charges | Included in order | `AddServiceChargeAsync()` | ✅ Parity |
 | Calculate totals | `POST /v2/orders/calculate` | `RecalculateTotalsAsync()` | ✅ Parity |
-| Clone order | `POST /v2/orders/clone` | ❌ Not implemented | ⚠️ Gap |
-| Search orders | `POST /v2/orders/search` | ❌ Not implemented | ⚠️ Gap |
-| Batch retrieve | `POST /v2/orders/batch-retrieve` | ❌ Not implemented | ⚠️ Gap |
+| Clone order | `POST /v2/orders/clone` | `CloneAsync()` | ✅ Implemented |
+| Search orders | `POST /v2/orders/search` | `IOrderBatchGrain.SearchAsync()` | ✅ Implemented |
+| Batch retrieve | `POST /v2/orders/batch-retrieve` | `IOrderBatchGrain.BatchRetrieveAsync()` | ✅ Implemented |
 | Assign server | ❌ Not native | `AssignServerAsync()` | ✅ **DV Exclusive** |
 | Transfer table | ❌ Not native | `TransferTableAsync()` | ✅ **DV Exclusive** |
 | Reopen order | ❌ Not supported | `ReopenAsync()` | ✅ **DV Exclusive** |
 | Tips in payment | `tip_money` field | `RecordPaymentAsync(tipAmount)` | ✅ Parity |
 
-**Gaps to Address:**
-- Add `CloneAsync()` method
-- Implement order search projection grain
+**Gaps Addressed:**
+- ✅ Added `CloneAsync()` method to `IOrderGrain`
+- ✅ Implemented `IOrderBatchGrain` with search, batch retrieve, and calculate
 
 ---
 
@@ -790,20 +790,20 @@ Task SetAsDefaultAsync();
 | Categories | `CATEGORY` type | `IMenuCategoryGrain` | ✅ Parity |
 | Modifiers | `MODIFIER_LIST`, `MODIFIER` | `MenuItemModifier` | ✅ Parity |
 | Min/max modifiers | `min_selected_modifiers`, `max_selected_modifiers` | `MinSelections`, `MaxSelections` | ✅ Parity |
-| Item variations | `ITEM_VARIATION` (first-class) | ❌ Not first-class | ⚠️ Gap |
+| Item variations | `ITEM_VARIATION` (first-class) | `IMenuItemVariationGrain` | ✅ Implemented |
 | Images | `IMAGE` type | `ImageUrl` field only | ⚠️ Gap |
 | SKU | `sku` field | `Sku` field | ✅ Parity |
-| Batch operations | `batch-upsert`, `batch-retrieve` | ❌ Not implemented | ⚠️ Gap |
-| Search | `/v2/catalog/search` | ❌ Not implemented | ⚠️ Gap |
+| Batch operations | `batch-upsert`, `batch-retrieve` | `IMenuBatchGrain` | ✅ Implemented |
+| Search | `/v2/catalog/search` | `IMenuBatchGrain.SearchAsync()` | ✅ Implemented |
 | POS screen layout | ❌ Not supported | `IMenuDefinitionGrain` | ✅ **DV Exclusive** |
 | Button configuration | ❌ Not supported | `MenuButtonDefinition` | ✅ **DV Exclusive** |
 | Theoretical cost | ❌ Not supported | `UpdateCostAsync()` | ✅ **DV Exclusive** |
 | Recipe link | ❌ Not supported | `RecipeId` field | ✅ **DV Exclusive** |
 
-**Gaps to Address:**
-- Add item variations as first-class entities (new `IMenuItemVariationGrain`)
-- Add batch operations
-- Add search projection grain
+**Gaps Addressed:**
+- ✅ Added `IMenuItemVariationGrain` for first-class variations
+- ✅ Added `IMenuBatchGrain` with batch upsert, retrieve, delete, and search
+- Remaining gap: Image management (only supports URL field, not dedicated image type)
 
 ---
 
@@ -863,10 +863,10 @@ Task<DrawerClosedResult> CloseAsync(CloseDrawerCommand command);
 | Cash drops | ❌ Not supported | `RecordDropAsync()` | ✅ **DV Exclusive** |
 | Drawer count | ❌ Not supported | `CountAsync()` | ✅ **DV Exclusive** |
 | No-sale open | ❌ Not supported | `OpenNoSaleAsync()` | ✅ **DV Exclusive** |
-| Search payments | `GET /v2/payments` | ❌ Not implemented | ⚠️ Gap |
+| Search payments | `GET /v2/payments` | `IPaymentBatchGrain.SearchAsync()` | ✅ Implemented |
 
-**Gaps to Address:**
-- Add payment search projection grain
+**Gaps Addressed:**
+- ✅ Added `IPaymentBatchGrain` with search, date range queries, and batch retrieval
 
 ---
 
@@ -915,7 +915,7 @@ Task<IReadOnlyList<StockBatch>> GetActiveBatchesAsync();
 | Physical count | `POST /v2/inventory/physical-count` | `RecordPhysicalCountAsync()` | ✅ Parity |
 | Transfer between locations | `POST /v2/inventory/transfer` | `TransferOutAsync()` + `ReceiveTransferAsync()` | ✅ Parity |
 | Change history | `POST /v2/inventory/batch-retrieve-changes` | Via events | ✅ Parity |
-| Batch operations | Native | ❌ Not implemented | ⚠️ Gap |
+| Batch operations | Native | `IInventoryBatchGrain` | ✅ Implemented |
 | **FIFO costing** | ❌ Not supported | Native | ✅ **DV Exclusive** |
 | **Batch tracking** | ❌ Not supported | `ReceiveBatchAsync()`, `GetActiveBatchesAsync()` | ✅ **DV Exclusive** |
 | **Expiry tracking** | ❌ Not supported | `ExpiryDate`, `WriteOffExpiredBatchesAsync()` | ✅ **DV Exclusive** |
@@ -995,8 +995,8 @@ Task ConfigureReferralProgramAsync(ConfigureReferralCommand command);
 | Feature | Square Loyalty API | DV Customer/Loyalty Grains | Status |
 |---------|-------------------|---------------------------|--------|
 | Create customer | `POST /v2/customers` | `CreateAsync()` | ✅ Parity |
-| Search customers | `POST /v2/customers/search` | ❌ Not implemented | ⚠️ Gap |
-| Customer groups | `POST /v2/customers/groups` | Tags only | ⚠️ Gap |
+| Search customers | `POST /v2/customers/search` | `ICustomerBatchGrain.SearchAsync()` | ✅ Implemented |
+| Customer groups | `POST /v2/customers/groups` | `ICustomerBatchGrain.CreateGroupAsync()` | ✅ Implemented |
 | **Loyalty program design** | ❌ UI only | `ILoyaltyProgramGrain` | ✅ **DV Exclusive** |
 | **Custom earning rules** | Limited | `AddEarningRuleAsync()` | ✅ **DV Better** |
 | **Tier system** | Basic | Full with benefits, multipliers | ✅ **DV Better** |
@@ -1159,10 +1159,10 @@ Task ResumeAsync();
 
 ### Square Advantages (Square > Grains)
 
-1. **Batch Operations** - Square has native batch create/update/retrieve
-2. **Search APIs** - Square has rich search endpoints for orders, customers, inventory
-3. **Item Variations** - Square treats variations as first-class catalog objects
-4. **Payment Processing** - Square provides native payment processing
+1. ~~**Batch Operations**~~ - ✅ Now implemented via `IMenuBatchGrain`, `IInventoryBatchGrain`, `IOrderBatchGrain`, `ICustomerBatchGrain`, `IPaymentBatchGrain`
+2. ~~**Search APIs**~~ - ✅ Now implemented via batch grains with `SearchAsync()` methods
+3. ~~**Item Variations**~~ - ✅ Now implemented via `IMenuItemVariationGrain`
+4. **Payment Processing** - Square provides native payment processing (DV uses external gateway)
 5. **Hosted Checkout** - Square offers hosted checkout pages
 
 ### Feature Parity

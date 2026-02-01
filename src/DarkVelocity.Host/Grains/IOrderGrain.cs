@@ -94,4 +94,26 @@ public interface IOrderGrain : IGrainWithStringKey
     Task<OrderStatus> GetStatusAsync();
     Task<OrderTotals> GetTotalsAsync();
     Task<IReadOnlyList<OrderLine>> GetLinesAsync();
+
+    // Clone
+    /// <summary>
+    /// Clone this order to create a new order with the same line items.
+    /// Similar to Square's POST /v2/orders/clone
+    /// </summary>
+    Task<CloneOrderResult> CloneAsync(CloneOrderCommand command);
 }
+
+[GenerateSerializer]
+public record CloneOrderCommand(
+    [property: Id(0)] Guid CreatedBy,
+    [property: Id(1)] OrderType? NewType = null,
+    [property: Id(2)] Guid? NewTableId = null,
+    [property: Id(3)] string? NewTableNumber = null,
+    [property: Id(4)] bool IncludeDiscounts = false,
+    [property: Id(5)] bool IncludeServiceCharges = false);
+
+[GenerateSerializer]
+public record CloneOrderResult(
+    [property: Id(0)] Guid NewOrderId,
+    [property: Id(1)] string NewOrderNumber,
+    [property: Id(2)] int LinesCloned);
