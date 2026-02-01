@@ -510,14 +510,52 @@ public async Task OrderSearch_FindsByCustomerName()
 
 1. **Deploy search tables** with EF migrations
 2. **Deploy SearchProjectionGrain** subscribing to streams
-3. **Run initial backfill** from existing grain states
-4. **Enable search API** endpoints
-5. **Monitor and optimize** based on query patterns
-6. **Evaluate Meilisearch** when FTS limitations emerge
+3. **Enable search API** endpoints
+4. **Monitor and optimize** based on query patterns
+5. **Evaluate Meilisearch** when FTS limitations emerge
+
+## Design Decisions
+
+### Backfill
+
+No backfill required—there is no production data. The projection will build up naturally as events flow through the system.
+
+### Retention
+
+Retain search documents indefinitely. Some jurisdictions require multi-year retention of transaction records. Voided orders and refunded payments remain searchable for audit purposes.
+
+### Permissions
+
+Post-query filtering is the preferred approach:
+
+```csharp
+public async Task<SearchResult<OrderSearchDocument>> SearchOrdersAsync(
+    Guid orgId,
+    OrderSearchQuery query,
+    ClaimsPrincipal user,
+    CancellationToken ct = default)
+{
+    var results = await ExecuteSearchAsync(orgId, query, ct);
+
+    // Filter results based on user permissions
+    var permitted = await _permissionService.FilterAccessibleAsync(
+        user,
+        results.Items,
+        doc => doc.SiteId,
+        "order:read",
+        ct);
+
+    return results with { Items = permitted };
+}
+```
+
+This approach:
+- Keeps the search index simple (no permission data to sync)
+- Allows permission changes to take effect immediately
+- Works with SpiceDB relationship checks
+
+**Trade-off**: May fetch more rows than returned. Acceptable for typical result set sizes (<100). For large result sets, consider permission-aware pagination.
 
 ## Open Questions
 
-1. **Backfill strategy**: Query all grains or replay from event store?
-2. **Retention**: How long to keep search documents for voided/old orders?
-3. **Permissions**: Integrate with SpiceDB for row-level access control?
-4. **Analytics**: Should search queries be logged for analysis?
+1. **Analytics**: Should search queries be logged for analysis?
