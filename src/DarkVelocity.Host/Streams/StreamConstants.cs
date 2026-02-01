@@ -69,4 +69,9 @@ public static class StreamConstants
     /// Stream namespace for customer lifecycle events.
     /// </summary>
     public const string CustomerStreamNamespace = "customer-events";
+
+    /// <summary>
+    /// Stream namespace for device and authentication events.
+    /// </summary>
+    public const string DeviceStreamNamespace = "device-events";
 }
