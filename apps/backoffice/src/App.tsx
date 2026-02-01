@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import MenuItemsPage from './pages/MenuItemsPage'
@@ -14,23 +15,49 @@ import ReportsPage from './pages/ReportsPage'
 import MarginAnalysisPage from './pages/MarginAnalysisPage'
 import DeviceAuthorizePage from './pages/DeviceAuthorizePage'
 
-export default function App() {
-  // For now, skip auth and show logged in state
-  const isAuthenticated = true
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth()
+
+  if (isLoading) {
+    return (
+      <main className="container">
+        <article aria-busy="true">Loading...</article>
+      </main>
+    )
+  }
 
   if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  return <>{children}</>
+}
+
+function AppRoutes() {
+  const { isAuthenticated, isLoading } = useAuth()
+
+  if (isLoading) {
     return (
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/device" element={<DeviceAuthorizePage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <main className="container">
+        <article aria-busy="true">Loading...</article>
+      </main>
     )
   }
 
   return (
     <Routes>
-      <Route element={<Layout />}>
+      {/* Public routes */}
+      <Route path="login" element={<LoginPage />} />
+      <Route path="device" element={<DeviceAuthorizePage />} />
+
+      {/* Protected routes */}
+      <Route
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="menu/items" element={<MenuItemsPage />} />
@@ -45,8 +72,17 @@ export default function App() {
         <Route path="reports/margins" element={<MarginAnalysisPage />} />
         <Route path="devices/authorize" element={<DeviceAuthorizePage />} />
       </Route>
-      <Route path="login" element={<LoginPage />} />
-      <Route path="device" element={<DeviceAuthorizePage />} />
+
+      {/* Catch-all redirect */}
+      <Route path="*" element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />} />
     </Routes>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   )
 }

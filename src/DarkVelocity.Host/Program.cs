@@ -1,5 +1,9 @@
 using DarkVelocity.Host;
+using DarkVelocity.Host.Auth;
 using DarkVelocity.Host.Grains;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,13 +24,57 @@ builder.Host.UseOrleans(siloBuilder =>
 
 builder.Services.AddEndpointsApiExplorer();
 
+// Configure JWT Settings
+var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>() ?? new JwtSettings();
+builder.Services.AddSingleton(jwtSettings);
+builder.Services.AddSingleton<JwtTokenService>();
+
+// Configure OAuth Settings
+var oauthSettings = builder.Configuration.GetSection("OAuth").Get<OAuthSettings>() ?? new OAuthSettings();
+builder.Services.AddSingleton(oauthSettings);
+
+// Configure Authentication
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    var tokenService = new JwtTokenService(jwtSettings);
+    options.TokenValidationParameters = tokenService.GetValidationParameters();
+})
+.AddCookie(options =>
+{
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+})
+.AddGoogle(options =>
+{
+    options.ClientId = oauthSettings.Google.ClientId;
+    options.ClientSecret = oauthSettings.Google.ClientSecret;
+    options.CallbackPath = "/signin-google";
+    options.SaveTokens = true;
+})
+.AddMicrosoftAccount(options =>
+{
+    options.ClientId = oauthSettings.Microsoft.ClientId;
+    options.ClientSecret = oauthSettings.Microsoft.ClientSecret;
+    options.CallbackPath = "/signin-microsoft";
+    options.SaveTokens = true;
+});
+
+builder.Services.AddAuthorization();
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
         policy.WithOrigins(
                 "http://localhost:5173",  // POS dev
-                "http://localhost:5174"   // Back Office dev
+                "http://localhost:5174",  // Back Office dev
+                "http://localhost:5175"   // KDS dev
             )
             .AllowAnyHeader()
             .AllowAnyMethod()
@@ -37,9 +85,138 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Health check endpoint
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
+// ============================================================================
+// OAuth Authentication Endpoints
+// ============================================================================
+
+var oauthGroup = app.MapGroup("/api/oauth").WithTags("OAuth");
+
+// GET /api/oauth/login/{provider} - Initiate OAuth login
+oauthGroup.MapGet("/login/{provider}", (string provider, string? returnUrl) =>
+{
+    var redirectUri = returnUrl ?? "/";
+    var properties = new AuthenticationProperties { RedirectUri = $"/api/oauth/callback?returnUrl={Uri.EscapeDataString(redirectUri)}" };
+
+    return provider.ToLowerInvariant() switch
+    {
+        "google" => Results.Challenge(properties, ["Google"]),
+        "microsoft" => Results.Challenge(properties, ["Microsoft"]),
+        _ => Results.BadRequest(new { error = "invalid_provider", error_description = "Supported providers: google, microsoft" })
+    };
+});
+
+// GET /api/oauth/callback - OAuth callback handler
+oauthGroup.MapGet("/callback", async (
+    HttpContext context,
+    IGrainFactory grainFactory,
+    JwtTokenService tokenService,
+    string? returnUrl) =>
+{
+    var result = await context.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    if (!result.Succeeded || result.Principal == null)
+    {
+        return Results.Redirect($"{returnUrl ?? "/"}?error=auth_failed");
+    }
+
+    var claims = result.Principal.Claims.ToList();
+    var email = claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Email)?.Value;
+    var name = claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Name)?.Value;
+    var externalId = claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+    if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(externalId))
+    {
+        return Results.Redirect($"{returnUrl ?? "/"}?error=missing_claims");
+    }
+
+    // For demo purposes, use a fixed org ID. In production, this would:
+    // 1. Look up or create user by email
+    // 2. Determine their organization
+    // 3. Create/update the user record
+    var orgId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    var userId = Guid.NewGuid(); // In production: lookup by email or externalId
+
+    var (accessToken, expires) = tokenService.GenerateAccessToken(
+        userId,
+        name ?? email,
+        orgId,
+        roles: ["admin", "backoffice"]
+    );
+    var refreshToken = tokenService.GenerateRefreshToken();
+
+    // Sign out of the cookie scheme
+    await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+
+    // Redirect with tokens in fragment (for SPA to pick up)
+    var redirectTarget = returnUrl ?? "http://localhost:5174";
+    var separator = redirectTarget.Contains('#') ? "&" : "#";
+    return Results.Redirect($"{redirectTarget}{separator}access_token={accessToken}&refresh_token={refreshToken}&expires_in={(int)(expires - DateTime.UtcNow).TotalSeconds}&user_id={userId}&display_name={Uri.EscapeDataString(name ?? email)}");
+});
+
+// GET /api/oauth/userinfo - Get current user info (requires auth)
+oauthGroup.MapGet("/userinfo", (HttpContext context) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Unauthorized();
+
+    var claims = context.User.Claims.ToList();
+    return Results.Ok(new
+    {
+        sub = claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
+        name = claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Name)?.Value,
+        org_id = claims.FirstOrDefault(c => c.Type == "org_id")?.Value,
+        site_id = claims.FirstOrDefault(c => c.Type == "site_id")?.Value,
+        roles = claims.Where(c => c.Type == System.Security.Claims.ClaimTypes.Role).Select(c => c.Value).ToArray()
+    });
+}).RequireAuthorization();
+
+// ============================================================================
+// Station API (for KDS)
+// ============================================================================
+
+var stationsGroup = app.MapGroup("/api/stations").WithTags("Stations");
+
+// GET /api/stations/{orgId}/{siteId} - List stations for a site
+stationsGroup.MapGet("/{orgId}/{siteId}", async (Guid orgId, Guid siteId, IGrainFactory grainFactory) =>
+{
+    // In production, this would query a StationRegistryGrain or database
+    // For now, return mock data
+    var stations = new[]
+    {
+        new { id = Guid.NewGuid(), name = "Grill Station", siteId, orderTypes = new[] { "hot", "grill" } },
+        new { id = Guid.NewGuid(), name = "Cold Station", siteId, orderTypes = new[] { "cold", "salad" } },
+        new { id = Guid.NewGuid(), name = "Expeditor", siteId, orderTypes = new[] { "all" } },
+        new { id = Guid.NewGuid(), name = "Bar", siteId, orderTypes = new[] { "drinks", "bar" } },
+    };
+    return Results.Ok(new { items = stations });
+});
+
+// POST /api/stations/{orgId}/{siteId}/select - Select station for KDS device
+stationsGroup.MapPost("/{orgId}/{siteId}/select", async (
+    Guid orgId,
+    Guid siteId,
+    [FromBody] SelectStationRequest request,
+    IGrainFactory grainFactory) =>
+{
+    // Update device with selected station
+    var deviceGrain = grainFactory.GetGrain<IDeviceGrain>(GrainKeys.Device(orgId, request.DeviceId));
+    if (!await deviceGrain.ExistsAsync())
+        return Results.NotFound(new { error = "device_not_found" });
+
+    // In production, this would update the device's station assignment
+    return Results.Ok(new
+    {
+        message = "Station selected",
+        deviceId = request.DeviceId,
+        stationId = request.StationId,
+        stationName = request.StationName
+    });
+});
 
 // ============================================================================
 // Device Authorization API (OAuth 2.0 Device Flow - RFC 8628)
@@ -1040,6 +1217,9 @@ public record RefreshTokenResponse(string AccessToken, string RefreshToken, int 
 public record DeviceHeartbeatRequest(string? AppVersion);
 public record SuspendDeviceRequest(string Reason);
 public record RevokeDeviceRequest(string Reason);
+
+// Station selection (KDS)
+public record SelectStationRequest(Guid DeviceId, Guid StationId, string StationName);
 
 // Helper function for PIN hashing
 static string HashPin(string pin)
