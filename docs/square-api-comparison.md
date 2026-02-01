@@ -668,6 +668,511 @@ POST /api/auth/refresh              # Refresh token
 
 ---
 
+## Grain Interface vs Square API Comparison
+
+This section compares DarkVelocity's Orleans grain interfaces (the actual domain implementation) against Square's API functionality.
+
+### Summary: Grain Coverage vs Square
+
+| Domain | Square API | DarkVelocity Grain | Grain Status | Notes |
+|--------|------------|-------------------|--------------|-------|
+| **Locations** | Locations API | `IOrganizationGrain`, `ISiteGrain` | ✅ Defined | Richer hierarchy (Org→Site) |
+| **Catalog** | Catalog API | `IMenuItemGrain`, `IMenuCategoryGrain`, `IMenuDefinitionGrain` | ✅ Defined | More POS-specific (screens, buttons) |
+| **Orders** | Orders API | `IOrderGrain` | ✅ Defined | Full feature parity |
+| **Payments** | Payments API | `IPaymentGrain`, `ICashDrawerGrain` | ✅ Defined | Includes cash drawer management |
+| **Inventory** | Inventory API | `IInventoryGrain` | ✅ Defined | **Superior:** FIFO, batches, expiry |
+| **Customers** | Customers API | `ICustomerGrain` | ✅ Defined | Integrated loyalty |
+| **Loyalty** | Loyalty API | `ILoyaltyProgramGrain` | ✅ Defined | **Superior:** Full program mgmt |
+| **Gift Cards** | Gift Cards API | `IGiftCardGrain` | ✅ Defined | Full feature parity |
+| **Team** | Team API | `IEmployeeGrain` | ✅ Defined | Basic employee management |
+| **Labor** | Labor API | `IScheduleGrain`, `ITimeEntryGrain`, `ITipPoolGrain`, `IPayrollPeriodGrain` | ✅ Defined | **Superior:** Full labor suite |
+| **Terminal** | Terminal API | `IDeviceGrain`, `IDeviceAuthGrain` | ✅ Active | **Superior:** RFC 8628 device flow |
+| **Kitchen** | ❌ None | `IKitchenTicketGrain`, `IKitchenStationGrain` | ✅ Defined | **DV Exclusive** |
+| **Bookings** | Bookings API | `IBookingGrain`, `IWaitlistGrain` | ✅ Defined | Full feature parity |
+| **Reporting** | Reporting API | `IDailySalesGrain`, `IDailyInventorySnapshotGrain`, etc. | ✅ Defined | **Superior:** Real-time aggregation |
+| **Webhooks** | Webhooks API | `IWebhookEndpointGrain` | ✅ Defined | Full feature parity |
+
+---
+
+### 1. Orders: `IOrderGrain` vs Square Orders API
+
+**IOrderGrain Methods:**
+```csharp
+// Creation & State
+Task<OrderCreatedResult> CreateAsync(CreateOrderCommand command);
+Task<OrderState> GetStateAsync();
+
+// Line Management
+Task<AddLineResult> AddLineAsync(AddLineCommand command);
+Task UpdateLineAsync(UpdateLineCommand command);
+Task VoidLineAsync(VoidLineCommand command);
+Task RemoveLineAsync(Guid lineId);
+
+// Order Operations
+Task SendAsync(Guid sentBy);
+Task<OrderTotals> RecalculateTotalsAsync();
+Task ApplyDiscountAsync(ApplyDiscountCommand command);
+Task RemoveDiscountAsync(Guid discountId);
+Task AddServiceChargeAsync(string name, decimal rate, bool isTaxable);
+
+// Customer & Assignment
+Task AssignCustomerAsync(Guid customerId, string? customerName);
+Task AssignServerAsync(Guid serverId, string serverName);
+Task TransferTableAsync(Guid newTableId, string newTableNumber, Guid transferredBy);
+
+// Payment
+Task RecordPaymentAsync(Guid paymentId, decimal amount, decimal tipAmount, string method);
+Task RemovePaymentAsync(Guid paymentId);
+
+// Completion
+Task CloseAsync(Guid closedBy);
+Task VoidAsync(VoidOrderCommand command);
+Task ReopenAsync(Guid reopenedBy, string reason);
+```
+
+| Feature | Square Orders API | IOrderGrain | Status |
+|---------|------------------|-------------|--------|
+| Create order | `POST /v2/orders` | `CreateAsync()` | ✅ Parity |
+| Get order | `GET /v2/orders/{id}` | `GetStateAsync()` | ✅ Parity |
+| Add line items | Included in create/update | `AddLineAsync()` | ✅ Parity |
+| Update line items | `PUT /v2/orders/{id}` | `UpdateLineAsync()` | ✅ Parity |
+| Void line items | ❌ Delete only | `VoidLineAsync()` | ✅ **DV Better** |
+| Apply discounts | Included in order | `ApplyDiscountAsync()` | ✅ Parity |
+| Service charges | Included in order | `AddServiceChargeAsync()` | ✅ Parity |
+| Calculate totals | `POST /v2/orders/calculate` | `RecalculateTotalsAsync()` | ✅ Parity |
+| Clone order | `POST /v2/orders/clone` | ❌ Not implemented | ⚠️ Gap |
+| Search orders | `POST /v2/orders/search` | ❌ Not implemented | ⚠️ Gap |
+| Batch retrieve | `POST /v2/orders/batch-retrieve` | ❌ Not implemented | ⚠️ Gap |
+| Assign server | ❌ Not native | `AssignServerAsync()` | ✅ **DV Exclusive** |
+| Transfer table | ❌ Not native | `TransferTableAsync()` | ✅ **DV Exclusive** |
+| Reopen order | ❌ Not supported | `ReopenAsync()` | ✅ **DV Exclusive** |
+| Tips in payment | `tip_money` field | `RecordPaymentAsync(tipAmount)` | ✅ Parity |
+
+**Gaps to Address:**
+- Add `CloneAsync()` method
+- Implement order search projection grain
+
+---
+
+### 2. Menu/Catalog: `IMenuItemGrain` vs Square Catalog API
+
+**IMenuItemGrain Methods:**
+```csharp
+Task<MenuItemSnapshot> CreateAsync(CreateMenuItemCommand command);
+Task<MenuItemSnapshot> UpdateAsync(UpdateMenuItemCommand command);
+Task DeactivateAsync();
+Task<MenuItemSnapshot> GetSnapshotAsync();
+Task<decimal> GetPriceAsync();
+Task AddModifierAsync(MenuItemModifier modifier);
+Task RemoveModifierAsync(Guid modifierId);
+Task UpdateCostAsync(decimal theoreticalCost);
+```
+
+**IMenuCategoryGrain Methods:**
+```csharp
+Task<MenuCategorySnapshot> CreateAsync(CreateMenuCategoryCommand command);
+Task<MenuCategorySnapshot> UpdateAsync(UpdateMenuCategoryCommand command);
+Task DeactivateAsync();
+Task<MenuCategorySnapshot> GetSnapshotAsync();
+```
+
+**IMenuDefinitionGrain (POS Screen Layout):**
+```csharp
+Task<MenuDefinitionSnapshot> CreateAsync(CreateMenuDefinitionCommand command);
+Task AddScreenAsync(MenuScreenDefinition screen);
+Task AddButtonAsync(Guid screenId, MenuButtonDefinition button);
+Task SetAsDefaultAsync();
+```
+
+| Feature | Square Catalog API | DV Menu Grains | Status |
+|---------|-------------------|----------------|--------|
+| Items | `ITEM` type | `IMenuItemGrain` | ✅ Parity |
+| Categories | `CATEGORY` type | `IMenuCategoryGrain` | ✅ Parity |
+| Modifiers | `MODIFIER_LIST`, `MODIFIER` | `MenuItemModifier` | ✅ Parity |
+| Min/max modifiers | `min_selected_modifiers`, `max_selected_modifiers` | `MinSelections`, `MaxSelections` | ✅ Parity |
+| Item variations | `ITEM_VARIATION` (first-class) | ❌ Not first-class | ⚠️ Gap |
+| Images | `IMAGE` type | `ImageUrl` field only | ⚠️ Gap |
+| SKU | `sku` field | `Sku` field | ✅ Parity |
+| Batch operations | `batch-upsert`, `batch-retrieve` | ❌ Not implemented | ⚠️ Gap |
+| Search | `/v2/catalog/search` | ❌ Not implemented | ⚠️ Gap |
+| POS screen layout | ❌ Not supported | `IMenuDefinitionGrain` | ✅ **DV Exclusive** |
+| Button configuration | ❌ Not supported | `MenuButtonDefinition` | ✅ **DV Exclusive** |
+| Theoretical cost | ❌ Not supported | `UpdateCostAsync()` | ✅ **DV Exclusive** |
+| Recipe link | ❌ Not supported | `RecipeId` field | ✅ **DV Exclusive** |
+
+**Gaps to Address:**
+- Add item variations as first-class entities (new `IMenuItemVariationGrain`)
+- Add batch operations
+- Add search projection grain
+
+---
+
+### 3. Payments: `IPaymentGrain` vs Square Payments API
+
+**IPaymentGrain Methods:**
+```csharp
+// Initiation
+Task<PaymentInitiatedResult> InitiateAsync(InitiatePaymentCommand command);
+Task<PaymentState> GetStateAsync();
+
+// Completion by method
+Task<PaymentCompletedResult> CompleteCashAsync(CompleteCashPaymentCommand command);
+Task<PaymentCompletedResult> CompleteCardAsync(ProcessCardPaymentCommand command);
+Task<PaymentCompletedResult> CompleteGiftCardAsync(ProcessGiftCardPaymentCommand command);
+
+// Card authorization flow
+Task RequestAuthorizationAsync();
+Task RecordAuthorizationAsync(string authCode, string gatewayRef, CardInfo cardInfo);
+Task RecordDeclineAsync(string declineCode, string reason);
+Task CaptureAsync();
+
+// Modifications
+Task<RefundResult> RefundAsync(RefundPaymentCommand command);
+Task<RefundResult> PartialRefundAsync(RefundPaymentCommand command);
+Task VoidAsync(VoidPaymentCommand command);
+Task AdjustTipAsync(AdjustTipCommand command);
+
+// Batch management
+Task AssignToBatchAsync(Guid batchId);
+```
+
+**ICashDrawerGrain Methods:**
+```csharp
+Task<DrawerOpenedResult> OpenAsync(OpenDrawerCommand command);
+Task RecordCashInAsync(RecordCashInCommand command);
+Task RecordCashOutAsync(RecordCashOutCommand command);
+Task RecordDropAsync(CashDropCommand command);
+Task OpenNoSaleAsync(Guid userId, string? reason);
+Task CountAsync(CountDrawerCommand command);
+Task<DrawerClosedResult> CloseAsync(CloseDrawerCommand command);
+```
+
+| Feature | Square Payments API | DV Payment Grains | Status |
+|---------|--------------------|--------------------|--------|
+| Create payment | `POST /v2/payments` | `InitiateAsync()` | ✅ Parity |
+| Cash payments | Supported | `CompleteCashAsync()` | ✅ Parity |
+| Card payments | Native processing | `CompleteCardAsync()` | ✅ Via gateway |
+| Gift card payments | Supported | `CompleteGiftCardAsync()` | ✅ Parity |
+| Delayed capture | `autocomplete: false` | `RequestAuthorizationAsync()` → `CaptureAsync()` | ✅ Parity |
+| Refunds (full) | `POST /v2/refunds` | `RefundAsync()` | ✅ Parity |
+| Refunds (partial) | Amount parameter | `PartialRefundAsync()` | ✅ Parity |
+| Void payment | `POST /v2/payments/{id}/cancel` | `VoidAsync()` | ✅ Parity |
+| Tip adjustment | `PUT /v2/payments/{id}` | `AdjustTipAsync()` | ✅ Parity |
+| Batch settlement | Automatic | `AssignToBatchAsync()` | ✅ **DV Better** (explicit) |
+| Cash drawer | ❌ Not supported | `ICashDrawerGrain` | ✅ **DV Exclusive** |
+| Cash drops | ❌ Not supported | `RecordDropAsync()` | ✅ **DV Exclusive** |
+| Drawer count | ❌ Not supported | `CountAsync()` | ✅ **DV Exclusive** |
+| No-sale open | ❌ Not supported | `OpenNoSaleAsync()` | ✅ **DV Exclusive** |
+| Search payments | `GET /v2/payments` | ❌ Not implemented | ⚠️ Gap |
+
+**Gaps to Address:**
+- Add payment search projection grain
+
+---
+
+### 4. Inventory: `IInventoryGrain` vs Square Inventory API
+
+**IInventoryGrain Methods:**
+```csharp
+// Initialization
+Task InitializeAsync(InitializeInventoryCommand command);
+
+// Receiving
+Task<BatchReceivedResult> ReceiveBatchAsync(ReceiveBatchCommand command);
+Task<BatchReceivedResult> ReceiveTransferAsync(ReceiveTransferCommand command);
+
+// Consumption (FIFO)
+Task<ConsumptionResult> ConsumeAsync(ConsumeStockCommand command);
+Task<ConsumptionResult> ConsumeForOrderAsync(Guid orderId, decimal quantity, Guid? performedBy);
+Task ReverseConsumptionAsync(Guid movementId, string reason, Guid reversedBy);
+
+// Waste & Adjustments
+Task RecordWasteAsync(RecordWasteCommand command);
+Task AdjustQuantityAsync(AdjustQuantityCommand command);
+Task RecordPhysicalCountAsync(decimal countedQuantity, Guid countedBy, Guid? approvedBy);
+
+// Transfers
+Task TransferOutAsync(TransferOutCommand command);
+
+// Batch management
+Task WriteOffExpiredBatchesAsync(Guid performedBy);
+
+// Configuration
+Task SetReorderPointAsync(decimal reorderPoint);
+Task SetParLevelAsync(decimal parLevel);
+
+// Queries
+Task<InventoryLevelInfo> GetLevelInfoAsync();
+Task<bool> HasSufficientStockAsync(decimal quantity);
+Task<StockLevel> GetStockLevelAsync();
+Task<IReadOnlyList<StockBatch>> GetActiveBatchesAsync();
+```
+
+| Feature | Square Inventory API | IInventoryGrain | Status |
+|---------|---------------------|-----------------|--------|
+| Get inventory count | `GET /v2/inventory/{id}` | `GetLevelInfoAsync()` | ✅ Parity |
+| Adjust inventory | `POST /v2/inventory/batch-change` | `AdjustQuantityAsync()` | ✅ Parity |
+| Physical count | `POST /v2/inventory/physical-count` | `RecordPhysicalCountAsync()` | ✅ Parity |
+| Transfer between locations | `POST /v2/inventory/transfer` | `TransferOutAsync()` + `ReceiveTransferAsync()` | ✅ Parity |
+| Change history | `POST /v2/inventory/batch-retrieve-changes` | Via events | ✅ Parity |
+| Batch operations | Native | ❌ Not implemented | ⚠️ Gap |
+| **FIFO costing** | ❌ Not supported | Native | ✅ **DV Exclusive** |
+| **Batch tracking** | ❌ Not supported | `ReceiveBatchAsync()`, `GetActiveBatchesAsync()` | ✅ **DV Exclusive** |
+| **Expiry tracking** | ❌ Not supported | `ExpiryDate`, `WriteOffExpiredBatchesAsync()` | ✅ **DV Exclusive** |
+| **Weighted avg cost** | ❌ Not supported | `WeightedAverageCost` | ✅ **DV Exclusive** |
+| **Waste recording** | `WASTE` state only | `RecordWasteAsync()` with categories | ✅ **DV Better** |
+| **Par levels** | ❌ Not supported | `SetParLevelAsync()` | ✅ **DV Exclusive** |
+| **Reorder points** | ❌ Not supported | `SetReorderPointAsync()` | ✅ **DV Exclusive** |
+| **Consumption reversal** | ❌ Not supported | `ReverseConsumptionAsync()` | ✅ **DV Exclusive** |
+| **Stock level alerts** | ❌ Not supported | `StockLevel` enum | ✅ **DV Exclusive** |
+
+**DarkVelocity Inventory is Superior** - Full food-service inventory with FIFO costing, batch tracking, expiry management, and waste categorization.
+
+---
+
+### 5. Customers & Loyalty: `ICustomerGrain` + `ILoyaltyProgramGrain` vs Square
+
+**ICustomerGrain Methods:**
+```csharp
+// CRUD
+Task<CustomerCreatedResult> CreateAsync(CreateCustomerCommand command);
+Task UpdateAsync(UpdateCustomerCommand command);
+
+// Tags & Notes
+Task AddTagAsync(string tag);
+Task AddNoteAsync(string content, Guid createdBy);
+
+// Loyalty (Integrated)
+Task EnrollInLoyaltyAsync(EnrollLoyaltyCommand command);
+Task<PointsResult> EarnPointsAsync(EarnPointsCommand command);
+Task<PointsResult> RedeemPointsAsync(RedeemPointsCommand command);
+Task PromoteTierAsync(Guid newTierId, string tierName, int pointsToNextTier);
+
+// Rewards
+Task<RewardResult> IssueRewardAsync(IssueRewardCommand command);
+Task RedeemRewardAsync(RedeemRewardCommand command);
+
+// Visits
+Task RecordVisitAsync(RecordVisitCommand command);
+
+// Referrals
+Task SetReferralCodeAsync(string code);
+Task IncrementReferralCountAsync();
+
+// GDPR
+Task DeleteAsync();
+Task AnonymizeAsync();
+```
+
+**ILoyaltyProgramGrain Methods:**
+```csharp
+// Program management
+Task<LoyaltyProgramCreatedResult> CreateAsync(CreateLoyaltyProgramCommand command);
+Task ActivateAsync();
+Task PauseAsync();
+Task DeactivateAsync();
+
+// Earning rules
+Task<EarningRuleResult> AddEarningRuleAsync(AddEarningRuleCommand command);
+Task UpdateEarningRuleAsync(Guid ruleId, bool isActive);
+
+// Tiers
+Task<TierResult> AddTierAsync(AddTierCommand command);
+Task<LoyaltyTier?> GetNextTierAsync(int currentLevel);
+
+// Rewards
+Task<RewardDefinitionResult> AddRewardAsync(AddRewardCommand command);
+Task<IReadOnlyList<RewardDefinition>> GetAvailableRewardsAsync(int tierLevel);
+
+// Points calculation
+Task<PointsCalculation> CalculatePointsAsync(decimal spendAmount, int customerTierLevel, ...);
+
+// Configuration
+Task ConfigurePointsExpiryAsync(ConfigurePointsExpiryCommand command);
+Task ConfigureReferralProgramAsync(ConfigureReferralCommand command);
+```
+
+| Feature | Square Loyalty API | DV Customer/Loyalty Grains | Status |
+|---------|-------------------|---------------------------|--------|
+| Create customer | `POST /v2/customers` | `CreateAsync()` | ✅ Parity |
+| Search customers | `POST /v2/customers/search` | ❌ Not implemented | ⚠️ Gap |
+| Customer groups | `POST /v2/customers/groups` | Tags only | ⚠️ Gap |
+| **Loyalty program design** | ❌ UI only | `ILoyaltyProgramGrain` | ✅ **DV Exclusive** |
+| **Custom earning rules** | Limited | `AddEarningRuleAsync()` | ✅ **DV Better** |
+| **Tier system** | Basic | Full with benefits, multipliers | ✅ **DV Better** |
+| **Points expiry config** | ❌ Not configurable | `ConfigurePointsExpiryAsync()` | ✅ **DV Exclusive** |
+| **Referral program** | ❌ Not supported | `ConfigureReferralProgramAsync()` | ✅ **DV Exclusive** |
+| **Visit tracking** | ❌ Not supported | `RecordVisitAsync()` | ✅ **DV Exclusive** |
+| **GDPR compliance** | Manual | `DeleteAsync()`, `AnonymizeAsync()` | ✅ **DV Better** |
+| Earn points | `POST /v2/loyalty/accounts/{id}/accumulate` | `EarnPointsAsync()` | ✅ Parity |
+| Redeem rewards | `POST /v2/loyalty/rewards/{id}/redeem` | `RedeemRewardAsync()` | ✅ Parity |
+
+**DarkVelocity Loyalty is Superior** - Full loyalty program management including tier design, custom earning rules, referral programs, and GDPR compliance.
+
+---
+
+### 6. Labor: DarkVelocity Grains vs Square Team/Labor APIs
+
+**Square has Team API and Labor API. DarkVelocity has a comprehensive labor management suite:**
+
+| Grain | Purpose | Square Equivalent |
+|-------|---------|-------------------|
+| `IEmployeeGrain` | Employee profile, clock in/out | Team Members API |
+| `IRoleGrain` | Job roles with rates | Team Member Wages |
+| `IScheduleGrain` | Weekly scheduling | Shifts API |
+| `ITimeEntryGrain` | Time tracking | Labor API |
+| `ITipPoolGrain` | Tip distribution | ❌ None |
+| `IPayrollPeriodGrain` | Payroll calculation | ❌ None |
+| `IEmployeeAvailabilityGrain` | Availability management | ❌ None |
+| `IShiftSwapGrain` | Shift swap requests | ❌ None |
+| `ITimeOffGrain` | Time off requests | ❌ None |
+
+| Feature | Square Labor API | DV Labor Grains | Status |
+|---------|-----------------|-----------------|--------|
+| Employee profiles | Team Members API | `IEmployeeGrain` | ✅ Parity |
+| Clock in/out | Break API | `ClockInAsync()`, `ClockOutAsync()` | ✅ Parity |
+| Scheduling | Shifts API | `IScheduleGrain` | ✅ Parity |
+| Time tracking | Labor API | `ITimeEntryGrain` | ✅ Parity |
+| **Tip pooling** | ❌ Not supported | `ITipPoolGrain` | ✅ **DV Exclusive** |
+| **Payroll calculation** | ❌ Not supported | `IPayrollPeriodGrain` | ✅ **DV Exclusive** |
+| **Availability management** | ❌ Not supported | `IEmployeeAvailabilityGrain` | ✅ **DV Exclusive** |
+| **Shift swaps** | ❌ Not supported | `IShiftSwapGrain` | ✅ **DV Exclusive** |
+| **Time off requests** | ❌ Not supported | `ITimeOffGrain` | ✅ **DV Exclusive** |
+| **Overtime calculation** | Manual | Automatic with rates | ✅ **DV Better** |
+| **Multiple clock methods** | Basic | PIN, QR, Biometric, Manager | ✅ **DV Better** |
+
+**DarkVelocity Labor is Superior** - Complete labor management including tip pools, payroll, availability, shift swaps, and time off tracking.
+
+---
+
+### 7. Kitchen Display: DarkVelocity Exclusive
+
+**Square has no Kitchen Display System APIs.** DarkVelocity provides:
+
+**IKitchenTicketGrain:**
+```csharp
+Task<KitchenTicketCreatedResult> CreateAsync(CreateKitchenTicketCommand command);
+Task AddItemAsync(AddTicketItemCommand command);
+Task StartItemAsync(StartItemCommand command);
+Task CompleteItemAsync(CompleteItemCommand command);
+Task VoidItemAsync(VoidItemCommand command);
+Task ReceiveAsync();
+Task StartAsync();
+Task BumpAsync(Guid bumpedBy);
+Task MarkRushAsync();
+Task MarkVipAsync();
+Task FireAllAsync();
+```
+
+**IKitchenStationGrain:**
+```csharp
+Task OpenAsync(OpenStationCommand command);
+Task AssignItemsAsync(AssignItemsToStationCommand command);
+Task SetPrinterAsync(Guid printerId);
+Task SetDisplayAsync(Guid displayId);
+Task ReceiveTicketAsync(Guid ticketId);
+Task CompleteTicketAsync(Guid ticketId);
+Task PauseAsync();
+Task ResumeAsync();
+```
+
+| Feature | Square | DarkVelocity KDS | Status |
+|---------|--------|------------------|--------|
+| Kitchen tickets | ❌ None | `IKitchenTicketGrain` | ✅ **DV Exclusive** |
+| Station management | ❌ None | `IKitchenStationGrain` | ✅ **DV Exclusive** |
+| Item-level tracking | ❌ None | `StartItemAsync()`, `CompleteItemAsync()` | ✅ **DV Exclusive** |
+| Rush/VIP orders | ❌ None | `MarkRushAsync()`, `MarkVipAsync()` | ✅ **DV Exclusive** |
+| Course firing | ❌ None | `FireAllAsync()` | ✅ **DV Exclusive** |
+| Station routing | ❌ None | `AssignItemsAsync()` | ✅ **DV Exclusive** |
+| Prep time tracking | ❌ None | `GetTimingsAsync()` | ✅ **DV Exclusive** |
+
+---
+
+### 8. Reporting: DarkVelocity Aggregation Grains
+
+**Square has basic reporting via the Transactions API. DarkVelocity has real-time aggregation grains:**
+
+| Grain | Purpose | Square Equivalent |
+|-------|---------|-------------------|
+| `IDailySalesGrain` | Daily sales aggregation | Transactions API (limited) |
+| `IDailyInventorySnapshotGrain` | Daily inventory snapshot | ❌ None |
+| `IDailyConsumptionGrain` | Consumption tracking | ❌ None |
+| `IDailyWasteGrain` | Waste tracking | ❌ None |
+| `IPeriodAggregationGrain` | Weekly/monthly rollup | ❌ None |
+| `ISiteDashboardGrain` | Real-time dashboard | ❌ None |
+
+| Feature | Square | DarkVelocity Reporting | Status |
+|---------|--------|----------------------|--------|
+| Sales totals | Basic | `IDailySalesGrain` with breakdown | ✅ **DV Better** |
+| Inventory valuation | ❌ None | `IDailyInventorySnapshotGrain` | ✅ **DV Exclusive** |
+| **Consumption variance** | ❌ None | `IDailyConsumptionGrain` | ✅ **DV Exclusive** |
+| **Waste tracking** | ❌ None | `IDailyWasteGrain` | ✅ **DV Exclusive** |
+| **Gross profit (FIFO vs WAC)** | ❌ None | `GetGrossProfitMetricsAsync()` | ✅ **DV Exclusive** |
+| **Period rollups** | Manual | `IPeriodAggregationGrain` | ✅ **DV Exclusive** |
+| **Real-time dashboard** | ❌ None | `ISiteDashboardGrain` | ✅ **DV Exclusive** |
+
+---
+
+### 9. Gift Cards: `IGiftCardGrain` vs Square Gift Cards API
+
+| Feature | Square Gift Cards API | IGiftCardGrain | Status |
+|---------|----------------------|----------------|--------|
+| Create gift card | `POST /v2/gift-cards` | `CreateAsync()` | ✅ Parity |
+| Activate | `POST /v2/gift-cards/{id}/activate` | `ActivateAsync()` | ✅ Parity |
+| Redeem | `POST /v2/gift-cards/activities` | `RedeemAsync()` | ✅ Parity |
+| Reload | `POST /v2/gift-cards/activities` | `ReloadAsync()` | ✅ Parity |
+| Balance check | `GET /v2/gift-cards/{id}` | `GetBalanceInfoAsync()` | ✅ Parity |
+| Transaction history | `POST /v2/gift-cards/activities` | `GetTransactionsAsync()` | ✅ Parity |
+| **PIN validation** | ❌ None | `ValidatePinAsync()` | ✅ **DV Exclusive** |
+| **Recipient info** | ❌ None | `SetRecipientAsync()` | ✅ **DV Exclusive** |
+| **Void transaction** | ❌ None | `VoidTransactionAsync()` | ✅ **DV Exclusive** |
+
+---
+
+### 10. Bookings: `IBookingGrain` vs Square Bookings API
+
+| Feature | Square Bookings API | IBookingGrain | Status |
+|---------|--------------------|--------------||--------|
+| Create booking | `POST /v2/bookings` | `RequestAsync()` | ✅ Parity |
+| Confirm | Update status | `ConfirmAsync()` | ✅ Parity |
+| Cancel | `POST /v2/bookings/{id}/cancel` | `CancelAsync()` | ✅ Parity |
+| **Waitlist** | ❌ None | `IWaitlistGrain` | ✅ **DV Exclusive** |
+| **Deposit management** | ❌ None | `RequireDepositAsync()`, `RecordDepositPaymentAsync()` | ✅ **DV Exclusive** |
+| **Table assignment** | ❌ None | `AssignTableAsync()` | ✅ **DV Exclusive** |
+| **Arrival tracking** | ❌ None | `RecordArrivalAsync()` | ✅ **DV Exclusive** |
+| **No-show tracking** | ❌ None | `MarkNoShowAsync()` | ✅ **DV Exclusive** |
+
+---
+
+## Overall Assessment
+
+### DarkVelocity Advantages (Grains > Square)
+
+1. **Inventory Management** - FIFO costing, batch tracking, expiry, waste categorization
+2. **Loyalty Program Design** - Full program management, custom rules, tier design
+3. **Labor Management** - Tip pools, payroll, availability, shift swaps, time off
+4. **Kitchen Display System** - Complete KDS with stations, routing, timing
+5. **Reporting** - Real-time aggregation, consumption variance, gross profit analysis
+6. **Device Authentication** - RFC 8628 device flow, PIN auth, device lifecycle
+7. **Cash Drawer Management** - Full drawer operations, counts, drops
+8. **Booking/Waitlist** - Deposits, table assignment, arrival tracking
+
+### Square Advantages (Square > Grains)
+
+1. **Batch Operations** - Square has native batch create/update/retrieve
+2. **Search APIs** - Square has rich search endpoints for orders, customers, inventory
+3. **Item Variations** - Square treats variations as first-class catalog objects
+4. **Payment Processing** - Square provides native payment processing
+5. **Hosted Checkout** - Square offers hosted checkout pages
+
+### Feature Parity
+
+- Orders, Payments, Customers, Gift Cards, Bookings - Core functionality aligned
+- Discounts, Service Charges, Tips - Both support these concepts
+- Multi-location - Both support multi-site/location structures
+
+---
+
 ## Sources
 
 - [Square API Reference](https://developer.squareup.com/reference/square)
