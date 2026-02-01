@@ -618,7 +618,170 @@ public enum ExternalOrderStatus {
 
 ---
 
-## 10. References
+## 10. Multi-Channel Architecture (Future)
+
+### 10.1 Overview
+
+Support multiple delivery channels with a grain per integration:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    CHANNEL INTEGRATIONS                      │
+├──────────────┬──────────────┬──────────────┬────────────────┤
+│ Deliverect   │  UberEats    │  Deliveroo   │ Local Website  │
+│ (Aggregator) │   (Direct)   │   (Direct)   │   (Internal)   │
+└──────┬───────┴──────┬───────┴──────┬───────┴───────┬────────┘
+       │              │              │               │
+       ▼              ▼              ▼               ▼
+┌─────────────────────────────────────────────────────────────┐
+│              CHANNEL ADAPTER GRAINS                          │
+│  IDeliverectChannelGrain  IUberEatsChannelGrain  etc.       │
+│  - HMAC validation        - OAuth2 auth                     │
+│  - Status mapping         - Webhook verify                  │
+│  - Multi-platform source  - Platform API client             │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼ Transforms to ExternalOrderReceived
+┌─────────────────────────────────────────────────────────────┐
+│              IExternalOrderGrain (existing)                  │
+│              Unified order model                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 10.2 Integration Types
+
+```csharp
+public enum IntegrationType
+{
+    Direct,      // UberEats, Deliveroo, JustEat (direct API)
+    Aggregator,  // Deliverect, Otter (manages multiple platforms)
+    Internal     // Local website, Kiosk (self-hosted)
+}
+```
+
+| Platform | Type | Auth | Status Sync | Menu Sync |
+|----------|------|------|-------------|-----------|
+| Deliverect | Aggregator | OAuth2 M2M + HMAC | REST callback | Push |
+| UberEats | Direct | OAuth2 | REST callback | Push |
+| Deliveroo | Direct | API Key | REST callback | Push |
+| Just Eat | Direct | API Key | REST callback | Push |
+| Local Website | Internal | Internal auth | N/A (SignalR) | Read-only |
+
+### 10.3 Channel Grain Interface
+
+```csharp
+public interface IChannelGrain : IGrainWithStringKey
+{
+    // Lifecycle
+    Task<ChannelSnapshot> ConfigureAsync(ConfigureChannelCommand command);
+    Task DeactivateAsync();
+    Task ActivateAsync();
+
+    // Order Reception
+    Task<ExternalOrderSnapshot> ReceiveOrderAsync(ChannelOrderReceived order);
+
+    // Outbound Status Updates (to platform)
+    Task NotifyOrderAcceptedAsync(Guid externalOrderId, DateTime estimatedPickupAt);
+    Task NotifyOrderPreparingAsync(Guid externalOrderId);
+    Task NotifyOrderReadyAsync(Guid externalOrderId);
+    Task NotifyOrderCancelledAsync(Guid externalOrderId, string reason);
+
+    // Menu Operations
+    Task<MenuSyncResult> SyncMenuAsync(Guid menuId);
+    Task UpdateItemAvailabilityAsync(Guid menuItemId, bool isAvailable);
+
+    // Store Operations
+    Task SetStoreOpenAsync(Guid siteId);
+    Task SetStoreClosedAsync(Guid siteId, string? reason);
+    Task SetBusyModeAsync(Guid siteId, int additionalPrepMinutes);
+
+    // Monitoring
+    Task<ChannelSnapshot> GetSnapshotAsync();
+    Task<ChannelHealthStatus> GetHealthStatusAsync();
+}
+```
+
+### 10.4 Local Website Channel
+
+Unlike external platforms, the local website channel:
+- No webhook validation (orders via internal API)
+- No outbound status callbacks (frontend uses SignalR)
+- Direct menu access (no sync needed)
+- Internal customer/payment integration
+
+```csharp
+public interface ILocalWebsiteChannelGrain : IChannelGrain
+{
+    Task<ExternalOrderSnapshot> PlaceOrderAsync(LocalWebsiteOrderCommand command);
+    Task<bool> ValidateSessionAsync(string sessionToken);
+    Task<IReadOnlyList<TimeSlot>> GetAvailableTimeSlotsAsync(Guid siteId, DateOnly date);
+}
+```
+
+### 10.5 Status Mapping Per Platform
+
+Each platform has different status codes:
+
+| Deliverect | UberEats | Deliveroo | DarkVelocity |
+|------------|----------|-----------|--------------|
+| 2, 10 | `created` | `placed` | `Pending` |
+| 20 | `accepted` | `accepted` | `Accepted` |
+| 30 | `in_progress` | `preparing` | `Preparing` |
+| 40 | `ready_for_pickup` | `ready_for_collection` | `Ready` |
+| 50 | `picked_up` | `collected` | `PickedUp` |
+| 60, 90, 95 | `delivered` | `delivered` | `Delivered` |
+| 110 | `cancelled` | `cancelled` | `Cancelled` |
+
+### 10.6 File Structure
+
+```
+src/DarkVelocity.Host/
+├── Grains/
+│   ├── Channels/
+│   │   ├── IChannelGrain.cs
+│   │   ├── IDeliverectChannelGrain.cs
+│   │   ├── IUberEatsChannelGrain.cs
+│   │   ├── ILocalWebsiteChannelGrain.cs
+│   │   └── [implementations]
+│   └── IStatusMappingGrain.cs
+├── State/
+│   ├── ChannelState.cs
+│   └── StatusMappingState.cs
+├── Adapters/
+│   ├── DeliverectAdapter.cs
+│   ├── UberEatsAdapter.cs
+│   └── DeliverooAdapter.cs
+└── Webhooks/
+    ├── DeliverectWebhookHandler.cs
+    └── UberEatsWebhookHandler.cs
+```
+
+### 10.7 Grain Key Conventions
+
+```csharp
+// Channel grain
+GrainKeys.Channel(orgId, DeliveryPlatformType.Deliverect, channelId)
+// → "{orgId}:channel:deliverect:{channelId}"
+
+// Status mapping
+GrainKeys.StatusMapping(orgId, DeliveryPlatformType.UberEats)
+// → "{orgId}:statusmapping:ubereats"
+```
+
+### 10.8 Implementation Phases
+
+| Phase | Scope | Duration |
+|-------|-------|----------|
+| 1 | Base `IChannelGrain` + `IntegrationType` + status mapping | 2 weeks |
+| 2 | Deliverect integration (webhook, API, HMAC) | 2 weeks |
+| 3 | Direct integrations (UberEats, Deliveroo, JustEat) | 3 weeks |
+| 4 | Local website channel | 1 week |
+| 5 | Menu sync enhancement | 2 weeks |
+| 6 | Testing & documentation | 2 weeks |
+
+---
+
+## 11. References
 
 - [Deliverect Developer Hub](https://developers.deliverect.com/)
 - [Deliverect POS Endpoints](https://developers.deliverect.com/reference/pos_endpoints)
