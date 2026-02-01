@@ -1,11 +1,40 @@
 namespace DarkVelocity.Host.Grains;
 
 // ============================================================================
+// Channel Integration Types
+// ============================================================================
+
+/// <summary>
+/// Defines how a channel integrates with the POS system.
+/// </summary>
+public enum IntegrationType
+{
+    /// <summary>
+    /// Direct API integration with delivery platforms (UberEats, Deliveroo, JustEat).
+    /// We implement their specific API contracts.
+    /// </summary>
+    Direct,
+
+    /// <summary>
+    /// Integration through an aggregator service (Deliverect, Otter).
+    /// Aggregator normalizes multiple platform APIs into a single interface.
+    /// </summary>
+    Aggregator,
+
+    /// <summary>
+    /// Internal channels (local website, kiosk, phone orders).
+    /// We control the full stack with no external dependencies.
+    /// </summary>
+    Internal
+}
+
+// ============================================================================
 // Delivery Platform Grain
 // ============================================================================
 
 public enum DeliveryPlatformType
 {
+    // Direct integrations
     UberEats,
     DoorDash,
     Deliveroo,
@@ -13,6 +42,16 @@ public enum DeliveryPlatformType
     Wolt,
     GrubHub,
     Postmates,
+
+    // Aggregator platforms
+    Deliverect,
+    Otter,
+
+    // Internal channels
+    LocalWebsite,
+    Kiosk,
+    PhoneOrder,
+
     Custom
 }
 
@@ -27,11 +66,12 @@ public enum DeliveryPlatformStatus
 [GenerateSerializer]
 public record ConnectDeliveryPlatformCommand(
     [property: Id(0)] DeliveryPlatformType PlatformType,
-    [property: Id(1)] string Name,
-    [property: Id(2)] string? ApiCredentialsEncrypted,
-    [property: Id(3)] string? WebhookSecret,
-    [property: Id(4)] string? MerchantId,
-    [property: Id(5)] string? Settings);
+    [property: Id(1)] IntegrationType IntegrationType,
+    [property: Id(2)] string Name,
+    [property: Id(3)] string? ApiCredentialsEncrypted,
+    [property: Id(4)] string? WebhookSecret,
+    [property: Id(5)] string? MerchantId,
+    [property: Id(6)] string? Settings);
 
 [GenerateSerializer]
 public record UpdateDeliveryPlatformCommand(
@@ -52,15 +92,16 @@ public record PlatformLocationMapping(
 public record DeliveryPlatformSnapshot(
     [property: Id(0)] Guid DeliveryPlatformId,
     [property: Id(1)] DeliveryPlatformType PlatformType,
-    [property: Id(2)] string Name,
-    [property: Id(3)] DeliveryPlatformStatus Status,
-    [property: Id(4)] string? MerchantId,
-    [property: Id(5)] DateTime? ConnectedAt,
-    [property: Id(6)] DateTime? LastSyncAt,
-    [property: Id(7)] DateTime? LastOrderAt,
-    [property: Id(8)] IReadOnlyList<PlatformLocationMapping> Locations,
-    [property: Id(9)] int TotalOrdersToday,
-    [property: Id(10)] decimal TotalRevenueToday);
+    [property: Id(2)] IntegrationType IntegrationType,
+    [property: Id(3)] string Name,
+    [property: Id(4)] DeliveryPlatformStatus Status,
+    [property: Id(5)] string? MerchantId,
+    [property: Id(6)] DateTime? ConnectedAt,
+    [property: Id(7)] DateTime? LastSyncAt,
+    [property: Id(8)] DateTime? LastOrderAt,
+    [property: Id(9)] IReadOnlyList<PlatformLocationMapping> Locations,
+    [property: Id(10)] int TotalOrdersToday,
+    [property: Id(11)] decimal TotalRevenueToday);
 
 /// <summary>
 /// Grain for delivery platform management.
