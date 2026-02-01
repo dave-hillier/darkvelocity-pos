@@ -314,7 +314,7 @@ This section maps Deliverect API capabilities to existing DarkVelocity Orleans g
 
 | Deliverect Capability | DarkVelocity Grain | Grain Method | Status |
 |----------------------|-------------------|--------------|--------|
-| Receive order webhook | `IExternalOrderGrain` | `CreateAsync(CreateExternalOrderCommand)` | ✅ Exists |
+| Receive order webhook | `IExternalOrderGrain` | `ReceiveAsync(ExternalOrderReceived)` | ✅ Exists |
 | Accept order | `IExternalOrderGrain` | `AcceptAsync(DateTime? estimatedPickupAt)` | ✅ Exists |
 | Reject order | `IExternalOrderGrain` | `RejectAsync(string reason)` | ✅ Exists |
 | Mark preparing | `IExternalOrderGrain` | `SetPreparingAsync()` | ✅ Exists |
@@ -432,10 +432,10 @@ public interface IMenuItemGrain : IGrainWithStringKey
 
 | Deliverect Capability | DarkVelocity Grain | Grain Method | Status |
 |----------------------|-------------------|--------------|--------|
-| Platform payouts | `IPlatformPayoutGrain` | `CreateAsync(CreatePayoutCommand)` | ✅ Exists |
+| Platform payouts | `IPlatformPayoutGrain` | `ReceiveAsync(PayoutReceived)` | ✅ Exists |
 | Payout status tracking | `IPlatformPayoutGrain` | `SetProcessingAsync()`, `CompleteAsync()` | ✅ Exists |
-| Fee breakdown | `CreatePayoutCommand` | `GrossAmount`, `PlatformFees`, `NetAmount` | ✅ Exists |
-| Period tracking | `CreatePayoutCommand` | `PeriodStart`, `PeriodEnd` | ✅ Exists |
+| Fee breakdown | `PayoutReceived` | `GrossAmount`, `PlatformFees`, `NetAmount` | ✅ Exists |
+| Period tracking | `PayoutReceived` | `PeriodStart`, `PeriodEnd` | ✅ Exists |
 
 ### 6.8 Webhooks (Outbound to Deliverect)
 

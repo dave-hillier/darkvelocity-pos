@@ -125,8 +125,12 @@ public record ExternalOrderModifier(
     [property: Id(0)] string Name,
     [property: Id(1)] decimal Price);
 
+/// <summary>
+/// Represents an order received from an external delivery platform.
+/// This is an observed fact, not a command - the order already exists on the platform.
+/// </summary>
 [GenerateSerializer]
-public record CreateExternalOrderCommand(
+public record ExternalOrderReceived(
     [property: Id(0)] Guid LocationId,
     [property: Id(1)] Guid DeliveryPlatformId,
     [property: Id(2)] string PlatformOrderId,
@@ -178,7 +182,10 @@ public record ExternalOrderSnapshot(
 /// </summary>
 public interface IExternalOrderGrain : IGrainWithStringKey
 {
-    Task<ExternalOrderSnapshot> CreateAsync(CreateExternalOrderCommand command);
+    /// <summary>
+    /// Records an order received from an external delivery platform.
+    /// </summary>
+    Task<ExternalOrderSnapshot> ReceiveAsync(ExternalOrderReceived order);
     Task<ExternalOrderSnapshot> AcceptAsync(DateTime? estimatedPickupAt);
     Task<ExternalOrderSnapshot> RejectAsync(string reason);
     Task SetPreparingAsync();
@@ -255,8 +262,12 @@ public enum PayoutStatus
     Failed
 }
 
+/// <summary>
+/// Represents a payout received/reported from an external delivery platform.
+/// This is an observed fact - the payout was initiated by the platform.
+/// </summary>
 [GenerateSerializer]
-public record CreatePayoutCommand(
+public record PayoutReceived(
     [property: Id(0)] Guid DeliveryPlatformId,
     [property: Id(1)] Guid LocationId,
     [property: Id(2)] DateTime PeriodStart,
@@ -288,7 +299,10 @@ public record PayoutSnapshot(
 /// </summary>
 public interface IPlatformPayoutGrain : IGrainWithStringKey
 {
-    Task<PayoutSnapshot> CreateAsync(CreatePayoutCommand command);
+    /// <summary>
+    /// Records a payout received from an external delivery platform.
+    /// </summary>
+    Task<PayoutSnapshot> ReceiveAsync(PayoutReceived payout);
     Task SetProcessingAsync();
     Task CompleteAsync(DateTime processedAt);
     Task FailAsync(string reason);
