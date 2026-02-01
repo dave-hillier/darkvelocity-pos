@@ -328,4 +328,37 @@ public static class GrainKeys
     /// Creates a key for a menu item grain.
     /// </summary>
     public static string MenuItem(Guid orgId, Guid itemId) => OrgEntity(orgId, "menuitem", itemId);
+
+    /// <summary>
+    /// Creates a key for a device authorization flow grain.
+    /// Key is the user code displayed to the user (e.g., "ABCD1234").
+    /// </summary>
+    public static string DeviceAuth(string userCode) => $"deviceauth:{userCode.ToUpperInvariant()}";
+
+    /// <summary>
+    /// Creates a key for a user session grain.
+    /// </summary>
+    public static string Session(Guid orgId, Guid sessionId) => OrgEntity(orgId, "session", sessionId);
+
+    /// <summary>
+    /// Creates a key for user lookup grain (PIN to user mapping).
+    /// </summary>
+    public static string UserLookup(Guid orgId) => $"{orgId}:userlookup";
+
+    /// <summary>
+    /// Generates a random user code for device authorization (8 alphanumeric chars).
+    /// </summary>
+    public static string GenerateUserCode()
+    {
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Excluded I, O, 0, 1 for readability
+        var random = System.Security.Cryptography.RandomNumberGenerator.Create();
+        var bytes = new byte[8];
+        random.GetBytes(bytes);
+        var result = new char[8];
+        for (int i = 0; i < 8; i++)
+        {
+            result[i] = chars[bytes[i] % chars.Length];
+        }
+        return new string(result);
+    }
 }

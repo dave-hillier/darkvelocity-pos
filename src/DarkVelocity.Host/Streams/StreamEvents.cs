@@ -884,3 +884,73 @@ public sealed record CustomerMergedEvent(
 ) : StreamEvent;
 
 #endregion
+
+#region Device Authentication Stream Events
+
+/// <summary>
+/// Published when a device authorization code is requested.
+/// </summary>
+[GenerateSerializer]
+public sealed record DeviceCodeRequestedEvent(
+    [property: Id(0)] string UserCode,
+    [property: Id(1)] string ClientId,
+    [property: Id(2)] string? IpAddress,
+    [property: Id(3)] DateTime ExpiresAt
+) : StreamEvent;
+
+/// <summary>
+/// Published when a device is authorized.
+/// </summary>
+[GenerateSerializer]
+public sealed record DeviceAuthorizedEvent(
+    [property: Id(0)] Guid DeviceId,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] string DeviceName,
+    [property: Id(3)] string AppType,
+    [property: Id(4)] Guid AuthorizedBy
+) : StreamEvent;
+
+/// <summary>
+/// Published when a device authorization is denied.
+/// </summary>
+[GenerateSerializer]
+public sealed record DeviceAuthorizationDeniedEvent(
+    [property: Id(0)] string UserCode,
+    [property: Id(1)] string Reason,
+    [property: Id(2)] Guid? DeniedBy
+) : StreamEvent;
+
+/// <summary>
+/// Published when a device is revoked.
+/// </summary>
+[GenerateSerializer]
+public sealed record DeviceRevokedEvent(
+    [property: Id(0)] Guid DeviceId,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] string Reason,
+    [property: Id(3)] Guid RevokedBy
+) : StreamEvent;
+
+/// <summary>
+/// Published when a user session starts on a device (PIN login).
+/// </summary>
+[GenerateSerializer]
+public sealed record DeviceSessionStartedEvent(
+    [property: Id(0)] Guid DeviceId,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] Guid UserId,
+    [property: Id(3)] string AuthMethod
+) : StreamEvent;
+
+/// <summary>
+/// Published when a user session ends on a device (logout/switch user).
+/// </summary>
+[GenerateSerializer]
+public sealed record DeviceSessionEndedEvent(
+    [property: Id(0)] Guid DeviceId,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] Guid UserId,
+    [property: Id(3)] string? Reason
+) : StreamEvent;
+
+#endregion

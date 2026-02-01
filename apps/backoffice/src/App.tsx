@@ -12,6 +12,7 @@ import PurchaseOrdersPage from './pages/PurchaseOrdersPage'
 import DeliveriesPage from './pages/DeliveriesPage'
 import ReportsPage from './pages/ReportsPage'
 import MarginAnalysisPage from './pages/MarginAnalysisPage'
+import DeviceAuthorizePage from './pages/DeviceAuthorizePage'
 
 export default function App() {
   // For now, skip auth and show logged in state
@@ -21,6 +22,7 @@ export default function App() {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/device" element={<DeviceAuthorizePage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     )
@@ -41,8 +43,10 @@ export default function App() {
         <Route path="procurement/deliveries" element={<DeliveriesPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="reports/margins" element={<MarginAnalysisPage />} />
+        <Route path="devices/authorize" element={<DeviceAuthorizePage />} />
       </Route>
       <Route path="login" element={<LoginPage />} />
+      <Route path="device" element={<DeviceAuthorizePage />} />
     </Routes>
   )
 }

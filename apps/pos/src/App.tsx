@@ -1,13 +1,33 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import { DeviceAuthProvider, useDeviceAuth } from './contexts/DeviceAuthContext'
 import { OrderProvider } from './contexts/OrderContext'
 import { MenuProvider } from './contexts/MenuContext'
+import DeviceSetupPage from './pages/DeviceSetupPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import PaymentPage from './pages/PaymentPage'
 import { useAuth } from './contexts/AuthContext'
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function DeviceProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isDeviceAuthenticated, isLoading } = useDeviceAuth()
+
+  if (isLoading) {
+    return (
+      <main className="container">
+        <article aria-busy="true">Loading...</article>
+      </main>
+    )
+  }
+
+  if (!isDeviceAuthenticated) {
+    return <Navigate to="/setup" replace />
+  }
+
+  return <>{children}</>
+}
+
+function UserProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth()
 
   if (isLoading) {
@@ -28,27 +48,39 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/setup" element={<DeviceSetupPage />} />
+      <Route
+        path="/login"
+        element={
+          <DeviceProtectedRoute>
+            <LoginPage />
+          </DeviceProtectedRoute>
+        }
+      />
       <Route
         path="/register"
         element={
-          <ProtectedRoute>
-            <MenuProvider>
-              <OrderProvider>
-                <RegisterPage />
-              </OrderProvider>
-            </MenuProvider>
-          </ProtectedRoute>
+          <DeviceProtectedRoute>
+            <UserProtectedRoute>
+              <MenuProvider>
+                <OrderProvider>
+                  <RegisterPage />
+                </OrderProvider>
+              </MenuProvider>
+            </UserProtectedRoute>
+          </DeviceProtectedRoute>
         }
       />
       <Route
         path="/payment"
         element={
-          <ProtectedRoute>
-            <OrderProvider>
-              <PaymentPage />
-            </OrderProvider>
-          </ProtectedRoute>
+          <DeviceProtectedRoute>
+            <UserProtectedRoute>
+              <OrderProvider>
+                <PaymentPage />
+              </OrderProvider>
+            </UserProtectedRoute>
+          </DeviceProtectedRoute>
         }
       />
       <Route path="/" element={<Navigate to="/register" replace />} />
@@ -58,8 +90,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+    <DeviceAuthProvider>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </DeviceAuthProvider>
   )
 }

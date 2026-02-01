@@ -42,6 +42,238 @@ app.UseCors();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
 // ============================================================================
+// Device Authorization API (OAuth 2.0 Device Flow - RFC 8628)
+// ============================================================================
+
+var deviceAuthGroup = app.MapGroup("/api/device").WithTags("DeviceAuth");
+
+// POST /api/device/code - Request a device code for authorization
+deviceAuthGroup.MapPost("/code", async (
+    [FromBody] DeviceCodeApiRequest request,
+    IGrainFactory grainFactory,
+    HttpContext httpContext) =>
+{
+    var userCode = GrainKeys.GenerateUserCode();
+    var grain = grainFactory.GetGrain<IDeviceAuthGrain>(userCode);
+
+    var response = await grain.InitiateAsync(new DeviceCodeRequest(
+        request.ClientId,
+        request.Scope ?? "device",
+        request.DeviceFingerprint,
+        httpContext.Connection.RemoteIpAddress?.ToString()
+    ));
+
+    return Results.Ok(response);
+});
+
+// POST /api/device/token - Poll for token (device polls this after showing code)
+deviceAuthGroup.MapPost("/token", async (
+    [FromBody] DeviceTokenApiRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IDeviceAuthGrain>(request.UserCode.Replace("-", "").ToUpperInvariant());
+    var status = await grain.GetStatusAsync();
+
+    return status switch
+    {
+        DarkVelocity.Host.State.DeviceAuthStatus.Pending => Results.BadRequest(new { error = "authorization_pending", error_description = "The authorization request is still pending" }),
+        DarkVelocity.Host.State.DeviceAuthStatus.Expired => Results.BadRequest(new { error = "expired_token", error_description = "The device code has expired" }),
+        DarkVelocity.Host.State.DeviceAuthStatus.Denied => Results.BadRequest(new { error = "access_denied", error_description = "The authorization request was denied" }),
+        DarkVelocity.Host.State.DeviceAuthStatus.Authorized => Results.Ok(await grain.GetTokenAsync(request.DeviceCode)),
+        _ => Results.BadRequest(new { error = "invalid_request" })
+    };
+});
+
+// POST /api/device/authorize - User authorizes the device (from browser, requires auth)
+deviceAuthGroup.MapPost("/authorize", async (
+    [FromBody] AuthorizeDeviceApiRequest request,
+    IGrainFactory grainFactory) =>
+{
+    // Note: In production, this should use RequireAuthorization() and get user from claims
+    var grain = grainFactory.GetGrain<IDeviceAuthGrain>(request.UserCode.Replace("-", "").ToUpperInvariant());
+
+    await grain.AuthorizeAsync(new AuthorizeDeviceCommand(
+        request.AuthorizedBy,
+        request.OrganizationId,
+        request.SiteId,
+        request.DeviceName,
+        request.AppType
+    ));
+
+    return Results.Ok(new { message = "Device authorized successfully" });
+});
+
+// POST /api/device/deny - User denies the device authorization
+deviceAuthGroup.MapPost("/deny", async (
+    [FromBody] DenyDeviceApiRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IDeviceAuthGrain>(request.UserCode.Replace("-", "").ToUpperInvariant());
+    await grain.DenyAsync(request.Reason ?? "User denied authorization");
+    return Results.Ok(new { message = "Device authorization denied" });
+});
+
+// ============================================================================
+// PIN Authentication API (for authenticated devices)
+// ============================================================================
+
+var pinAuthGroup = app.MapGroup("/api/auth").WithTags("Auth");
+
+// POST /api/auth/pin - PIN login on an authenticated device
+pinAuthGroup.MapPost("/pin", async (
+    [FromBody] PinLoginApiRequest request,
+    IGrainFactory grainFactory) =>
+{
+    // Verify device is authorized
+    var deviceGrain = grainFactory.GetGrain<IDeviceGrain>(GrainKeys.Device(request.OrganizationId, request.DeviceId));
+    if (!await deviceGrain.IsAuthorizedAsync())
+        return Results.Unauthorized();
+
+    // Hash the PIN for lookup
+    var pinHash = HashPin(request.Pin);
+
+    // Find user by PIN within organization
+    var userLookupGrain = grainFactory.GetGrain<IUserLookupGrain>(GrainKeys.UserLookup(request.OrganizationId));
+    var lookupResult = await userLookupGrain.FindByPinHashAsync(pinHash, request.SiteId);
+
+    if (lookupResult == null)
+        return Results.BadRequest(new { error = "invalid_pin", error_description = "Invalid PIN" });
+
+    // Verify PIN directly on user grain
+    var userGrain = grainFactory.GetGrain<IUserGrain>(GrainKeys.User(request.OrganizationId, lookupResult.UserId));
+    var authResult = await userGrain.VerifyPinAsync(request.Pin);
+
+    if (!authResult.Success)
+        return Results.BadRequest(new { error = "invalid_pin", error_description = authResult.Error });
+
+    // Create session
+    var sessionId = Guid.NewGuid();
+    var sessionGrain = grainFactory.GetGrain<ISessionGrain>(GrainKeys.Session(request.OrganizationId, sessionId));
+    var tokens = await sessionGrain.CreateAsync(new CreateSessionCommand(
+        lookupResult.UserId,
+        request.OrganizationId,
+        request.SiteId,
+        request.DeviceId,
+        "pin",
+        null,
+        null
+    ));
+
+    // Update device current user
+    await deviceGrain.SetCurrentUserAsync(lookupResult.UserId);
+
+    // Record login
+    await userGrain.RecordLoginAsync();
+
+    return Results.Ok(new PinLoginResponse(
+        tokens.AccessToken,
+        tokens.RefreshToken,
+        (int)(tokens.AccessTokenExpires - DateTime.UtcNow).TotalSeconds,
+        lookupResult.UserId,
+        lookupResult.DisplayName
+    ));
+});
+
+// POST /api/auth/logout - Logout from device
+pinAuthGroup.MapPost("/logout", async (
+    [FromBody] LogoutApiRequest request,
+    IGrainFactory grainFactory) =>
+{
+    // Revoke session
+    var sessionGrain = grainFactory.GetGrain<ISessionGrain>(GrainKeys.Session(request.OrganizationId, request.SessionId));
+    await sessionGrain.RevokeAsync();
+
+    // Clear current user from device
+    var deviceGrain = grainFactory.GetGrain<IDeviceGrain>(GrainKeys.Device(request.OrganizationId, request.DeviceId));
+    await deviceGrain.SetCurrentUserAsync(null);
+
+    return Results.Ok(new { message = "Logged out successfully" });
+});
+
+// POST /api/auth/refresh - Refresh access token
+pinAuthGroup.MapPost("/refresh", async (
+    [FromBody] RefreshTokenApiRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var sessionGrain = grainFactory.GetGrain<ISessionGrain>(GrainKeys.Session(request.OrganizationId, request.SessionId));
+    var result = await sessionGrain.RefreshAsync(request.RefreshToken);
+
+    if (!result.Success)
+        return Results.BadRequest(new { error = "invalid_token", error_description = result.Error });
+
+    return Results.Ok(new RefreshTokenResponse(
+        result.Tokens!.AccessToken,
+        result.Tokens.RefreshToken,
+        (int)(result.Tokens.AccessTokenExpires - DateTime.UtcNow).TotalSeconds
+    ));
+});
+
+// ============================================================================
+// Device Management API
+// ============================================================================
+
+var devicesGroup = app.MapGroup("/api/devices").WithTags("Devices");
+
+// GET /api/devices/{orgId}/{deviceId} - Get device info
+devicesGroup.MapGet("/{orgId}/{deviceId}", async (
+    Guid orgId,
+    Guid deviceId,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IDeviceGrain>(GrainKeys.Device(orgId, deviceId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound();
+
+    var snapshot = await grain.GetSnapshotAsync();
+    return Results.Ok(snapshot);
+});
+
+// POST /api/devices/{orgId}/{deviceId}/heartbeat - Device heartbeat
+devicesGroup.MapPost("/{orgId}/{deviceId}/heartbeat", async (
+    Guid orgId,
+    Guid deviceId,
+    [FromBody] DeviceHeartbeatRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IDeviceGrain>(GrainKeys.Device(orgId, deviceId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound();
+
+    await grain.RecordHeartbeatAsync(request.AppVersion);
+    return Results.Ok();
+});
+
+// POST /api/devices/{orgId}/{deviceId}/suspend - Suspend device
+devicesGroup.MapPost("/{orgId}/{deviceId}/suspend", async (
+    Guid orgId,
+    Guid deviceId,
+    [FromBody] SuspendDeviceRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IDeviceGrain>(GrainKeys.Device(orgId, deviceId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound();
+
+    await grain.SuspendAsync(request.Reason);
+    return Results.Ok(new { message = "Device suspended" });
+});
+
+// POST /api/devices/{orgId}/{deviceId}/revoke - Revoke device
+devicesGroup.MapPost("/{orgId}/{deviceId}/revoke", async (
+    Guid orgId,
+    Guid deviceId,
+    [FromBody] RevokeDeviceRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IDeviceGrain>(GrainKeys.Device(orgId, deviceId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound();
+
+    await grain.RevokeAsync(request.Reason);
+    return Results.Ok(new { message = "Device revoked" });
+});
+
+// ============================================================================
 // Auth / User API Endpoints
 // NOTE: Requires IUserGrain.GetSnapshotAsync, AuthenticateAsync, and CreateUserCommand updates
 // ============================================================================
@@ -780,6 +1012,41 @@ giftCardsGroup.MapPost("/{orgId}/{giftCardId}/redeem", async (
 #endif
 
 app.Run();
+
+// ============================================================================
+// Device Auth Request/Response DTOs (Active)
+// ============================================================================
+
+// Device code flow
+public record DeviceCodeApiRequest(string ClientId, string? Scope, string? DeviceFingerprint);
+public record DeviceTokenApiRequest(string UserCode, string DeviceCode);
+public record AuthorizeDeviceApiRequest(
+    string UserCode,
+    Guid AuthorizedBy,
+    Guid OrganizationId,
+    Guid SiteId,
+    string DeviceName,
+    DarkVelocity.Host.State.DeviceType AppType);
+public record DenyDeviceApiRequest(string UserCode, string? Reason);
+
+// PIN authentication
+public record PinLoginApiRequest(string Pin, Guid OrganizationId, Guid SiteId, Guid DeviceId);
+public record PinLoginResponse(string AccessToken, string RefreshToken, int ExpiresIn, Guid UserId, string DisplayName);
+public record LogoutApiRequest(Guid OrganizationId, Guid DeviceId, Guid SessionId);
+public record RefreshTokenApiRequest(Guid OrganizationId, Guid SessionId, string RefreshToken);
+public record RefreshTokenResponse(string AccessToken, string RefreshToken, int ExpiresIn);
+
+// Device management
+public record DeviceHeartbeatRequest(string? AppVersion);
+public record SuspendDeviceRequest(string Reason);
+public record RevokeDeviceRequest(string Reason);
+
+// Helper function for PIN hashing
+static string HashPin(string pin)
+{
+    var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(pin));
+    return Convert.ToBase64String(bytes);
+}
 
 // ============================================================================
 // Request DTOs

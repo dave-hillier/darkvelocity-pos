@@ -1,29 +1,28 @@
 import { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react'
 import type { User, LoginResponse } from '../types'
 import { apiClient } from '../api/client'
-import * as authApi from '../api/auth'
+import { useDeviceAuth } from './DeviceAuthContext'
 
 interface AuthState {
   user: User | null
   accessToken: string | null
   refreshToken: string | null
-  locationId: string | null
+  sessionId: string | null
   isLoading: boolean
   error: string | null
 }
 
 type AuthAction =
   | { type: 'AUTH_STARTED' }
-  | { type: 'AUTH_SUCCEEDED'; payload: LoginResponse }
+  | { type: 'AUTH_SUCCEEDED'; payload: { user: User; accessToken: string; refreshToken: string; sessionId?: string } }
   | { type: 'AUTH_FAILED'; payload: string }
   | { type: 'LOGGED_OUT' }
-  | { type: 'LOCATION_CHANGED'; payload: string }
 
 const initialState: AuthState = {
   user: null,
   accessToken: null,
   refreshToken: null,
-  locationId: null,
+  sessionId: null,
   isLoading: true,
   error: null,
 }
@@ -38,7 +37,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         user: action.payload.user,
         accessToken: action.payload.accessToken,
         refreshToken: action.payload.refreshToken,
-        locationId: action.payload.user.homeLocationId,
+        sessionId: action.payload.sessionId ?? null,
         isLoading: false,
         error: null,
       }
@@ -48,13 +47,12 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         user: null,
         accessToken: null,
         refreshToken: null,
+        sessionId: null,
         isLoading: false,
         error: action.payload,
       }
     case 'LOGGED_OUT':
       return { ...initialState, isLoading: false }
-    case 'LOCATION_CHANGED':
-      return { ...state, locationId: action.payload }
     default:
       return state
   }
@@ -64,30 +62,35 @@ interface AuthContextValue extends AuthState {
   loginWithPin: (pin: string) => Promise<void>
   loginWithQr: (token: string) => Promise<void>
   logout: () => void
-  setLocation: (locationId: string) => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 const STORAGE_KEY = 'darkvelocity_auth'
 
+interface PinLoginResponse {
+  accessToken: string
+  refreshToken: string
+  expiresIn: number
+  userId: string
+  displayName: string
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(authReducer, initialState)
+  const { organizationId, siteId, deviceId, isDeviceAuthenticated } = useDeviceAuth()
 
   // Load stored auth on mount
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
       try {
-        const { accessToken, refreshToken, user, locationId } = JSON.parse(stored)
+        const { accessToken, refreshToken, user, sessionId } = JSON.parse(stored)
         apiClient.setToken(accessToken)
         dispatch({
           type: 'AUTH_SUCCEEDED',
-          payload: { accessToken, refreshToken, user, expiresAt: '' },
+          payload: { accessToken, refreshToken, user, sessionId },
         })
-        if (locationId) {
-          dispatch({ type: 'LOCATION_CHANGED', payload: locationId })
-        }
       } catch {
         localStorage.removeItem(STORAGE_KEY)
         dispatch({ type: 'LOGGED_OUT' })
@@ -106,18 +109,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           accessToken: state.accessToken,
           refreshToken: state.refreshToken,
           user: state.user,
-          locationId: state.locationId,
+          sessionId: state.sessionId,
         })
       )
     }
-  }, [state.accessToken, state.refreshToken, state.user, state.locationId])
+  }, [state.accessToken, state.refreshToken, state.user, state.sessionId])
 
   async function loginWithPin(pin: string) {
+    if (!isDeviceAuthenticated || !organizationId || !siteId || !deviceId) {
+      dispatch({ type: 'AUTH_FAILED', payload: 'Device not authenticated' })
+      throw new Error('Device not authenticated')
+    }
+
     dispatch({ type: 'AUTH_STARTED' })
     try {
-      const response = await authApi.loginWithPin(pin, state.locationId ?? undefined)
-      apiClient.setToken(response.accessToken)
-      dispatch({ type: 'AUTH_SUCCEEDED', payload: response })
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pin,
+          organizationId,
+          siteId,
+          deviceId,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error_description: 'Login failed' }))
+        throw new Error(error.error_description || 'Login failed')
+      }
+
+      const data: PinLoginResponse = await response.json()
+
+      // Build user object from response
+      const user: User = {
+        id: data.userId,
+        username: data.displayName,
+        firstName: data.displayName.split(' ')[0] || data.displayName,
+        lastName: data.displayName.split(' ').slice(1).join(' ') || '',
+        userGroupName: 'Staff',
+        homeLocationId: siteId,
+        isActive: true,
+      }
+
+      apiClient.setToken(data.accessToken)
+      dispatch({
+        type: 'AUTH_SUCCEEDED',
+        payload: {
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          user,
+        },
+      })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed'
       dispatch({ type: 'AUTH_FAILED', payload: message })
@@ -126,11 +169,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function loginWithQr(token: string) {
+    // QR login could work similarly to PIN login
+    // For now, keep the legacy behavior
     dispatch({ type: 'AUTH_STARTED' })
     try {
-      const response = await authApi.loginWithQr(token, state.locationId ?? undefined)
-      apiClient.setToken(response.accessToken)
-      dispatch({ type: 'AUTH_SUCCEEDED', payload: response })
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/login/qr`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, locationId: siteId }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'Login failed' }))
+        throw new Error(error.message || 'Login failed')
+      }
+
+      const data: LoginResponse = await response.json()
+      apiClient.setToken(data.accessToken)
+      dispatch({
+        type: 'AUTH_SUCCEEDED',
+        payload: {
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          user: data.user,
+        },
+      })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed'
       dispatch({ type: 'AUTH_FAILED', payload: message })
@@ -144,10 +207,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'LOGGED_OUT' })
   }
 
-  function setLocation(locationId: string) {
-    dispatch({ type: 'LOCATION_CHANGED', payload: locationId })
-  }
-
   return (
     <AuthContext.Provider
       value={{
@@ -155,7 +214,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loginWithPin,
         loginWithQr,
         logout,
-        setLocation,
       }}
     >
       {children}
