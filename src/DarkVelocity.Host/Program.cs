@@ -451,742 +451,1085 @@ devicesGroup.MapPost("/{orgId}/{deviceId}/revoke", async (
 });
 
 // ============================================================================
-// Auth / User API Endpoints
-// NOTE: Requires IUserGrain.GetSnapshotAsync, AuthenticateAsync, and CreateUserCommand updates
+// Organizations API
 // ============================================================================
 
-#if false // Auth API - requires grain interface updates
-var authGroup = app.MapGroup("/api").WithTags("Auth");
+var orgsGroup = app.MapGroup("/api/orgs").WithTags("Organizations");
 
-authGroup.MapPost("/users", async (
-    [FromBody] CreateUserRequest request,
+// POST /api/orgs - Create organization
+orgsGroup.MapPost("/", async (
+    [FromBody] CreateOrgRequest request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IUserGrain>(GrainKeys.User(request.OrgId, request.UserId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/users/{request.UserId}", result);
+    var orgId = Guid.NewGuid();
+    var grain = grainFactory.GetGrain<IOrganizationGrain>(GrainKeys.Organization(orgId));
+    var result = await grain.CreateAsync(new CreateOrganizationCommand(request.Name, request.Slug, request.Settings));
+
+    return Results.Created($"/api/orgs/{orgId}", Hal.Resource(new
+    {
+        id = result.Id,
+        slug = result.Slug,
+        name = request.Name,
+        createdAt = result.CreatedAt
+    }, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}" },
+        ["sites"] = new { href = $"/api/orgs/{orgId}/sites" }
+    }));
 });
 
-authGroup.MapGet("/users/{orgId}/{userId}", async (
+// GET /api/orgs/{orgId} - Get organization
+orgsGroup.MapGet("/{orgId}", async (Guid orgId, IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IOrganizationGrain>(GrainKeys.Organization(orgId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Organization not found"));
+
+    var state = await grain.GetStateAsync();
+    return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}" },
+        ["sites"] = new { href = $"/api/orgs/{orgId}/sites" }
+    }));
+});
+
+// PATCH /api/orgs/{orgId} - Update organization
+orgsGroup.MapPatch("/{orgId}", async (
     Guid orgId,
-    Guid userId,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IUserGrain>(GrainKeys.User(orgId, userId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
-});
-
-authGroup.MapPost("/users/{orgId}/{userId}/login", async (
-    Guid orgId,
-    Guid userId,
-    [FromBody] LoginRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IUserGrain>(GrainKeys.User(orgId, userId));
-    var result = await grain.AuthenticateAsync(request.Password);
-    return result != null ? Results.Ok(result) : Results.Unauthorized();
-});
-#endif
-
-// ============================================================================
-// Location API Endpoints
-// NOTE: Requires GetSnapshotAsync, CreateOrganizationCommand, CreateSiteCommand updates
-// ============================================================================
-
-#if false // Location API - requires grain interface updates
-var locationsGroup = app.MapGroup("/api/locations").WithTags("Locations");
-
-locationsGroup.MapPost("/organizations", async (
-    [FromBody] CreateOrganizationRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IOrganizationGrain>(GrainKeys.Organization(request.OrgId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/locations/organizations/{request.OrgId}", result);
-});
-
-locationsGroup.MapGet("/organizations/{orgId}", async (
-    Guid orgId,
+    [FromBody] UpdateOrgRequest request,
     IGrainFactory grainFactory) =>
 {
     var grain = grainFactory.GetGrain<IOrganizationGrain>(GrainKeys.Organization(orgId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Organization not found"));
+
+    var result = await grain.UpdateAsync(new UpdateOrganizationCommand(request.Name, request.Settings));
+    var state = await grain.GetStateAsync();
+
+    return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}" }
+    }));
 });
 
-locationsGroup.MapPost("/sites", async (
+// POST /api/orgs/{orgId}/suspend - Suspend organization
+orgsGroup.MapPost("/{orgId}/suspend", async (
+    Guid orgId,
+    [FromBody] SuspendOrgRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IOrganizationGrain>(GrainKeys.Organization(orgId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Organization not found"));
+
+    await grain.SuspendAsync(request.Reason);
+    return Results.Ok(new { message = "Organization suspended" });
+});
+
+// ============================================================================
+// Sites API
+// ============================================================================
+
+var sitesGroup = app.MapGroup("/api/orgs/{orgId}/sites").WithTags("Sites");
+
+// POST /api/orgs/{orgId}/sites - Create site
+sitesGroup.MapPost("/", async (
+    Guid orgId,
     [FromBody] CreateSiteRequest request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<ISiteGrain>(GrainKeys.Site(request.OrgId, request.SiteId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/locations/sites/{request.SiteId}", result);
+    var siteId = Guid.NewGuid();
+    var grain = grainFactory.GetGrain<ISiteGrain>(GrainKeys.Site(orgId, siteId));
+    var result = await grain.CreateAsync(new CreateSiteCommand(
+        orgId, request.Name, request.Code, request.Address, request.Timezone, request.Currency));
+
+    // Register site with organization
+    var orgGrain = grainFactory.GetGrain<IOrganizationGrain>(GrainKeys.Organization(orgId));
+    await orgGrain.AddSiteAsync(siteId);
+
+    return Results.Created($"/api/orgs/{orgId}/sites/{siteId}", Hal.Resource(new
+    {
+        id = result.Id,
+        code = result.Code,
+        name = request.Name,
+        createdAt = result.CreatedAt
+    }, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}" },
+        ["organization"] = new { href = $"/api/orgs/{orgId}" },
+        ["orders"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders" },
+        ["menu"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/menu" }
+    }));
 });
 
-locationsGroup.MapGet("/sites/{orgId}/{siteId}", async (
+// GET /api/orgs/{orgId}/sites - List sites
+sitesGroup.MapGet("/", async (Guid orgId, IGrainFactory grainFactory) =>
+{
+    var orgGrain = grainFactory.GetGrain<IOrganizationGrain>(GrainKeys.Organization(orgId));
+    if (!await orgGrain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Organization not found"));
+
+    var siteIds = await orgGrain.GetSiteIdsAsync();
+    var sites = new List<object>();
+
+    foreach (var siteId in siteIds)
+    {
+        var siteGrain = grainFactory.GetGrain<ISiteGrain>(GrainKeys.Site(orgId, siteId));
+        if (await siteGrain.ExistsAsync())
+        {
+            var state = await siteGrain.GetStateAsync();
+            sites.Add(Hal.Resource(state, new Dictionary<string, object>
+            {
+                ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}" }
+            }));
+        }
+    }
+
+    return Results.Ok(Hal.Collection("/api/orgs/{orgId}/sites", sites, sites.Count));
+});
+
+// GET /api/orgs/{orgId}/sites/{siteId} - Get site
+sitesGroup.MapGet("/{siteId}", async (Guid orgId, Guid siteId, IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<ISiteGrain>(GrainKeys.Site(orgId, siteId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Site not found"));
+
+    var state = await grain.GetStateAsync();
+    return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}" },
+        ["organization"] = new { href = $"/api/orgs/{orgId}" },
+        ["orders"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders" },
+        ["menu"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/menu" },
+        ["customers"] = new { href = $"/api/orgs/{orgId}/customers" },
+        ["inventory"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory" },
+        ["bookings"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings" }
+    }));
+});
+
+// PATCH /api/orgs/{orgId}/sites/{siteId} - Update site
+sitesGroup.MapPatch("/{siteId}", async (
     Guid orgId,
     Guid siteId,
+    [FromBody] UpdateSiteRequest request,
     IGrainFactory grainFactory) =>
 {
     var grain = grainFactory.GetGrain<ISiteGrain>(GrainKeys.Site(orgId, siteId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Site not found"));
+
+    await grain.UpdateAsync(new UpdateSiteCommand(request.Name, request.Address, request.OperatingHours, request.Settings));
+    var state = await grain.GetStateAsync();
+
+    return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}" }
+    }));
 });
-#endif
+
+// POST /api/orgs/{orgId}/sites/{siteId}/open - Open site
+sitesGroup.MapPost("/{siteId}/open", async (Guid orgId, Guid siteId, IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<ISiteGrain>(GrainKeys.Site(orgId, siteId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Site not found"));
+
+    await grain.OpenAsync();
+    return Results.Ok(new { message = "Site opened" });
+});
+
+// POST /api/orgs/{orgId}/sites/{siteId}/close - Close site
+sitesGroup.MapPost("/{siteId}/close", async (Guid orgId, Guid siteId, IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<ISiteGrain>(GrainKeys.Site(orgId, siteId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Site not found"));
+
+    await grain.CloseAsync();
+    return Results.Ok(new { message = "Site closed" });
+});
 
 // ============================================================================
-// Menu API Endpoints
-// NOTE: Requires ICategoryGrain, IModifierGrain, UpdatePriceAsync, CreateMenuItemCommand updates
+// Orders API
 // ============================================================================
 
-#if false // Menu API - requires grain interface updates
-var menuGroup = app.MapGroup("/api/menu").WithTags("Menu");
+var ordersGroup = app.MapGroup("/api/orgs/{orgId}/sites/{siteId}/orders").WithTags("Orders");
 
-menuGroup.MapPost("/items", async (
-    [FromBody] CreateMenuItemRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IMenuItemGrain>(GrainKeys.MenuItem(request.OrgId, request.MenuItemId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/menu/items/{request.MenuItemId}", result);
-});
-
-menuGroup.MapGet("/items/{orgId}/{menuItemId}", async (
-    Guid orgId,
-    Guid menuItemId,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IMenuItemGrain>(GrainKeys.MenuItem(orgId, menuItemId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
-});
-
-menuGroup.MapPut("/items/{orgId}/{menuItemId}/price", async (
-    Guid orgId,
-    Guid menuItemId,
-    [FromBody] UpdatePriceRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IMenuItemGrain>(GrainKeys.MenuItem(orgId, menuItemId));
-    var result = await grain.UpdatePriceAsync(request.Price);
-    return Results.Ok(result);
-});
-
-menuGroup.MapPost("/categories", async (
-    [FromBody] CreateCategoryRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<ICategoryGrain>(GrainKeys.Category(request.OrgId, request.CategoryId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/menu/categories/{request.CategoryId}", result);
-});
-
-menuGroup.MapPost("/modifiers", async (
-    [FromBody] CreateModifierRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IModifierGrain>(GrainKeys.Modifier(request.OrgId, request.ModifierId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/menu/modifiers/{request.ModifierId}", result);
-});
-#endif
-
-// ============================================================================
-// Orders API Endpoints
-// NOTE: Requires GrainKeys.Order 3-arg, IOrderGrain methods (GetSnapshotAsync, AddItemAsync, etc.)
-// ============================================================================
-
-#if false // Orders API - requires grain interface updates
-var ordersGroup = app.MapGroup("/api/orders").WithTags("Orders");
-
+// POST /api/orgs/{orgId}/sites/{siteId}/orders - Create order
 ordersGroup.MapPost("/", async (
+    Guid orgId,
+    Guid siteId,
     [FromBody] CreateOrderRequest request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(request.OrgId, request.OrderId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/orders/{request.OrderId}", result);
+    var orderId = Guid.NewGuid();
+    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+    var result = await grain.CreateAsync(new CreateOrderCommand(
+        orgId, siteId, request.CreatedBy, request.Type, request.TableId, request.TableNumber, request.CustomerId, request.GuestCount));
+
+    return Results.Created($"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}", Hal.Resource(new
+    {
+        id = result.Id,
+        orderNumber = result.OrderNumber,
+        createdAt = result.CreatedAt
+    }, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" },
+        ["site"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}" },
+        ["lines"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/lines" }
+    }));
 });
 
-ordersGroup.MapGet("/{orgId}/{orderId}", async (
-    Guid orgId,
-    Guid orderId,
-    IGrainFactory grainFactory) =>
+// GET /api/orgs/{orgId}/sites/{siteId}/orders/{orderId} - Get order
+ordersGroup.MapGet("/{orderId}", async (Guid orgId, Guid siteId, Guid orderId, IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, orderId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
+    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+    var state = await grain.GetStateAsync();
+    return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" },
+        ["site"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}" },
+        ["lines"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/lines" },
+        ["send"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/send" },
+        ["close"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/close" }
+    }));
 });
 
-ordersGroup.MapPost("/{orgId}/{orderId}/items", async (
+// POST /api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/lines - Add line to order
+ordersGroup.MapPost("/{orderId}/lines", async (
     Guid orgId,
+    Guid siteId,
     Guid orderId,
-    [FromBody] AddOrderItemRequest request,
+    [FromBody] AddLineRequest request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, orderId));
-    var result = await grain.AddItemAsync(request.ToCommand());
-    return Results.Ok(result);
+    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+    var result = await grain.AddLineAsync(new AddLineCommand(
+        request.MenuItemId, request.Name, request.Quantity, request.UnitPrice, request.Notes, request.Modifiers));
+
+    return Results.Created($"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/lines/{result.LineId}",
+        Hal.Resource(result, new Dictionary<string, object>
+        {
+            ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/lines/{result.LineId}" },
+            ["order"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" }
+        }));
 });
 
-ordersGroup.MapPost("/{orgId}/{orderId}/submit", async (
-    Guid orgId,
-    Guid orderId,
-    IGrainFactory grainFactory) =>
+// GET /api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/lines - Get order lines
+ordersGroup.MapGet("/{orderId}/lines", async (Guid orgId, Guid siteId, Guid orderId, IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, orderId));
-    var result = await grain.SubmitAsync();
-    return Results.Ok(result);
+    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+    var lines = await grain.GetLinesAsync();
+    var items = lines.Select(l => Hal.Resource(l, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/lines/{l.Id}" }
+    })).ToList();
+
+    return Results.Ok(Hal.Collection($"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/lines", items, items.Count));
 });
 
-ordersGroup.MapPost("/{orgId}/{orderId}/complete", async (
-    Guid orgId,
-    Guid orderId,
-    IGrainFactory grainFactory) =>
+// DELETE /api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/lines/{lineId} - Remove line
+ordersGroup.MapDelete("/{orderId}/lines/{lineId}", async (
+    Guid orgId, Guid siteId, Guid orderId, Guid lineId, IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, orderId));
-    var result = await grain.CompleteAsync();
-    return Results.Ok(result);
+    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+    await grain.RemoveLineAsync(lineId);
+    return Results.NoContent();
 });
 
-ordersGroup.MapPost("/{orgId}/{orderId}/cancel", async (
-    Guid orgId,
-    Guid orderId,
-    [FromBody] CancelOrderRequest request,
+// POST /api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/send - Send order to kitchen
+ordersGroup.MapPost("/{orderId}/send", async (
+    Guid orgId, Guid siteId, Guid orderId,
+    [FromBody] SendOrderRequest request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, orderId));
-    var result = await grain.CancelAsync(request.Reason);
-    return Results.Ok(result);
+    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+    await grain.SendAsync(request.SentBy);
+    var state = await grain.GetStateAsync();
+
+    return Results.Ok(Hal.Resource(new { status = state.Status, sentAt = state.SentAt }, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" }
+    }));
 });
-#endif
+
+// POST /api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/close - Close order
+ordersGroup.MapPost("/{orderId}/close", async (
+    Guid orgId, Guid siteId, Guid orderId,
+    [FromBody] CloseOrderRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+    await grain.CloseAsync(request.ClosedBy);
+    return Results.Ok(new { message = "Order closed" });
+});
+
+// POST /api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/void - Void order
+ordersGroup.MapPost("/{orderId}/void", async (
+    Guid orgId, Guid siteId, Guid orderId,
+    [FromBody] VoidOrderRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+    await grain.VoidAsync(new VoidOrderCommand(request.VoidedBy, request.Reason));
+    return Results.Ok(new { message = "Order voided" });
+});
+
+// POST /api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/discounts - Apply discount
+ordersGroup.MapPost("/{orderId}/discounts", async (
+    Guid orgId, Guid siteId, Guid orderId,
+    [FromBody] ApplyDiscountRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+    await grain.ApplyDiscountAsync(new ApplyDiscountCommand(
+        request.Name, request.Type, request.Value, request.AppliedBy, request.DiscountId, request.Reason, request.ApprovedBy));
+    var totals = await grain.GetTotalsAsync();
+
+    return Results.Ok(Hal.Resource(totals, new Dictionary<string, object>
+    {
+        ["order"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" }
+    }));
+});
+
+// GET /api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/totals - Get order totals
+ordersGroup.MapGet("/{orderId}/totals", async (Guid orgId, Guid siteId, Guid orderId, IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+    var totals = await grain.GetTotalsAsync();
+    return Results.Ok(Hal.Resource(totals, new Dictionary<string, object>
+    {
+        ["order"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" }
+    }));
+});
 
 // ============================================================================
-// Payments API Endpoints
-// NOTE: These endpoints require grain interface updates - commented out for now
+// Payments API
 // ============================================================================
 
-#if false // Payments API - requires IPaymentGrain updates (CreateAsync, GetSnapshotAsync, ProcessAsync don't exist)
-var paymentsGroup = app.MapGroup("/api/payments").WithTags("Payments");
+var paymentsGroup = app.MapGroup("/api/orgs/{orgId}/sites/{siteId}/payments").WithTags("Payments");
 
+// POST /api/orgs/{orgId}/sites/{siteId}/payments - Initiate payment
 paymentsGroup.MapPost("/", async (
-    [FromBody] CreatePaymentRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IPaymentGrain>(GrainKeys.Payment(request.OrgId, request.PaymentId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/payments/{request.PaymentId}", result);
-});
-
-paymentsGroup.MapGet("/{orgId}/{paymentId}", async (
     Guid orgId,
-    Guid paymentId,
+    Guid siteId,
+    [FromBody] InitiatePaymentRequest request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IPaymentGrain>(GrainKeys.Payment(orgId, paymentId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
+    var paymentId = Guid.NewGuid();
+    var grain = grainFactory.GetGrain<IPaymentGrain>(GrainKeys.Payment(orgId, siteId, paymentId));
+    var result = await grain.InitiateAsync(new InitiatePaymentCommand(
+        orgId, siteId, request.OrderId, request.Method, request.Amount, request.CashierId, request.CustomerId, request.DrawerId));
+
+    return Results.Created($"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}", Hal.Resource(new
+    {
+        id = result.Id,
+        createdAt = result.CreatedAt
+    }, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}" },
+        ["complete-cash"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}/complete-cash" },
+        ["complete-card"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}/complete-card" }
+    }));
 });
 
-paymentsGroup.MapPost("/{orgId}/{paymentId}/process", async (
-    Guid orgId,
-    Guid paymentId,
-    IGrainFactory grainFactory) =>
+// GET /api/orgs/{orgId}/sites/{siteId}/payments/{paymentId} - Get payment
+paymentsGroup.MapGet("/{paymentId}", async (Guid orgId, Guid siteId, Guid paymentId, IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IPaymentGrain>(GrainKeys.Payment(orgId, paymentId));
-    var result = await grain.ProcessAsync();
-    return Results.Ok(result);
+    var grain = grainFactory.GetGrain<IPaymentGrain>(GrainKeys.Payment(orgId, siteId, paymentId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Payment not found"));
+
+    var state = await grain.GetStateAsync();
+    return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}" }
+    }));
 });
 
-paymentsGroup.MapPost("/refunds", async (
-    [FromBody] CreateRefundApiRequest request,
+// POST /api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}/complete-cash - Complete cash payment
+paymentsGroup.MapPost("/{paymentId}/complete-cash", async (
+    Guid orgId, Guid siteId, Guid paymentId,
+    [FromBody] CompleteCashRequest request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IRefundGrain>(GrainKeys.Refund(request.OrgId, request.RefundId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/payments/refunds/{request.RefundId}", result);
+    var grain = grainFactory.GetGrain<IPaymentGrain>(GrainKeys.Payment(orgId, siteId, paymentId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Payment not found"));
+
+    var result = await grain.CompleteCashAsync(new CompleteCashPaymentCommand(request.AmountTendered, request.TipAmount));
+
+    // Record payment on order
+    var state = await grain.GetStateAsync();
+    var orderGrain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, state.OrderId));
+    await orderGrain.RecordPaymentAsync(paymentId, result.TotalAmount, request.TipAmount, "cash");
+
+    return Results.Ok(Hal.Resource(result, new Dictionary<string, object>
+    {
+        ["payment"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}" }
+    }));
 });
-#endif
+
+// POST /api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}/complete-card - Complete card payment
+paymentsGroup.MapPost("/{paymentId}/complete-card", async (
+    Guid orgId, Guid siteId, Guid paymentId,
+    [FromBody] CompleteCardRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IPaymentGrain>(GrainKeys.Payment(orgId, siteId, paymentId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Payment not found"));
+
+    var result = await grain.CompleteCardAsync(new ProcessCardPaymentCommand(
+        request.GatewayReference, request.AuthorizationCode, request.CardInfo, request.GatewayName, request.TipAmount));
+
+    // Record payment on order
+    var state = await grain.GetStateAsync();
+    var orderGrain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, state.OrderId));
+    await orderGrain.RecordPaymentAsync(paymentId, result.TotalAmount, request.TipAmount, "card");
+
+    return Results.Ok(Hal.Resource(result, new Dictionary<string, object>
+    {
+        ["payment"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}" }
+    }));
+});
+
+// POST /api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}/void - Void payment
+paymentsGroup.MapPost("/{paymentId}/void", async (
+    Guid orgId, Guid siteId, Guid paymentId,
+    [FromBody] VoidPaymentRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IPaymentGrain>(GrainKeys.Payment(orgId, siteId, paymentId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Payment not found"));
+
+    await grain.VoidAsync(new DarkVelocity.Host.Grains.VoidPaymentCommand(request.VoidedBy, request.Reason));
+    return Results.Ok(new { message = "Payment voided" });
+});
+
+// POST /api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}/refund - Refund payment
+paymentsGroup.MapPost("/{paymentId}/refund", async (
+    Guid orgId, Guid siteId, Guid paymentId,
+    [FromBody] RefundPaymentRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IPaymentGrain>(GrainKeys.Payment(orgId, siteId, paymentId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Payment not found"));
+
+    var result = await grain.RefundAsync(new RefundPaymentCommand(request.Amount, request.Reason, request.IssuedBy));
+    return Results.Ok(Hal.Resource(result, new Dictionary<string, object>
+    {
+        ["payment"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}" }
+    }));
+});
 
 // ============================================================================
-// Inventory API Endpoints
-// NOTE: IInventoryItemGrain and IInventoryCountGrain don't exist - use IInventoryGrain instead
+// Menu API
 // ============================================================================
 
-#if false // Inventory API - requires IInventoryItemGrain and IInventoryCountGrain (don't exist)
-var inventoryGroup = app.MapGroup("/api/inventory").WithTags("Inventory");
+var menuGroup = app.MapGroup("/api/orgs/{orgId}/menu").WithTags("Menu");
 
-inventoryGroup.MapPost("/items", async (
-    [FromBody] CreateInventoryItemRequest request,
+// POST /api/orgs/{orgId}/menu/categories - Create category
+menuGroup.MapPost("/categories", async (
+    Guid orgId,
+    [FromBody] CreateMenuCategoryRequest request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IInventoryItemGrain>(GrainKeys.InventoryItem(request.OrgId, request.ItemId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/inventory/items/{request.ItemId}", result);
+    var categoryId = Guid.NewGuid();
+    var grain = grainFactory.GetGrain<IMenuCategoryGrain>(GrainKeys.MenuCategory(orgId, categoryId));
+    var result = await grain.CreateAsync(new CreateMenuCategoryCommand(
+        request.LocationId, request.Name, request.Description, request.DisplayOrder, request.Color));
+
+    return Results.Created($"/api/orgs/{orgId}/menu/categories/{categoryId}", Hal.Resource(result, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/menu/categories/{categoryId}" },
+        ["items"] = new { href = $"/api/orgs/{orgId}/menu/categories/{categoryId}/items" }
+    }));
 });
 
-inventoryGroup.MapGet("/items/{orgId}/{itemId}", async (
+// GET /api/orgs/{orgId}/menu/categories/{categoryId} - Get category
+menuGroup.MapGet("/categories/{categoryId}", async (Guid orgId, Guid categoryId, IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IMenuCategoryGrain>(GrainKeys.MenuCategory(orgId, categoryId));
+    var snapshot = await grain.GetSnapshotAsync();
+
+    return Results.Ok(Hal.Resource(snapshot, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/menu/categories/{categoryId}" },
+        ["items"] = new { href = $"/api/orgs/{orgId}/menu/categories/{categoryId}/items" }
+    }));
+});
+
+// POST /api/orgs/{orgId}/menu/items - Create menu item
+menuGroup.MapPost("/items", async (
     Guid orgId,
-    Guid itemId,
+    [FromBody] CreateMenuItemRequest request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IInventoryItemGrain>(GrainKeys.InventoryItem(orgId, itemId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
+    var itemId = Guid.NewGuid();
+    var grain = grainFactory.GetGrain<IMenuItemGrain>(GrainKeys.MenuItem(orgId, itemId));
+    var result = await grain.CreateAsync(new CreateMenuItemCommand(
+        request.LocationId, request.CategoryId, request.AccountingGroupId, request.RecipeId,
+        request.Name, request.Description, request.Price, request.ImageUrl, request.Sku, request.TrackInventory));
+
+    // Increment category item count
+    var categoryGrain = grainFactory.GetGrain<IMenuCategoryGrain>(GrainKeys.MenuCategory(orgId, request.CategoryId));
+    await categoryGrain.IncrementItemCountAsync();
+
+    return Results.Created($"/api/orgs/{orgId}/menu/items/{itemId}", Hal.Resource(result, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/menu/items/{itemId}" },
+        ["category"] = new { href = $"/api/orgs/{orgId}/menu/categories/{request.CategoryId}" }
+    }));
 });
 
-inventoryGroup.MapPost("/items/{orgId}/{itemId}/adjust", async (
+// GET /api/orgs/{orgId}/menu/items/{itemId} - Get menu item
+menuGroup.MapGet("/items/{itemId}", async (Guid orgId, Guid itemId, IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IMenuItemGrain>(GrainKeys.MenuItem(orgId, itemId));
+    var snapshot = await grain.GetSnapshotAsync();
+
+    return Results.Ok(Hal.Resource(snapshot, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/menu/items/{itemId}" },
+        ["category"] = new { href = $"/api/orgs/{orgId}/menu/categories/{snapshot.CategoryId}" }
+    }));
+});
+
+// PATCH /api/orgs/{orgId}/menu/items/{itemId} - Update menu item
+menuGroup.MapPatch("/items/{itemId}", async (
     Guid orgId,
     Guid itemId,
+    [FromBody] UpdateMenuItemRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IMenuItemGrain>(GrainKeys.MenuItem(orgId, itemId));
+    var result = await grain.UpdateAsync(new UpdateMenuItemCommand(
+        request.CategoryId, request.AccountingGroupId, request.RecipeId, request.Name, request.Description,
+        request.Price, request.ImageUrl, request.Sku, request.IsActive, request.TrackInventory));
+
+    return Results.Ok(Hal.Resource(result, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/menu/items/{itemId}" }
+    }));
+});
+
+// ============================================================================
+// Customers API
+// ============================================================================
+
+var customersGroup = app.MapGroup("/api/orgs/{orgId}/customers").WithTags("Customers");
+
+// POST /api/orgs/{orgId}/customers - Create customer
+customersGroup.MapPost("/", async (
+    Guid orgId,
+    [FromBody] CreateCustomerRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var customerId = Guid.NewGuid();
+    var grain = grainFactory.GetGrain<ICustomerGrain>(GrainKeys.Customer(orgId, customerId));
+    var result = await grain.CreateAsync(new CreateCustomerCommand(
+        orgId, request.FirstName, request.LastName, request.Email, request.Phone, request.Source));
+
+    return Results.Created($"/api/orgs/{orgId}/customers/{customerId}", Hal.Resource(new
+    {
+        id = result.Id,
+        displayName = result.DisplayName,
+        createdAt = result.CreatedAt
+    }, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}" },
+        ["loyalty"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}/loyalty" }
+    }));
+});
+
+// GET /api/orgs/{orgId}/customers/{customerId} - Get customer
+customersGroup.MapGet("/{customerId}", async (Guid orgId, Guid customerId, IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<ICustomerGrain>(GrainKeys.Customer(orgId, customerId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Customer not found"));
+
+    var state = await grain.GetStateAsync();
+    return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}" },
+        ["loyalty"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}/loyalty" },
+        ["rewards"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}/rewards" }
+    }));
+});
+
+// PATCH /api/orgs/{orgId}/customers/{customerId} - Update customer
+customersGroup.MapPatch("/{customerId}", async (
+    Guid orgId,
+    Guid customerId,
+    [FromBody] UpdateCustomerRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<ICustomerGrain>(GrainKeys.Customer(orgId, customerId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Customer not found"));
+
+    await grain.UpdateAsync(new UpdateCustomerCommand(
+        request.FirstName, request.LastName, request.Email, request.Phone, request.DateOfBirth, request.Preferences));
+    var state = await grain.GetStateAsync();
+
+    return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}" }
+    }));
+});
+
+// POST /api/orgs/{orgId}/customers/{customerId}/loyalty/enroll - Enroll in loyalty
+customersGroup.MapPost("/{customerId}/loyalty/enroll", async (
+    Guid orgId,
+    Guid customerId,
+    [FromBody] EnrollLoyaltyRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<ICustomerGrain>(GrainKeys.Customer(orgId, customerId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Customer not found"));
+
+    await grain.EnrollInLoyaltyAsync(new EnrollLoyaltyCommand(request.ProgramId, request.MemberNumber, request.InitialTierId, request.TierName));
+    return Results.Ok(new { message = "Enrolled in loyalty program" });
+});
+
+// POST /api/orgs/{orgId}/customers/{customerId}/loyalty/earn - Earn points
+customersGroup.MapPost("/{customerId}/loyalty/earn", async (
+    Guid orgId,
+    Guid customerId,
+    [FromBody] EarnPointsRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<ICustomerGrain>(GrainKeys.Customer(orgId, customerId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Customer not found"));
+
+    var result = await grain.EarnPointsAsync(new EarnPointsCommand(request.Points, request.Reason, request.OrderId, request.SiteId, request.SpendAmount));
+    return Results.Ok(Hal.Resource(result, new Dictionary<string, object>
+    {
+        ["customer"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}" }
+    }));
+});
+
+// POST /api/orgs/{orgId}/customers/{customerId}/loyalty/redeem - Redeem points
+customersGroup.MapPost("/{customerId}/loyalty/redeem", async (
+    Guid orgId,
+    Guid customerId,
+    [FromBody] RedeemPointsRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<ICustomerGrain>(GrainKeys.Customer(orgId, customerId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Customer not found"));
+
+    var result = await grain.RedeemPointsAsync(new RedeemPointsCommand(request.Points, request.OrderId, request.Reason));
+    return Results.Ok(Hal.Resource(result, new Dictionary<string, object>
+    {
+        ["customer"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}" }
+    }));
+});
+
+// GET /api/orgs/{orgId}/customers/{customerId}/rewards - Get available rewards
+customersGroup.MapGet("/{customerId}/rewards", async (Guid orgId, Guid customerId, IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<ICustomerGrain>(GrainKeys.Customer(orgId, customerId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Customer not found"));
+
+    var rewards = await grain.GetAvailableRewardsAsync();
+    var items = rewards.Select(r => Hal.Resource(r, new Dictionary<string, object>
+    {
+        ["redeem"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}/rewards/{r.RewardId}/redeem" }
+    })).ToList();
+
+    return Results.Ok(Hal.Collection($"/api/orgs/{orgId}/customers/{customerId}/rewards", items, items.Count));
+});
+
+// ============================================================================
+// Inventory API
+// ============================================================================
+
+var inventoryGroup = app.MapGroup("/api/orgs/{orgId}/sites/{siteId}/inventory").WithTags("Inventory");
+
+// POST /api/orgs/{orgId}/sites/{siteId}/inventory - Initialize inventory item
+inventoryGroup.MapPost("/", async (
+    Guid orgId,
+    Guid siteId,
+    [FromBody] InitializeInventoryRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IInventoryGrain>(GrainKeys.Inventory(orgId, siteId, request.IngredientId));
+    await grain.InitializeAsync(new InitializeInventoryCommand(
+        orgId, siteId, request.IngredientId, request.IngredientName, request.Sku, request.Unit, request.Category, request.ReorderPoint, request.ParLevel));
+
+    return Results.Created($"/api/orgs/{orgId}/sites/{siteId}/inventory/{request.IngredientId}", Hal.Resource(new
+    {
+        ingredientId = request.IngredientId,
+        ingredientName = request.IngredientName
+    }, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{request.IngredientId}" },
+        ["receive"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{request.IngredientId}/receive" }
+    }));
+});
+
+// GET /api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId} - Get inventory
+inventoryGroup.MapGet("/{ingredientId}", async (Guid orgId, Guid siteId, Guid ingredientId, IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IInventoryGrain>(GrainKeys.Inventory(orgId, siteId, ingredientId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Inventory item not found"));
+
+    var state = await grain.GetStateAsync();
+    return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}" },
+        ["receive"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}/receive" },
+        ["consume"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}/consume" },
+        ["adjust"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}/adjust" }
+    }));
+});
+
+// POST /api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}/receive - Receive batch
+inventoryGroup.MapPost("/{ingredientId}/receive", async (
+    Guid orgId, Guid siteId, Guid ingredientId,
+    [FromBody] ReceiveBatchRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IInventoryGrain>(GrainKeys.Inventory(orgId, siteId, ingredientId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Inventory item not found"));
+
+    var result = await grain.ReceiveBatchAsync(new ReceiveBatchCommand(
+        request.BatchNumber, request.Quantity, request.UnitCost, request.ExpiryDate, request.SupplierId, request.DeliveryId, request.Location, request.Notes, request.ReceivedBy));
+
+    return Results.Ok(Hal.Resource(result, new Dictionary<string, object>
+    {
+        ["inventory"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}" }
+    }));
+});
+
+// POST /api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}/consume - Consume stock
+inventoryGroup.MapPost("/{ingredientId}/consume", async (
+    Guid orgId, Guid siteId, Guid ingredientId,
+    [FromBody] ConsumeStockRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IInventoryGrain>(GrainKeys.Inventory(orgId, siteId, ingredientId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Inventory item not found"));
+
+    var result = await grain.ConsumeAsync(new ConsumeStockCommand(request.Quantity, request.Reason, request.OrderId, request.PerformedBy));
+    return Results.Ok(Hal.Resource(result, new Dictionary<string, object>
+    {
+        ["inventory"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}" }
+    }));
+});
+
+// POST /api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}/adjust - Adjust quantity
+inventoryGroup.MapPost("/{ingredientId}/adjust", async (
+    Guid orgId, Guid siteId, Guid ingredientId,
     [FromBody] AdjustInventoryRequest request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IInventoryItemGrain>(GrainKeys.InventoryItem(orgId, itemId));
-    var result = await grain.AdjustQuantityAsync(request.Adjustment, request.Reason);
-    return Results.Ok(result);
+    var grain = grainFactory.GetGrain<IInventoryGrain>(GrainKeys.Inventory(orgId, siteId, ingredientId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Inventory item not found"));
+
+    await grain.AdjustQuantityAsync(new AdjustQuantityCommand(request.NewQuantity, request.Reason, request.AdjustedBy, request.ApprovedBy));
+    var level = await grain.GetLevelInfoAsync();
+
+    return Results.Ok(Hal.Resource(level, new Dictionary<string, object>
+    {
+        ["inventory"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}" }
+    }));
 });
 
-inventoryGroup.MapPost("/counts", async (
-    [FromBody] CreateInventoryCountRequest request,
-    IGrainFactory grainFactory) =>
+// GET /api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}/level - Get inventory level
+inventoryGroup.MapGet("/{ingredientId}/level", async (Guid orgId, Guid siteId, Guid ingredientId, IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IInventoryCountGrain>(GrainKeys.InventoryCount(request.OrgId, request.CountId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/inventory/counts/{request.CountId}", result);
+    var grain = grainFactory.GetGrain<IInventoryGrain>(GrainKeys.Inventory(orgId, siteId, ingredientId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Inventory item not found"));
+
+    var level = await grain.GetLevelInfoAsync();
+    return Results.Ok(Hal.Resource(level, new Dictionary<string, object>
+    {
+        ["inventory"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}" }
+    }));
 });
-#endif
 
 // ============================================================================
-// Hardware API Endpoints
-// NOTE: Requires IDeviceGrain (doesn't exist)
+// Bookings API
 // ============================================================================
 
-#if false // Hardware API - requires IDeviceGrain
-var hardwareGroup = app.MapGroup("/api/hardware").WithTags("Hardware");
+var bookingsGroup = app.MapGroup("/api/orgs/{orgId}/sites/{siteId}/bookings").WithTags("Bookings");
 
-hardwareGroup.MapPost("/devices", async (
-    [FromBody] RegisterDeviceRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IDeviceGrain>(GrainKeys.Device(request.OrgId, request.DeviceId));
-    var result = await grain.RegisterAsync(request.ToCommand());
-    return Results.Created($"/api/hardware/devices/{request.DeviceId}", result);
-});
-
-hardwareGroup.MapGet("/devices/{orgId}/{deviceId}", async (
-    Guid orgId,
-    Guid deviceId,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IDeviceGrain>(GrainKeys.Device(orgId, deviceId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
-});
-
-hardwareGroup.MapPost("/devices/{orgId}/{deviceId}/heartbeat", async (
-    Guid orgId,
-    Guid deviceId,
-    [FromBody] HeartbeatRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IDeviceGrain>(GrainKeys.Device(orgId, deviceId));
-    await grain.HeartbeatAsync(request.IpAddress, request.SoftwareVersion);
-    return Results.Ok();
-});
-
-hardwareGroup.MapPost("/terminals", async (
-    [FromBody] RegisterTerminalApiRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<ITerminalGrain>(GrainKeys.Terminal(request.OrgId, request.TerminalId));
-    var result = await grain.RegisterAsync(request.ToCommand());
-    return Results.Created($"/api/hardware/terminals/{request.TerminalId}", result);
-});
-#endif
-
-// ============================================================================
-// Procurement API Endpoints
-// NOTE: Requires SubmitAsync command, CreatePurchaseOrderCommand updates
-// ============================================================================
-
-#if false // Procurement API - requires grain interface updates
-var procurementGroup = app.MapGroup("/api/procurement").WithTags("Procurement");
-
-procurementGroup.MapPost("/orders", async (
-    [FromBody] CreatePurchaseOrderRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IPurchaseOrderGrain>(GrainKeys.PurchaseOrder(request.OrgId, request.OrderId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/procurement/orders/{request.OrderId}", result);
-});
-
-procurementGroup.MapGet("/orders/{orgId}/{orderId}", async (
-    Guid orgId,
-    Guid orderId,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IPurchaseOrderGrain>(GrainKeys.PurchaseOrder(orgId, orderId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
-});
-
-procurementGroup.MapPost("/orders/{orgId}/{orderId}/submit", async (
-    Guid orgId,
-    Guid orderId,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IPurchaseOrderGrain>(GrainKeys.PurchaseOrder(orgId, orderId));
-    var result = await grain.SubmitAsync();
-    return Results.Ok(result);
-});
-
-procurementGroup.MapPost("/suppliers", async (
-    [FromBody] CreateSupplierRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<ISupplierGrain>(GrainKeys.Supplier(request.OrgId, request.SupplierId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/procurement/suppliers/{request.SupplierId}", result);
-});
-#endif
-
-// ============================================================================
-// Costing API Endpoints
-// NOTE: May work partially, leaving enabled for verification
-// ============================================================================
-
-#if false // Costing API - requires verification of grain interfaces
-var costingGroup = app.MapGroup("/api/costing").WithTags("Costing");
-
-costingGroup.MapPost("/recipes", async (
-    [FromBody] CreateRecipeApiRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IRecipeGrain>(GrainKeys.Recipe(request.OrgId, request.RecipeId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/costing/recipes/{request.RecipeId}", result);
-});
-
-costingGroup.MapGet("/recipes/{orgId}/{recipeId}", async (
-    Guid orgId,
-    Guid recipeId,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IRecipeGrain>(GrainKeys.Recipe(orgId, recipeId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
-});
-
-costingGroup.MapPost("/recipes/{orgId}/{recipeId}/calculate", async (
-    Guid orgId,
-    Guid recipeId,
-    [FromBody] CalculateCostRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IRecipeGrain>(GrainKeys.Recipe(orgId, recipeId));
-    var result = await grain.CalculateCostAsync(request.MenuPrice);
-    return Results.Ok(result);
-});
-
-costingGroup.MapPost("/ingredients", async (
-    [FromBody] CreateIngredientPriceApiRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IIngredientPriceGrain>(GrainKeys.IngredientPrice(request.OrgId, request.IngredientId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/costing/ingredients/{request.IngredientId}", result);
-});
-
-costingGroup.MapPost("/alerts", async (
-    [FromBody] CreateCostAlertApiRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<ICostAlertGrain>(GrainKeys.CostAlert(request.OrgId, request.AlertId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/costing/alerts/{request.AlertId}", result);
-});
-#endif
-
-// ============================================================================
-// Reporting API Endpoints
-// NOTE: Requires IDailySalesReportGrain (doesn't exist)
-// ============================================================================
-
-#if false // Reporting API - requires IDailySalesReportGrain
-var reportsGroup = app.MapGroup("/api/reports").WithTags("Reports");
-
-reportsGroup.MapGet("/sales/{orgId}/{siteId}/{date}", async (
+// POST /api/orgs/{orgId}/sites/{siteId}/bookings - Request booking
+bookingsGroup.MapPost("/", async (
     Guid orgId,
     Guid siteId,
-    DateOnly date,
+    [FromBody] RequestBookingRequest request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IDailySalesReportGrain>(GrainKeys.DailySalesReport(orgId, siteId, date));
-    var result = await grain.GetReportAsync();
-    return Results.Ok(result);
+    var bookingId = Guid.NewGuid();
+    var grain = grainFactory.GetGrain<IBookingGrain>(GrainKeys.Booking(orgId, siteId, bookingId));
+    var result = await grain.RequestAsync(new RequestBookingCommand(
+        orgId, siteId, request.Guest, request.RequestedTime, request.PartySize, request.Duration, request.SpecialRequests, request.Occasion, request.Source, request.ExternalRef, request.CustomerId));
+
+    return Results.Created($"/api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId}", Hal.Resource(new
+    {
+        id = result.Id,
+        confirmationCode = result.ConfirmationCode,
+        createdAt = result.CreatedAt
+    }, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId}" },
+        ["confirm"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId}/confirm" },
+        ["cancel"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId}/cancel" }
+    }));
 });
 
-reportsGroup.MapPost("/sales/{orgId}/{siteId}/{date}/generate", async (
-    Guid orgId,
-    Guid siteId,
-    DateOnly date,
+// GET /api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId} - Get booking
+bookingsGroup.MapGet("/{bookingId}", async (Guid orgId, Guid siteId, Guid bookingId, IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IBookingGrain>(GrainKeys.Booking(orgId, siteId, bookingId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Booking not found"));
+
+    var state = await grain.GetStateAsync();
+    return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId}" },
+        ["confirm"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId}/confirm" },
+        ["cancel"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId}/cancel" },
+        ["checkin"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId}/checkin" }
+    }));
+});
+
+// POST /api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId}/confirm - Confirm booking
+bookingsGroup.MapPost("/{bookingId}/confirm", async (
+    Guid orgId, Guid siteId, Guid bookingId,
+    [FromBody] ConfirmBookingRequest? request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IDailySalesReportGrain>(GrainKeys.DailySalesReport(orgId, siteId, date));
-    await grain.GenerateAsync();
-    return Results.Ok();
-});
-#endif
+    var grain = grainFactory.GetGrain<IBookingGrain>(GrainKeys.Booking(orgId, siteId, bookingId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Booking not found"));
 
-// ============================================================================
-// Payment Gateway API Endpoints
-// NOTE: May work partially, needs verification
-// ============================================================================
-
-#if false // Payment Gateway API - requires verification of grain interfaces
-var gatewayGroup = app.MapGroup("/api/gateway").WithTags("PaymentGateway");
-
-gatewayGroup.MapPost("/merchants", async (
-    [FromBody] CreateMerchantApiRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IMerchantGrain>(GrainKeys.Merchant(request.OrgId, request.MerchantId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/gateway/merchants/{request.MerchantId}", result);
+    var result = await grain.ConfirmAsync(request?.ConfirmedTime);
+    return Results.Ok(Hal.Resource(result, new Dictionary<string, object>
+    {
+        ["booking"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId}" }
+    }));
 });
 
-gatewayGroup.MapGet("/merchants/{orgId}/{merchantId}", async (
-    Guid orgId,
-    Guid merchantId,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IMerchantGrain>(GrainKeys.Merchant(orgId, merchantId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
-});
-
-gatewayGroup.MapPost("/webhooks", async (
-    [FromBody] CreateWebhookApiRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IWebhookEndpointGrain>(GrainKeys.Webhook(request.OrgId, request.EndpointId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/gateway/webhooks/{request.EndpointId}", result);
-});
-#endif
-
-// ============================================================================
-// Booking API Endpoints
-// NOTE: Requires GrainKeys.Booking 3-arg, CreateAsync, GetSnapshotAsync, CancelAsync command
-// ============================================================================
-
-#if false // Booking API - requires grain interface updates
-var bookingGroup = app.MapGroup("/api/booking").WithTags("Booking");
-
-bookingGroup.MapPost("/reservations", async (
-    [FromBody] CreateBookingApiRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IBookingGrain>(GrainKeys.Booking(request.OrgId, request.BookingId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/booking/reservations/{request.BookingId}", result);
-});
-
-bookingGroup.MapGet("/reservations/{orgId}/{bookingId}", async (
-    Guid orgId,
-    Guid bookingId,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IBookingGrain>(GrainKeys.Booking(orgId, bookingId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
-});
-
-bookingGroup.MapPost("/reservations/{orgId}/{bookingId}/confirm", async (
-    Guid orgId,
-    Guid bookingId,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IBookingGrain>(GrainKeys.Booking(orgId, bookingId));
-    var result = await grain.ConfirmAsync();
-    return Results.Ok(result);
-});
-
-bookingGroup.MapPost("/reservations/{orgId}/{bookingId}/cancel", async (
-    Guid orgId,
-    Guid bookingId,
+// POST /api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId}/cancel - Cancel booking
+bookingsGroup.MapPost("/{bookingId}/cancel", async (
+    Guid orgId, Guid siteId, Guid bookingId,
     [FromBody] CancelBookingRequest request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IBookingGrain>(GrainKeys.Booking(orgId, bookingId));
-    var result = await grain.CancelAsync(request.Reason);
-    return Results.Ok(result);
+    var grain = grainFactory.GetGrain<IBookingGrain>(GrainKeys.Booking(orgId, siteId, bookingId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Booking not found"));
+
+    await grain.CancelAsync(new CancelBookingCommand(request.Reason, request.CancelledBy));
+    return Results.Ok(new { message = "Booking cancelled" });
 });
 
-bookingGroup.MapPost("/tables", async (
-    [FromBody] CreateTableApiRequest request,
+// POST /api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId}/checkin - Check in guest
+bookingsGroup.MapPost("/{bookingId}/checkin", async (
+    Guid orgId, Guid siteId, Guid bookingId,
+    [FromBody] CheckInRequest request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<ITableGrain>(GrainKeys.Table(request.OrgId, request.TableId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/booking/tables/{request.TableId}", result);
+    var grain = grainFactory.GetGrain<IBookingGrain>(GrainKeys.Booking(orgId, siteId, bookingId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Booking not found"));
+
+    var arrivedAt = await grain.RecordArrivalAsync(new RecordArrivalCommand(request.CheckedInBy));
+    return Results.Ok(Hal.Resource(new { arrivedAt }, new Dictionary<string, object>
+    {
+        ["booking"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId}" },
+        ["seat"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId}/seat" }
+    }));
 });
 
-bookingGroup.MapGet("/tables/{orgId}/{tableId}", async (
+// POST /api/orgs/{orgId}/sites/{siteId}/bookings/{bookingId}/seat - Seat guest
+bookingsGroup.MapPost("/{bookingId}/seat", async (
+    Guid orgId, Guid siteId, Guid bookingId,
+    [FromBody] SeatGuestRequest request,
+    IGrainFactory grainFactory) =>
+{
+    var grain = grainFactory.GetGrain<IBookingGrain>(GrainKeys.Booking(orgId, siteId, bookingId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Booking not found"));
+
+    await grain.SeatGuestAsync(new SeatGuestCommand(request.TableId, request.TableNumber, request.SeatedBy));
+    return Results.Ok(new { message = "Guest seated" });
+});
+
+// ============================================================================
+// Employees API
+// ============================================================================
+
+var employeesGroup = app.MapGroup("/api/orgs/{orgId}/employees").WithTags("Employees");
+
+// POST /api/orgs/{orgId}/employees - Create employee
+employeesGroup.MapPost("/", async (
     Guid orgId,
-    Guid tableId,
+    [FromBody] CreateEmployeeRequest request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<ITableGrain>(GrainKeys.Table(orgId, tableId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
+    var employeeId = Guid.NewGuid();
+    var grain = grainFactory.GetGrain<IEmployeeGrain>(GrainKeys.Employee(orgId, employeeId));
+    var result = await grain.CreateAsync(new CreateEmployeeCommand(
+        orgId, request.UserId, request.DefaultSiteId, request.EmployeeNumber, request.FirstName, request.LastName, request.Email, request.EmploymentType, request.HireDate));
+
+    return Results.Created($"/api/orgs/{orgId}/employees/{employeeId}", Hal.Resource(new
+    {
+        id = result.Id,
+        employeeNumber = result.EmployeeNumber,
+        createdAt = result.CreatedAt
+    }, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/employees/{employeeId}" },
+        ["clock-in"] = new { href = $"/api/orgs/{orgId}/employees/{employeeId}/clock-in" }
+    }));
 });
-#endif
 
-// ============================================================================
-// Labor API Endpoints
-// NOTE: Requires GetSnapshotAsync, ClockInAsync, ClockOutAsync updates, IShiftGrain
-// ============================================================================
-
-#if false // Labor API - requires grain interface updates
-var laborGroup = app.MapGroup("/api/labor").WithTags("Labor");
-
-laborGroup.MapPost("/employees", async (
-    [FromBody] CreateEmployeeApiRequest request,
-    IGrainFactory grainFactory) =>
+// GET /api/orgs/{orgId}/employees/{employeeId} - Get employee
+employeesGroup.MapGet("/{employeeId}", async (Guid orgId, Guid employeeId, IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<IEmployeeGrain>(GrainKeys.Employee(request.OrgId, request.EmployeeId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/labor/employees/{request.EmployeeId}", result);
+    var grain = grainFactory.GetGrain<IEmployeeGrain>(GrainKeys.Employee(orgId, employeeId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Employee not found"));
+
+    var state = await grain.GetStateAsync();
+    return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/employees/{employeeId}" },
+        ["clock-in"] = new { href = $"/api/orgs/{orgId}/employees/{employeeId}/clock-in" },
+        ["clock-out"] = new { href = $"/api/orgs/{orgId}/employees/{employeeId}/clock-out" }
+    }));
 });
 
-laborGroup.MapGet("/employees/{orgId}/{employeeId}", async (
+// PATCH /api/orgs/{orgId}/employees/{employeeId} - Update employee
+employeesGroup.MapPatch("/{employeeId}", async (
     Guid orgId,
     Guid employeeId,
+    [FromBody] UpdateEmployeeRequest request,
     IGrainFactory grainFactory) =>
 {
     var grain = grainFactory.GetGrain<IEmployeeGrain>(GrainKeys.Employee(orgId, employeeId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Employee not found"));
+
+    await grain.UpdateAsync(new UpdateEmployeeCommand(
+        request.FirstName, request.LastName, request.Email, request.HourlyRate, request.SalaryAmount, request.PayFrequency));
+    var state = await grain.GetStateAsync();
+
+    return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
+    {
+        ["self"] = new { href = $"/api/orgs/{orgId}/employees/{employeeId}" }
+    }));
 });
 
-laborGroup.MapPost("/employees/{orgId}/{employeeId}/clock-in", async (
+// POST /api/orgs/{orgId}/employees/{employeeId}/clock-in - Clock in
+employeesGroup.MapPost("/{employeeId}/clock-in", async (
     Guid orgId,
     Guid employeeId,
     [FromBody] ClockInRequest request,
     IGrainFactory grainFactory) =>
 {
     var grain = grainFactory.GetGrain<IEmployeeGrain>(GrainKeys.Employee(orgId, employeeId));
-    var result = await grain.ClockInAsync(request.SiteId, request.RoleId);
-    return Results.Ok(result);
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Employee not found"));
+
+    var result = await grain.ClockInAsync(new ClockInCommand(request.SiteId, request.ShiftId));
+    return Results.Ok(Hal.Resource(result, new Dictionary<string, object>
+    {
+        ["employee"] = new { href = $"/api/orgs/{orgId}/employees/{employeeId}" },
+        ["clock-out"] = new { href = $"/api/orgs/{orgId}/employees/{employeeId}/clock-out" }
+    }));
 });
 
-laborGroup.MapPost("/employees/{orgId}/{employeeId}/clock-out", async (
+// POST /api/orgs/{orgId}/employees/{employeeId}/clock-out - Clock out
+employeesGroup.MapPost("/{employeeId}/clock-out", async (
     Guid orgId,
     Guid employeeId,
+    [FromBody] ClockOutRequest? request,
     IGrainFactory grainFactory) =>
 {
     var grain = grainFactory.GetGrain<IEmployeeGrain>(GrainKeys.Employee(orgId, employeeId));
-    var result = await grain.ClockOutAsync();
-    return Results.Ok(result);
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Employee not found"));
+
+    var result = await grain.ClockOutAsync(new ClockOutCommand(request?.Notes));
+    return Results.Ok(Hal.Resource(result, new Dictionary<string, object>
+    {
+        ["employee"] = new { href = $"/api/orgs/{orgId}/employees/{employeeId}" }
+    }));
 });
 
-laborGroup.MapPost("/shifts", async (
-    [FromBody] CreateShiftApiRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IShiftGrain>(GrainKeys.Shift(request.OrgId, request.ShiftId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/labor/shifts/{request.ShiftId}", result);
-});
-
-laborGroup.MapPost("/time-off", async (
-    [FromBody] CreateTimeOffApiRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<ITimeOffGrain>(GrainKeys.TimeOffRequest(request.OrgId, request.RequestId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/labor/time-off/{request.RequestId}", result);
-});
-#endif
-
-// ============================================================================
-// Customers API Endpoints
-// NOTE: Requires GetSnapshotAsync, CreateCustomerCommand, CreateLoyaltyProgramCommand updates
-// ============================================================================
-
-#if false // Customers API - requires grain interface updates
-var customersGroup = app.MapGroup("/api/customers").WithTags("Customers");
-
-customersGroup.MapPost("/", async (
-    [FromBody] CreateCustomerApiRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<ICustomerGrain>(GrainKeys.Customer(request.OrgId, request.CustomerId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/customers/{request.CustomerId}", result);
-});
-
-customersGroup.MapGet("/{orgId}/{customerId}", async (
+// POST /api/orgs/{orgId}/employees/{employeeId}/roles - Assign role
+employeesGroup.MapPost("/{employeeId}/roles", async (
     Guid orgId,
-    Guid customerId,
+    Guid employeeId,
+    [FromBody] AssignRoleRequest request,
     IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<ICustomerGrain>(GrainKeys.Customer(orgId, customerId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
+    var grain = grainFactory.GetGrain<IEmployeeGrain>(GrainKeys.Employee(orgId, employeeId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Employee not found"));
+
+    await grain.AssignRoleAsync(new AssignRoleCommand(request.RoleId, request.RoleName, request.Department, request.IsPrimary, request.HourlyRateOverride));
+    return Results.Ok(new { message = "Role assigned" });
 });
 
-customersGroup.MapPost("/loyalty", async (
-    [FromBody] CreateLoyaltyProgramApiRequest request,
-    IGrainFactory grainFactory) =>
+// DELETE /api/orgs/{orgId}/employees/{employeeId}/roles/{roleId} - Remove role
+employeesGroup.MapDelete("/{employeeId}/roles/{roleId}", async (Guid orgId, Guid employeeId, Guid roleId, IGrainFactory grainFactory) =>
 {
-    var grain = grainFactory.GetGrain<ILoyaltyProgramGrain>(GrainKeys.LoyaltyProgram(request.OrgId, request.ProgramId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/customers/loyalty/{request.ProgramId}", result);
+    var grain = grainFactory.GetGrain<IEmployeeGrain>(GrainKeys.Employee(orgId, employeeId));
+    if (!await grain.ExistsAsync())
+        return Results.NotFound(Hal.Error("not_found", "Employee not found"));
+
+    await grain.RemoveRoleAsync(roleId);
+    return Results.NoContent();
 });
-#endif
-
-// ============================================================================
-// Gift Cards API Endpoints
-// NOTE: Requires GetSnapshotAsync, RedeemAsync signature, CreateGiftCardCommand updates
-// ============================================================================
-
-#if false // Gift Cards API - requires grain interface updates
-var giftCardsGroup = app.MapGroup("/api/giftcards").WithTags("GiftCards");
-
-giftCardsGroup.MapPost("/", async (
-    [FromBody] CreateGiftCardApiRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IGiftCardGrain>(GrainKeys.GiftCard(request.OrgId, request.GiftCardId));
-    var result = await grain.CreateAsync(request.ToCommand());
-    return Results.Created($"/api/giftcards/{request.GiftCardId}", result);
-});
-
-giftCardsGroup.MapGet("/{orgId}/{giftCardId}", async (
-    Guid orgId,
-    Guid giftCardId,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IGiftCardGrain>(GrainKeys.GiftCard(orgId, giftCardId));
-    var result = await grain.GetSnapshotAsync();
-    return Results.Ok(result);
-});
-
-giftCardsGroup.MapPost("/{orgId}/{giftCardId}/redeem", async (
-    Guid orgId,
-    Guid giftCardId,
-    [FromBody] RedeemGiftCardRequest request,
-    IGrainFactory grainFactory) =>
-{
-    var grain = grainFactory.GetGrain<IGiftCardGrain>(GrainKeys.GiftCard(orgId, giftCardId));
-    var result = await grain.RedeemAsync(request.Amount, request.OrderId, request.TransactionRef);
-    return Results.Ok(result);
-});
-#endif
 
 app.Run();
 
@@ -1229,231 +1572,240 @@ static string HashPin(string pin)
 }
 
 // ============================================================================
-// Request DTOs
-// NOTE: All DTOs below are disabled pending grain interface alignment
+// HAL+JSON Helper
 // ============================================================================
 
-#if false // Request DTOs - disabled pending grain interface updates
-public record CreateUserRequest(Guid OrgId, Guid UserId, string Email, string Password, string FirstName, string LastName, string? Role)
+public static class Hal
 {
-    public CreateUserCommand ToCommand() => new(Email, Password, FirstName, LastName, Role ?? "user");
+    public static object Resource(object data, Dictionary<string, object> links)
+    {
+        var result = new Dictionary<string, object> { ["_links"] = links };
+        foreach (var prop in data.GetType().GetProperties())
+        {
+            var name = char.ToLowerInvariant(prop.Name[0]) + prop.Name[1..];
+            result[name] = prop.GetValue(data)!;
+        }
+        return result;
+    }
+
+    public static object Collection(string selfHref, IEnumerable<object> items, int count)
+    {
+        return new Dictionary<string, object>
+        {
+            ["_links"] = new { self = new { href = selfHref } },
+            ["_embedded"] = new { items },
+            ["count"] = count
+        };
+    }
+
+    public static object Error(string code, string message) =>
+        new { error = code, error_description = message };
 }
-
-public record LoginRequest(string Password);
-
-public record CreateOrganizationRequest(Guid OrgId, string Name, string Country, string Currency, string? Timezone)
-{
-    public CreateOrganizationCommand ToCommand() => new(Name, Country, Currency, Timezone);
-}
-
-public record CreateSiteRequest(Guid OrgId, Guid SiteId, string Name, string Type, string? AddressLine1, string? City, string? State, string? PostalCode, string? Country, string? Timezone)
-{
-    public CreateSiteCommand ToCommand() => new(Name, Type, AddressLine1, City, State, PostalCode, Country, Timezone);
-}
-
-public record CreateMenuItemRequest(Guid OrgId, Guid MenuItemId, string Name, string? Description, decimal Price, Guid CategoryId, string? Sku)
-{
-    public CreateMenuItemCommand ToCommand() => new(Name, Description, Price, CategoryId, Sku);
-}
-
-public record UpdatePriceRequest(decimal Price);
-
-public record CreateCategoryRequest(Guid OrgId, Guid CategoryId, string Name, string? Description, int SortOrder)
-{
-    public CreateCategoryCommand ToCommand() => new(Name, Description, SortOrder);
-}
-
-public record CreateModifierRequest(Guid OrgId, Guid ModifierId, string Name, string? Type, bool Required, int? MinSelections, int? MaxSelections)
-{
-    public CreateModifierCommand ToCommand() => new(Name, Type, Required, MinSelections, MaxSelections);
-}
-
-public record CreateOrderRequest(Guid OrgId, Guid OrderId, Guid SiteId, Guid? CustomerId, string OrderType, Guid? TableId)
-{
-    public CreateOrderCommand ToCommand() => new(SiteId, CustomerId, OrderType, TableId);
-}
-
-public record AddOrderItemRequest(Guid MenuItemId, string Name, int Quantity, decimal UnitPrice, List<OrderItemModifier>? Modifiers)
-{
-    public AddOrderItemCommand ToCommand() => new(MenuItemId, Name, Quantity, UnitPrice, Modifiers);
-}
-
-public record CancelOrderRequest(string? Reason);
-
-public record CreatePaymentRequest(Guid OrgId, Guid PaymentId, Guid OrderId, decimal Amount, string Currency, string Method, string? Reference)
-{
-    public CreatePaymentCommand ToCommand() => new(OrderId, Amount, Currency, Method, Reference);
-}
-
-public record CreateRefundApiRequest(Guid OrgId, Guid RefundId, Guid PaymentIntentId, long Amount, string Currency, string? Reason)
-{
-    public CreateRefundCommand ToCommand() => new(PaymentIntentId, Amount, Currency, Reason, null);
-}
-
-public record CreateInventoryItemRequest(Guid OrgId, Guid ItemId, string Name, string Sku, string? Category, string UnitOfMeasure, decimal CurrentQuantity, decimal? ReorderPoint, decimal? ReorderQuantity)
-{
-    public CreateInventoryItemCommand ToCommand() => new(Name, Sku, Category, UnitOfMeasure, CurrentQuantity, ReorderPoint, ReorderQuantity);
-}
-
-public record AdjustInventoryRequest(decimal Adjustment, string? Reason);
-
-public record CreateInventoryCountRequest(Guid OrgId, Guid CountId, Guid SiteId, string? Type, List<Guid>? CategoryIds)
-{
-    public CreateInventoryCountCommand ToCommand() => new(SiteId, Type, CategoryIds);
-}
-
-public record RegisterDeviceRequest(Guid OrgId, Guid DeviceId, string Name, string DeviceType, string? SerialNumber, Guid SiteId)
-{
-    public RegisterDeviceCommand ToCommand() => new(Name, DeviceType, SerialNumber, SiteId);
-}
-
-public record HeartbeatRequest(string? IpAddress, string? SoftwareVersion);
-
-public record RegisterTerminalApiRequest(Guid OrgId, Guid TerminalId, Guid LocationId, string Label, string? DeviceType, string? SerialNumber)
-{
-    public RegisterTerminalCommand ToCommand() => new(LocationId, Label, DeviceType, SerialNumber, null);
-}
-
-public record CreatePurchaseOrderRequest(Guid OrgId, Guid OrderId, Guid SupplierId, string SupplierName, Guid SiteId, DateOnly? ExpectedDeliveryDate)
-{
-    public CreatePurchaseOrderCommand ToCommand() => new(SupplierId, SupplierName, SiteId, ExpectedDeliveryDate);
-}
-
-public record CreateSupplierRequest(Guid OrgId, Guid SupplierId, string Name, string? ContactName, string? Email, string? Phone, string? AddressLine1, string? City, string? State, string? PostalCode, string? Country)
-{
-    public CreateSupplierCommand ToCommand() => new(Name, ContactName, Email, Phone, AddressLine1, City, State, PostalCode, Country);
-}
-
-public record CreateRecipeApiRequest(Guid OrgId, Guid RecipeId, Guid MenuItemId, string MenuItemName, string Code, Guid? CategoryId, string? CategoryName, string? Description, int PortionYield, string? PrepInstructions)
-{
-    public CreateRecipeCommand ToCommand() => new(MenuItemId, MenuItemName, Code, CategoryId, CategoryName, Description, PortionYield, PrepInstructions);
-}
-
-public record CalculateCostRequest(decimal MenuPrice);
-
-public record CreateIngredientPriceApiRequest(Guid OrgId, Guid IngredientId, string IngredientName, decimal CurrentPrice, string UnitOfMeasure, decimal PackSize, Guid? PreferredSupplierId, string? PreferredSupplierName)
-{
-    public CreateIngredientPriceCommand ToCommand() => new(IngredientId, IngredientName, CurrentPrice, UnitOfMeasure, PackSize, PreferredSupplierId, PreferredSupplierName);
-}
-
-public record CreateCostAlertApiRequest(Guid OrgId, Guid AlertId, CostAlertType AlertType, Guid? RecipeId, string? RecipeName, Guid? IngredientId, string? IngredientName, Guid? MenuItemId, string? MenuItemName, decimal PreviousValue, decimal CurrentValue, decimal ThresholdValue, string? ImpactDescription, int AffectedRecipeCount)
-{
-    public CreateCostAlertCommand ToCommand() => new(AlertType, RecipeId, RecipeName, IngredientId, IngredientName, MenuItemId, MenuItemName, PreviousValue, CurrentValue, ThresholdValue, ImpactDescription, AffectedRecipeCount);
-}
-
-public record CreateMerchantApiRequest(Guid OrgId, Guid MerchantId, string Name, string Email, string BusinessName, string? BusinessType, string Country, string DefaultCurrency, string? StatementDescriptor, string? AddressLine1, string? AddressLine2, string? City, string? State, string? PostalCode)
-{
-    public CreateMerchantCommand ToCommand() => new(Name, Email, BusinessName, BusinessType, Country, DefaultCurrency, StatementDescriptor, AddressLine1, AddressLine2, City, State, PostalCode, null);
-}
-
-public record CreateWebhookApiRequest(Guid OrgId, Guid EndpointId, string Url, string? Description, string[] EnabledEvents, string? Secret)
-{
-    public CreateWebhookEndpointCommand ToCommand() => new(Url, Description, EnabledEvents, Secret);
-}
-
-public record CreateBookingApiRequest(Guid OrgId, Guid BookingId, Guid SiteId, string CustomerName, string? CustomerPhone, string? CustomerEmail, DateTime BookingTime, int PartySize, string? SpecialRequests)
-{
-    public CreateBookingCommand ToCommand() => new(SiteId, CustomerName, CustomerPhone, CustomerEmail, BookingTime, PartySize, SpecialRequests);
-}
-
-public record CancelBookingRequest(string? Reason);
-
-public record CreateTableApiRequest(Guid OrgId, Guid TableId, Guid SiteId, string Name, int Capacity, string? Section, int? PositionX, int? PositionY)
-{
-    public CreateTableCommand ToCommand() => new(SiteId, Name, Capacity, Section, PositionX, PositionY);
-}
-
-public record CreateEmployeeApiRequest(Guid OrgId, Guid EmployeeId, string FirstName, string LastName, string Email, string? Phone, Guid PrimaryRoleId, decimal HourlyRate, DateOnly StartDate)
-{
-    public CreateEmployeeCommand ToCommand() => new(FirstName, LastName, Email, Phone, PrimaryRoleId, HourlyRate, StartDate);
-}
-
-public record ClockInRequest(Guid SiteId, Guid? RoleId);
-
-public record CreateShiftApiRequest(Guid OrgId, Guid ShiftId, Guid EmployeeId, Guid SiteId, Guid RoleId, DateTime StartTime, DateTime EndTime, string? Notes)
-{
-    public CreateShiftCommand ToCommand() => new(EmployeeId, SiteId, RoleId, StartTime, EndTime, Notes);
-}
-
-public record CreateTimeOffApiRequest(Guid OrgId, Guid RequestId, Guid EmployeeId, TimeOffType Type, DateOnly StartDate, DateOnly EndDate, string? Reason)
-{
-    public CreateTimeOffCommand ToCommand() => new(EmployeeId, Type, StartDate, EndDate, Reason);
-}
-
-public record CreateCustomerApiRequest(Guid OrgId, Guid CustomerId, string FirstName, string LastName, string? Email, string? Phone)
-{
-    public CreateCustomerCommand ToCommand() => new(FirstName, LastName, Email, Phone);
-}
-
-public record CreateLoyaltyProgramApiRequest(Guid OrgId, Guid ProgramId, string Name, string? Description, decimal PointsPerDollar, decimal PointsToReward, decimal RewardValue)
-{
-    public CreateLoyaltyProgramCommand ToCommand() => new(Name, Description, PointsPerDollar, PointsToReward, RewardValue);
-}
-
-public record CreateGiftCardApiRequest(Guid OrgId, Guid GiftCardId, string Code, decimal InitialBalance, string Currency, DateOnly? ExpirationDate)
-{
-    public CreateGiftCardCommand ToCommand() => new(Code, InitialBalance, Currency, ExpirationDate);
-}
-
-public record RedeemGiftCardRequest(decimal Amount, Guid OrderId, string TransactionRef);
 
 // ============================================================================
-// Command Aliases for API-to-Grain mapping
-// These records bridge the simplified API request commands to the actual grain commands
+// Organization & Site Request DTOs
 // ============================================================================
 
-/// <summary>Alias for CreateMenuCategoryCommand with simplified parameters</summary>
-public record CreateCategoryCommand(string Name, string? Description, int SortOrder);
+public record CreateOrgRequest(string Name, string Slug, DarkVelocity.Host.State.OrganizationSettings? Settings = null);
+public record UpdateOrgRequest(string? Name = null, DarkVelocity.Host.State.OrganizationSettings? Settings = null);
+public record SuspendOrgRequest(string Reason);
 
-/// <summary>Command for creating modifiers (simplified)</summary>
-public record CreateModifierCommand(string Name, string? Type, bool Required, int? MinSelections, int? MaxSelections);
+public record CreateSiteRequest(
+    string Name,
+    string Code,
+    DarkVelocity.Host.State.Address Address,
+    string Timezone = "America/New_York",
+    string Currency = "USD");
+public record UpdateSiteRequest(
+    string? Name = null,
+    DarkVelocity.Host.State.Address? Address = null,
+    DarkVelocity.Host.State.OperatingHours? OperatingHours = null,
+    DarkVelocity.Host.State.SiteSettings? Settings = null);
 
-/// <summary>Alias for OrderLineModifier for API requests</summary>
-public record OrderItemModifier(Guid ModifierId, string Name, decimal Price, int Quantity);
+// ============================================================================
+// Order Request DTOs
+// ============================================================================
 
-/// <summary>Alias for AddLineCommand with simplified parameters</summary>
-public record AddOrderItemCommand(
+public record CreateOrderRequest(
+    Guid CreatedBy,
+    DarkVelocity.Host.State.OrderType Type,
+    Guid? TableId = null,
+    string? TableNumber = null,
+    Guid? CustomerId = null,
+    int GuestCount = 1);
+
+public record AddLineRequest(
     Guid MenuItemId,
     string Name,
     int Quantity,
     decimal UnitPrice,
-    List<OrderItemModifier>? Modifiers);
+    string? Notes = null,
+    List<DarkVelocity.Host.State.OrderLineModifier>? Modifiers = null);
 
-/// <summary>Alias for InitiatePaymentCommand with simplified parameters</summary>
-public record CreatePaymentCommand(Guid OrderId, decimal Amount, string Currency, string Method, string? Reference);
+public record SendOrderRequest(Guid SentBy);
+public record CloseOrderRequest(Guid ClosedBy);
+public record VoidOrderRequest(Guid VoidedBy, string Reason);
 
-/// <summary>Alias for InitializeInventoryCommand with simplified parameters</summary>
-public record CreateInventoryItemCommand(
+public record ApplyDiscountRequest(
     string Name,
+    DarkVelocity.Host.State.DiscountType Type,
+    decimal Value,
+    Guid AppliedBy,
+    Guid? DiscountId = null,
+    string? Reason = null,
+    Guid? ApprovedBy = null);
+
+// ============================================================================
+// Payment Request DTOs
+// ============================================================================
+
+public record InitiatePaymentRequest(
+    Guid OrderId,
+    DarkVelocity.Host.State.PaymentMethod Method,
+    decimal Amount,
+    Guid CashierId,
+    Guid? CustomerId = null,
+    Guid? DrawerId = null);
+
+public record CompleteCashRequest(decimal AmountTendered, decimal TipAmount = 0);
+
+public record CompleteCardRequest(
+    string GatewayReference,
+    string AuthorizationCode,
+    DarkVelocity.Host.State.CardInfo CardInfo,
+    string GatewayName,
+    decimal TipAmount = 0);
+
+public record VoidPaymentRequest(Guid VoidedBy, string Reason);
+public record RefundPaymentRequest(decimal Amount, string Reason, Guid IssuedBy);
+
+// ============================================================================
+// Menu Request DTOs
+// ============================================================================
+
+public record CreateMenuCategoryRequest(
+    Guid LocationId,
+    string Name,
+    string? Description,
+    int DisplayOrder,
+    string? Color);
+
+public record CreateMenuItemRequest(
+    Guid LocationId,
+    Guid CategoryId,
+    string Name,
+    decimal Price,
+    Guid? AccountingGroupId = null,
+    Guid? RecipeId = null,
+    string? Description = null,
+    string? ImageUrl = null,
+    string? Sku = null,
+    bool TrackInventory = false);
+
+public record UpdateMenuItemRequest(
+    Guid? CategoryId = null,
+    Guid? AccountingGroupId = null,
+    Guid? RecipeId = null,
+    string? Name = null,
+    string? Description = null,
+    decimal? Price = null,
+    string? ImageUrl = null,
+    string? Sku = null,
+    bool? IsActive = null,
+    bool? TrackInventory = null);
+
+// ============================================================================
+// Customer Request DTOs
+// ============================================================================
+
+public record CreateCustomerRequest(
+    string FirstName,
+    string LastName,
+    string? Email = null,
+    string? Phone = null,
+    DarkVelocity.Host.State.CustomerSource Source = DarkVelocity.Host.State.CustomerSource.Direct);
+
+public record UpdateCustomerRequest(
+    string? FirstName = null,
+    string? LastName = null,
+    string? Email = null,
+    string? Phone = null,
+    DateOnly? DateOfBirth = null,
+    DarkVelocity.Host.State.CustomerPreferences? Preferences = null);
+
+public record EnrollLoyaltyRequest(Guid ProgramId, string MemberNumber, Guid InitialTierId, string TierName);
+public record EarnPointsRequest(int Points, string Reason, Guid? OrderId = null, Guid? SiteId = null, decimal? SpendAmount = null);
+public record RedeemPointsRequest(int Points, Guid OrderId, string Reason);
+
+// ============================================================================
+// Inventory Request DTOs
+// ============================================================================
+
+public record InitializeInventoryRequest(
+    Guid IngredientId,
+    string IngredientName,
     string Sku,
-    string? Category,
-    string UnitOfMeasure,
-    decimal CurrentQuantity,
-    decimal? ReorderPoint,
-    decimal? ReorderQuantity);
+    string Unit,
+    string Category,
+    decimal ReorderPoint = 0,
+    decimal ParLevel = 0);
 
-/// <summary>Command for creating inventory counts</summary>
-public record CreateInventoryCountCommand(Guid SiteId, string? Type, List<Guid>? CategoryIds);
+public record ReceiveBatchRequest(
+    string BatchNumber,
+    decimal Quantity,
+    decimal UnitCost,
+    DateTime? ExpiryDate = null,
+    Guid? SupplierId = null,
+    Guid? DeliveryId = null,
+    string? Location = null,
+    string? Notes = null,
+    Guid? ReceivedBy = null);
 
-/// <summary>Alias for RegisterPosDeviceCommand with simplified parameters</summary>
-public record RegisterDeviceCommand(string Name, string DeviceType, string? SerialNumber, Guid SiteId);
+public record ConsumeStockRequest(decimal Quantity, string Reason, Guid? OrderId = null, Guid? PerformedBy = null);
+public record AdjustInventoryRequest(decimal NewQuantity, string Reason, Guid AdjustedBy, Guid? ApprovedBy = null);
 
-/// <summary>Alias for RequestBookingCommand with simplified parameters</summary>
-public record CreateBookingCommand(
-    Guid SiteId,
-    string CustomerName,
-    string? CustomerPhone,
-    string? CustomerEmail,
-    DateTime BookingTime,
+// ============================================================================
+// Booking Request DTOs
+// ============================================================================
+
+public record RequestBookingRequest(
+    DarkVelocity.Host.State.GuestInfo Guest,
+    DateTime RequestedTime,
     int PartySize,
-    string? SpecialRequests);
+    TimeSpan? Duration = null,
+    string? SpecialRequests = null,
+    string? Occasion = null,
+    DarkVelocity.Host.State.BookingSource Source = DarkVelocity.Host.State.BookingSource.Direct,
+    string? ExternalRef = null,
+    Guid? CustomerId = null);
 
-/// <summary>Alias for AddShiftCommand with simplified parameters</summary>
-public record CreateShiftCommand(
-    Guid EmployeeId,
-    Guid SiteId,
-    Guid RoleId,
-    DateTime StartTime,
-    DateTime EndTime,
-    string? Notes);
-#endif
+public record ConfirmBookingRequest(DateTime? ConfirmedTime = null);
+public record CancelBookingRequest(string Reason, Guid CancelledBy);
+public record CheckInRequest(Guid CheckedInBy);
+public record SeatGuestRequest(Guid TableId, string TableNumber, Guid SeatedBy);
+
+// ============================================================================
+// Employee Request DTOs
+// ============================================================================
+
+public record CreateEmployeeRequest(
+    Guid UserId,
+    Guid DefaultSiteId,
+    string EmployeeNumber,
+    string FirstName,
+    string LastName,
+    string Email,
+    DarkVelocity.Host.State.EmploymentType EmploymentType = DarkVelocity.Host.State.EmploymentType.FullTime,
+    DateOnly? HireDate = null);
+
+public record UpdateEmployeeRequest(
+    string? FirstName = null,
+    string? LastName = null,
+    string? Email = null,
+    decimal? HourlyRate = null,
+    decimal? SalaryAmount = null,
+    string? PayFrequency = null);
+
+public record ClockInRequest(Guid SiteId, Guid? ShiftId = null);
+public record ClockOutRequest(string? Notes = null);
+public record AssignRoleRequest(Guid RoleId, string RoleName, string Department, bool IsPrimary = false, decimal? HourlyRateOverride = null);
