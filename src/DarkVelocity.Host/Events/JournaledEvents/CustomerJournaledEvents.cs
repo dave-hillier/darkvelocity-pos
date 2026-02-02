@@ -202,3 +202,87 @@ public sealed record CustomerReferralCompletedJournaledEvent : ICustomerJournale
     [Id(2)] public int? BonusPointsAwarded { get; init; }
     [Id(3)] public DateTime OccurredAt { get; init; }
 }
+
+[GenerateSerializer]
+public sealed record CustomerNoteAddedJournaledEvent : ICustomerJournaledEvent
+{
+    [Id(0)] public Guid CustomerId { get; init; }
+    [Id(1)] public Guid NoteId { get; init; }
+    [Id(2)] public string Content { get; init; } = "";
+    [Id(3)] public Guid CreatedBy { get; init; }
+    [Id(4)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record CustomerPreferencesUpdatedJournaledEvent : ICustomerJournaledEvent
+{
+    [Id(0)] public Guid CustomerId { get; init; }
+    [Id(1)] public List<string>? DietaryRestrictions { get; init; }
+    [Id(2)] public List<string>? Allergens { get; init; }
+    [Id(3)] public string? SeatingPreference { get; init; }
+    [Id(4)] public string? Notes { get; init; }
+    [Id(5)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record CustomerDietaryRestrictionAddedJournaledEvent : ICustomerJournaledEvent
+{
+    [Id(0)] public Guid CustomerId { get; init; }
+    [Id(1)] public string Restriction { get; init; } = "";
+    [Id(2)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record CustomerDietaryRestrictionRemovedJournaledEvent : ICustomerJournaledEvent
+{
+    [Id(0)] public Guid CustomerId { get; init; }
+    [Id(1)] public string Restriction { get; init; } = "";
+    [Id(2)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record CustomerAllergenAddedJournaledEvent : ICustomerJournaledEvent
+{
+    [Id(0)] public Guid CustomerId { get; init; }
+    [Id(1)] public string Allergen { get; init; } = "";
+    [Id(2)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record CustomerAllergenRemovedJournaledEvent : ICustomerJournaledEvent
+{
+    [Id(0)] public Guid CustomerId { get; init; }
+    [Id(1)] public string Allergen { get; init; } = "";
+    [Id(2)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record CustomerSeatingPreferenceSetJournaledEvent : ICustomerJournaledEvent
+{
+    [Id(0)] public Guid CustomerId { get; init; }
+    [Id(1)] public string Preference { get; init; } = "";
+    [Id(2)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record CustomerRewardsExpiredJournaledEvent : ICustomerJournaledEvent
+{
+    [Id(0)] public Guid CustomerId { get; init; }
+    [Id(1)] public List<Guid> ExpiredRewardIds { get; init; } = [];
+    [Id(2)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record CustomerReferredBySetJournaledEvent : ICustomerJournaledEvent
+{
+    [Id(0)] public Guid CustomerId { get; init; }
+    [Id(1)] public Guid ReferrerId { get; init; }
+    [Id(2)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record CustomerAnonymizedJournaledEvent : ICustomerJournaledEvent
+{
+    [Id(0)] public Guid CustomerId { get; init; }
+    [Id(1)] public DateTime OccurredAt { get; init; }
+}
