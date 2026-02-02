@@ -380,6 +380,12 @@ public static class GrainKeys
         => SiteEntity(orgId, siteId, "expense", expenseId);
 
     /// <summary>
+    /// Creates a key for an email inbox grain (one per site).
+    /// </summary>
+    public static string EmailInbox(Guid orgId, Guid siteId)
+        => $"{orgId}:{siteId}:email-inbox";
+
+    /// <summary>
     /// Generates a random user code for device authorization (8 alphanumeric chars).
     /// </summary>
     public static string GenerateUserCode()

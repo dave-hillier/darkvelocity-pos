@@ -25,7 +25,8 @@ builder.Services
     .AddCorsPolicy()
     .AddSearchServices(builder.Configuration)
     .AddPaymentGatewayServices()
-    .AddSingleton<IDocumentIntelligenceService, StubDocumentIntelligenceService>();
+    .AddSingleton<IDocumentIntelligenceService, StubDocumentIntelligenceService>()
+    .AddSingleton<IEmailIngestionService, StubEmailIngestionService>();
 
 var app = builder.Build();
 
@@ -70,7 +71,8 @@ app.MapOAuthEndpoints()
    .MapPaymentGatewayEndpoints()
    .MapChannelEndpoints()
    .MapBatchEndpoints()
-   .MapPurchaseDocumentEndpoints();
+   .MapPurchaseDocumentEndpoints()
+   .MapEmailIngestionEndpoints();
 
 app.Run();
 

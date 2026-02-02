@@ -645,27 +645,188 @@ Receipts present unique OCR challenges:
 
 ---
 
-## Email Ingestion Options
+## Email Ingestion (Implemented)
 
-### Option A: Dedicated Mailbox Polling
+### Architecture Overview
 
-- Create `invoices@yourdomain.com` per organization
-- Azure Logic App / AWS SES + Lambda polls and forwards to API
-- Simple setup, works with any email provider
+Email ingestion uses a webhook-based approach where external email services (SendGrid, Mailgun, AWS SES) forward parsed emails to our API endpoint.
 
-### Option B: Email Forwarding Rules
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       EMAIL FLOW                                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│   Supplier/Store Email                                                   │
+│          │                                                               │
+│          ▼                                                               │
+│   ┌──────────────────┐                                                  │
+│   │  Email Provider   │  (Gmail, Outlook, etc.)                         │
+│   └────────┬─────────┘                                                  │
+│            │ Forward to:                                                 │
+│            │ invoices-{orgId}-{siteId}@darkvelocity.io                  │
+│            ▼                                                             │
+│   ┌──────────────────┐                                                  │
+│   │  Email Gateway    │  (SendGrid, Mailgun, AWS SES)                   │
+│   │  Inbound Parse    │                                                  │
+│   └────────┬─────────┘                                                  │
+│            │ Webhook POST                                                │
+│            ▼                                                             │
+│   ┌──────────────────┐                                                  │
+│   │  /api/webhooks/   │                                                  │
+│   │  email/inbound    │                                                  │
+│   └────────┬─────────┘                                                  │
+│            │                                                             │
+│            ▼                                                             │
+│   ┌──────────────────┐     ┌──────────────────┐                         │
+│   │ EmailInboxGrain   │ ──▶│ PurchaseDocument │                         │
+│   │ (per-site inbox)  │     │     Grain        │                         │
+│   └──────────────────┘     └──────────────────┘                         │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
-- Restaurants set up auto-forward from their existing inbox
-- We provide unique forwarding address per site
-- Lower friction for onboarding
+### Inbox Address Format
 
-### Option C: IMAP Integration
+Each site gets a unique inbox address in the format:
+- `invoices-{orgId}-{siteId}@darkvelocity.io` - for supplier invoices
+- `receipts-{orgId}-{siteId}@darkvelocity.io` - for retail receipts
 
-- Restaurant provides email credentials (OAuth preferred)
+The address parsing extracts:
+- Organization ID (for multi-tenant isolation)
+- Site ID (for per-location processing)
+- Inbox type (invoices/receipts) for document type hint
+
+### Components
+
+#### IEmailIngestionService
+```csharp
+public interface IEmailIngestionService
+{
+    Task<ParsedEmail> ParseEmailAsync(Stream emailContent, string contentType, CancellationToken cancellationToken = default);
+    Task<ParsedEmail> ParseMimeEmailAsync(string mimeContent, CancellationToken cancellationToken = default);
+    SiteEmailInfo? ParseInboxAddress(string emailAddress);
+}
+```
+
+Handles parsing webhook payloads from various email providers (JSON format from SendGrid/Mailgun) and extracting site info from inbox addresses.
+
+#### EmailInboxGrain
+```csharp
+public interface IEmailInboxGrain : IGrainWithStringKey
+{
+    Task<EmailInboxSnapshot> InitializeAsync(InitializeEmailInboxCommand command);
+    Task<EmailProcessingResultInternal> ProcessEmailAsync(ProcessIncomingEmailCommand command);
+    Task<EmailInboxSnapshot> UpdateSettingsAsync(UpdateInboxSettingsCommand command);
+    Task ActivateInboxAsync();
+    Task DeactivateInboxAsync();
+    Task<bool> IsMessageProcessedAsync(string messageId);
+    Task<EmailInboxSnapshot> GetSnapshotAsync();
+}
+```
+
+One grain per site, responsible for:
+- Validating incoming emails (sender whitelist, attachment checks)
+- Deduplication (tracks recent message IDs)
+- Creating PurchaseDocument grains for each valid attachment
+- Auto-processing if enabled (triggers OCR extraction)
+- Statistics tracking (emails received, documents created)
+
+#### Validation Rules
+
+1. **Active inbox check**: Inactive inboxes reject all emails
+2. **Duplicate detection**: Message IDs tracked to prevent reprocessing
+3. **Sender validation**: Optional whitelist by domain or email address
+4. **Attachment validation**:
+   - Must have at least one document attachment (PDF, image, spreadsheet)
+   - Size limits enforced (default 25MB per attachment)
+   - Non-document attachments (signatures, logos) filtered out
+
+#### Document Type Detection
+
+Auto-detects document type from email metadata:
+- Subject contains "receipt" or "order confirmation" → Receipt
+- Subject contains "invoice" or "bill" → Invoice
+- Filename contains type hints
+- Falls back to inbox's default document type
+
+### API Endpoints
+
+```
+POST /api/webhooks/email/inbound
+    - Webhook endpoint for email providers
+    - Parses email, extracts site, processes attachments
+
+POST /api/orgs/{orgId}/sites/{siteId}/email-inbox
+    - Initialize inbox for a site
+    - Body: { inboxAddress?, defaultDocumentType?, autoProcess? }
+
+GET /api/orgs/{orgId}/sites/{siteId}/email-inbox
+    - Get inbox status and statistics
+
+PATCH /api/orgs/{orgId}/sites/{siteId}/email-inbox
+    - Update inbox settings (allowed senders, max sizes, etc.)
+
+POST /api/orgs/{orgId}/sites/{siteId}/email-inbox/activate
+    - Activate the inbox
+
+POST /api/orgs/{orgId}/sites/{siteId}/email-inbox/deactivate
+    - Deactivate the inbox (stops accepting emails)
+
+POST /api/orgs/{orgId}/sites/{siteId}/email-inbox/test
+    - Send a test email (development only)
+```
+
+### Events
+
+```csharp
+EmailReceived     // Email accepted and logged
+EmailProcessed    // Documents successfully created
+EmailProcessingFailed  // Error during processing
+EmailRejected     // Email rejected (unauthorized sender, no attachments, etc.)
+```
+
+### Configuration Options
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `IsActive` | true | Whether inbox accepts emails |
+| `AllowedSenderDomains` | [] | Whitelist of sender domains (empty = allow all) |
+| `AllowedSenderEmails` | [] | Whitelist of specific addresses |
+| `MaxAttachmentSizeBytes` | 25MB | Maximum size per attachment |
+| `DefaultDocumentType` | Invoice | Type when auto-detection fails |
+| `AutoProcess` | true | Automatically trigger OCR on receipt |
+
+### Email Provider Setup
+
+#### SendGrid Inbound Parse
+
+1. Configure MX records to point to SendGrid
+2. Set up Inbound Parse webhook to `POST /api/webhooks/email/inbound`
+3. Enable "Post the raw, full MIME message" for complete data
+
+#### AWS SES
+
+1. Configure SES to receive email for your domain
+2. Set up SNS notification → Lambda → API call
+3. Or use SES Actions to invoke Lambda directly
+
+#### Mailgun
+
+1. Configure route to forward to webhook URL
+2. Mailgun posts multipart/form-data with parsed email
+
+### Legacy Options (Not Implemented)
+
+For reference, other approaches considered but not currently implemented:
+
+#### Option A: Dedicated Mailbox Polling
+- Azure Logic App / AWS SES + Lambda polls mailbox
+- Simple but adds latency
+
+#### Option B: IMAP Integration
+- Restaurant provides email credentials (OAuth)
 - We scan inbox for invoice-like attachments
-- More complex, privacy concerns
-
-**Recommendation**: Start with Option A (dedicated mailbox), add Option B later.
+- Complex, privacy concerns, not recommended
 
 ---
 
@@ -743,7 +904,7 @@ Receipts present unique OCR challenges:
 
 ## Implementation Phases
 
-### Phase 1: Core Document Capture (MVP)
+### Phase 1: Core Document Capture (MVP) ✅ COMPLETE
 - Unified upload API for invoices and receipts
 - Azure Document Intelligence integration (both models)
 - Auto-detect document type or accept hint
@@ -753,11 +914,34 @@ Receipts present unique OCR challenges:
 - Events emitted for downstream systems
 - Mobile-friendly photo capture for receipts
 
-### Phase 2: Email Ingestion
-- Dedicated mailbox setup per organization
+**Implemented files:**
+- `Events/PurchaseDocumentEvents.cs` - Domain events
+- `State/PurchaseDocumentState.cs` - Grain state
+- `Grains/IPurchaseDocumentGrain.cs` - Grain interface
+- `Grains/PurchaseDocumentGrain.cs` - Grain implementation
+- `Services/IDocumentIntelligenceService.cs` - OCR abstraction
+- `Services/StubDocumentIntelligenceService.cs` - Development stub
+- `Endpoints/PurchaseDocumentEndpoints.cs` - API endpoints
+- `Contracts/PurchaseDocumentContracts.cs` - Request DTOs
+
+### Phase 2: Email Ingestion ✅ COMPLETE
+- Per-site inbox addresses (`invoices-{orgId}-{siteId}@darkvelocity.io`)
+- Webhook endpoint for email provider integration
 - Email parsing (extract PDF/image attachments)
+- Sender validation (domain/email whitelist)
 - Auto-detect invoice vs receipt from content
-- Automatic processing trigger
+- Automatic processing trigger (configurable)
+- Deduplication via message ID tracking
+
+**Implemented files:**
+- `Services/IEmailIngestionService.cs` - Email parsing interface
+- `Services/StubEmailIngestionService.cs` - Development stub
+- `Events/EmailIngestionEvents.cs` - Email domain events
+- `State/EmailInboxState.cs` - Inbox grain state
+- `Grains/IEmailInboxGrain.cs` - Inbox grain interface
+- `Grains/EmailInboxGrain.cs` - Inbox grain implementation
+- `Endpoints/EmailIngestionEndpoints.cs` - Webhook and management API
+- `Contracts/EmailIngestionContracts.cs` - Request DTOs
 
 ### Phase 3: Smart Mapping
 - Vendor-specific mapping persistence (suppliers and stores)
