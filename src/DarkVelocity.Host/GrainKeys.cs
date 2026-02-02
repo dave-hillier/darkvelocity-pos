@@ -400,6 +400,25 @@ public static class GrainKeys
     /// </summary>
     public static string MenuRegistry(Guid orgId) => $"{orgId}:menuregistry";
 
+    // ============================================================================
+    // CMS Recipe Grains
+    // ============================================================================
+
+    /// <summary>
+    /// Creates a key for a recipe document grain (CMS versioned).
+    /// </summary>
+    public static string RecipeDocument(Guid orgId, string documentId) => $"{orgId}:recipedoc:{documentId}";
+
+    /// <summary>
+    /// Creates a key for a recipe category document grain (CMS versioned).
+    /// </summary>
+    public static string RecipeCategoryDocument(Guid orgId, string documentId) => $"{orgId}:recipecategorydoc:{documentId}";
+
+    /// <summary>
+    /// Creates a key for the recipe registry grain (one per org).
+    /// </summary>
+    public static string RecipeRegistry(Guid orgId) => $"{orgId}:reciperegistry";
+
     /// <summary>
     /// Creates a key for a purchase document grain (invoice or receipt).
     /// </summary>
