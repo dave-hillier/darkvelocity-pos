@@ -41,7 +41,7 @@ public interface IUserGrain : IGrainWithStringKey
     Task DeactivateAsync();
     Task LockAsync(string reason);
     Task UnlockAsync();
-    Task RecordLoginAsync();
+    Task RecordLoginAsync(string? oauthProvider = null, string? oauthEmail = null);
     Task<bool> ExistsAsync();
 
     /// <summary>

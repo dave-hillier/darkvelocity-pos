@@ -347,7 +347,7 @@ public static class BatchEndpoints
         group.MapPost("/groups/{groupId}/members", async (
             Guid orgId,
             Guid groupId,
-            [FromBody] AddToGroupRequest request,
+            [FromBody] AddCustomersToGroupRequest request,
             IGrainFactory grainFactory) =>
         {
             var grain = grainFactory.GetGrain<ICustomerBatchGrain>(GrainKeys.CustomerBatch(orgId));

@@ -231,7 +231,7 @@ public class VendorItemMappingGrain : Grain, IVendorItemMappingGrain
             IngredientId = command.IngredientId,
             IngredientName = command.IngredientName,
             IngredientSku = command.IngredientSku,
-            Source = command.Source,
+            MappingOrigin = command.Source,
             Confidence = command.Confidence,
             LearnedFromDocumentId = command.LearnedFromDocumentId,
             OccurredAt = DateTime.UtcNow

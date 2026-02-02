@@ -601,24 +601,8 @@ public static class OAuthEndpoints
             await userGrain.LinkExternalIdentityAsync(provider, externalId, email);
         }
 
-        // Record login
-        await userGrain.RecordLoginAsync();
-
-        // Publish OAuth login event
-        try
-        {
-            var streamProvider = grainFactory.GetStreamProvider(StreamConstants.DefaultStreamProvider);
-            var streamId = StreamId.Create(StreamConstants.UserStreamNamespace, orgId.ToString());
-            var stream = streamProvider.GetStream<IStreamEvent>(streamId);
-            await stream.OnNextAsync(new UserOAuthLoginEvent(userId, provider, email)
-            {
-                OrganizationId = orgId
-            });
-        }
-        catch
-        {
-            // Non-critical: stream event publishing failure shouldn't block login
-        }
+        // Record login (event publishing handled by grain)
+        await userGrain.RecordLoginAsync(provider, email);
 
         // Get roles from user state
         var roles = await userGrain.GetRolesAsync();

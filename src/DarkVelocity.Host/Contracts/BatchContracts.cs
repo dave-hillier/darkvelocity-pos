@@ -64,4 +64,4 @@ public record BatchCreateCustomersRequest(
 
 public record CreateCustomerGroupRequest(string Name, string? Description = null);
 
-public record AddToGroupRequest(List<Guid> CustomerIds);
+public record AddCustomersToGroupRequest(List<Guid> CustomerIds);

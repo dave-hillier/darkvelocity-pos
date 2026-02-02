@@ -40,7 +40,7 @@ public sealed record ItemMappingLearned : DomainEvent
     [Id(104)] public required Guid IngredientId { get; init; }
     [Id(105)] public required string IngredientName { get; init; }
     [Id(106)] public required string IngredientSku { get; init; }
-    [Id(107)] public required MappingSource Source { get; init; }
+    [Id(107)] public required MappingSource MappingOrigin { get; init; }
     [Id(108)] public required decimal Confidence { get; init; }
     [Id(109)] public Guid? LearnedFromDocumentId { get; init; }
 }

@@ -342,7 +342,7 @@ public class UserGrain : Grain, IUserGrain
         }
     }
 
-    public async Task RecordLoginAsync()
+    public async Task RecordLoginAsync(string? oauthProvider = null, string? oauthEmail = null)
     {
         EnsureExists();
 
@@ -350,6 +350,18 @@ public class UserGrain : Grain, IUserGrain
         _state.State.FailedLoginAttempts = 0;
 
         await _state.WriteStateAsync();
+
+        // Publish OAuth login event if this was an OAuth login
+        if (!string.IsNullOrEmpty(oauthProvider))
+        {
+            await GetUserStream().OnNextAsync(new UserOAuthLoginEvent(
+                _state.State.Id,
+                oauthProvider,
+                oauthEmail)
+            {
+                OrganizationId = _state.State.OrganizationId
+            });
+        }
     }
 
     public Task<bool> ExistsAsync()
