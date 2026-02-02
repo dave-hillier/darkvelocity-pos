@@ -22,7 +22,8 @@ builder.Services
     .AddSwaggerDocumentation()
     .AddJwtAuthentication(builder.Configuration)
     .AddCorsPolicy()
-    .AddSearchServices(builder.Configuration);
+    .AddSearchServices(builder.Configuration)
+    .AddPaymentGatewayServices();
 
 var app = builder.Build();
 
@@ -58,7 +59,8 @@ app.MapOAuthEndpoints()
    .MapInventoryEndpoints()
    .MapBookingEndpoints()
    .MapEmployeeEndpoints()
-   .MapSearchEndpoints();
+   .MapSearchEndpoints()
+   .MapPaymentGatewayEndpoints();
 
 app.Run();
 
