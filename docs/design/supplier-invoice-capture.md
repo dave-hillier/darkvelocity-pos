@@ -1110,302 +1110,332 @@ GET    /api/orgs/{orgId}/sites/{siteId}/expenses/summary/by-category - Category 
 
 Large Language Models can significantly improve both OCR accuracy and item mapping by understanding context rather than relying purely on pattern matching. This section describes an architecture for incorporating LLMs with appropriate fallbacks.
 
-### Overview
+### Client-Side vs Server-Side Processing
+
+A key architectural decision is **where** LLM processing occurs. We recommend a **client-side-first approach** for document extraction, with server-side processing for item mapping.
+
+#### Benefits of Client-Side LLM (Document Extraction)
+
+| Benefit | Description |
+|---------|-------------|
+| **Privacy** | Document images never leave the device. Sensitive supplier pricing and financial data stays local. Only structured JSON is transmitted to server. |
+| **Cost Model (BYOK)** | Restaurant provides their own OpenAI/Anthropic API key. Platform doesn't bear LLM costs. Heavy users pay more, light users pay less - natural scaling. |
+| **Regulatory Compliance** | Some jurisdictions have data residency requirements. Client-side processing means no document transmission across borders. |
+| **Real-time Feedback** | When photographing a receipt at POS, immediate quality feedback ("image is blurry, retake") without server round-trip. |
+| **Reduced Server Load** | Extraction is CPU/GPU intensive. Offloading to client reduces infrastructure costs. |
+
+#### What Stays Server-Side
+
+- **SKU/ingredient mapping** - Requires access to organization's inventory catalog
+- **Workflow orchestration** - Approval, payment tracking, status management
+- **Learning from confirmations** - Pattern learning needs centralized state
+- **Analytics and reporting** - Aggregate data across documents
+- **Fallback processing** - For clients without LLM configured
+
+### Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                    LLM-ENHANCED PROCESSING PIPELINE                      │
+│  CLIENT (POS Tablet / Back-office Browser)                              │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│   Document Image/PDF                                                     │
+│   1. User captures document (photo/upload)                               │
 │          │                                                               │
 │          ▼                                                               │
 │   ┌──────────────────┐                                                  │
-│   │  Primary: Azure   │◄─── Try first (fast, cost-effective)            │
-│   │  Document Intel   │                                                  │
+│   │  Quality Check    │◄─── Local image analysis                        │
+│   │  (blur, lighting) │     Immediate feedback to user                  │
 │   └────────┬─────────┘                                                  │
 │            │                                                             │
-│            ▼  Low confidence (<70%) or extraction failure?               │
-│   ┌──────────────────┐                                                  │
-│   │  Fallback: LLM    │◄─── Vision-capable model (GPT-4V, Claude)       │
-│   │  with Vision      │     Better at: handwriting, unusual layouts,    │
-│   └────────┬─────────┘     multi-language, damaged documents            │
-│            │                                                             │
-│            ▼                                                             │
-│   ┌──────────────────┐                                                  │
-│   │  Extracted Data   │                                                  │
-│   │  (structured)     │                                                  │
-│   └────────┬─────────┘                                                  │
-│            │                                                             │
-│            ▼                                                             │
-│   ┌──────────────────┐                                                  │
-│   │  Primary: Local   │◄─── Fast, no API cost                           │
-│   │  Fuzzy Matching   │     Levenshtein + token overlap                 │
-│   └────────┬─────────┘                                                  │
-│            │                                                             │
-│            ▼  Low confidence (<60%) or no matches?                       │
-│   ┌──────────────────┐                                                  │
-│   │  Fallback: LLM    │◄─── Understands: synonyms, abbreviations,       │
-│   │  Semantic Match   │     measurement conversions, brand names        │
-│   └────────┬─────────┘                                                  │
-│            │                                                             │
-│            ▼                                                             │
-│   ┌──────────────────┐                                                  │
-│   │  Mapped Items     │                                                  │
-│   │  (with confidence)│                                                  │
-│   └──────────────────┘                                                  │
+│            ▼  LLM configured?                                            │
+│   ┌──────────────────┐     ┌──────────────────┐                         │
+│   │  YES: Client LLM  │     │  NO: Upload raw   │                        │
+│   │  Vision Extract   │     │  to server        │                        │
+│   │  (org's API key)  │     │  (fallback mode)  │                        │
+│   └────────┬─────────┘     └────────┬─────────┘                         │
+│            │                         │                                   │
+│            ▼                         │                                   │
+│   ┌──────────────────┐               │                                   │
+│   │  Structured JSON  │               │                                   │
+│   │  (no raw image)   │               │                                   │
+│   └────────┬─────────┘               │                                   │
+│            │                         │                                   │
+└────────────┼─────────────────────────┼───────────────────────────────────┘
+             │                         │
+             ▼                         ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  SERVER (Orleans)                                                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│   ┌──────────────────┐     ┌──────────────────┐                         │
+│   │  Receive JSON     │     │  Fallback OCR     │◄─── Azure Document    │
+│   │  (pre-extracted)  │     │  (raw document)   │     Intelligence      │
+│   └────────┬─────────┘     └────────┬─────────┘                         │
+│            │                         │                                   │
+│            └────────────┬────────────┘                                   │
+│                         ▼                                                │
+│            ┌──────────────────┐                                          │
+│            │  PurchaseDocument │                                          │
+│            │  Grain            │                                          │
+│            └────────┬─────────┘                                          │
+│                     │                                                    │
+│                     ▼                                                    │
+│            ┌──────────────────┐                                          │
+│            │  Item Mapping     │◄─── Server-side (needs ingredient      │
+│            │  (exact → fuzzy   │     catalog access)                     │
+│            │   → LLM semantic) │                                         │
+│            └──────────────────┘                                          │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### LLM for Document Extraction
+### Client-Side LLM Configuration
 
-**When to use LLM over traditional OCR:**
-- Confidence score from Azure/Textract is below threshold (e.g., <70%)
-- Document has unusual formatting (handwritten notes, non-standard layouts)
-- Multi-language documents or mixed scripts
-- Damaged, faded, or low-quality images
-- Complex tables with merged cells or inconsistent structure
+Organizations configure their LLM provider in organization settings. The client apps read this configuration and use it for document extraction.
 
-**Implementation approach:**
+```typescript
+// apps/pos/src/services/llm-config.ts
 
-```csharp
-public interface IDocumentExtractionService
-{
-    Task<ExtractionResult> ExtractAsync(
-        Stream document,
-        string contentType,
-        ExtractionOptions options,
-        CancellationToken cancellationToken = default);
+interface LlmConfig {
+  provider: 'openai' | 'anthropic' | 'azure-openai' | 'none';
+  apiKey: string;           // Encrypted, stored in org settings
+  model: string;            // e.g., 'gpt-4o', 'claude-sonnet-4-20250514'
+  visionModel?: string;     // e.g., 'gpt-4o' (if different from default)
+  maxTokens: number;        // Cost control
+  enabled: boolean;         // Feature flag
 }
 
-public record ExtractionOptions(
-    bool AllowLlmFallback = true,
-    decimal MinConfidenceThreshold = 0.70m,
-    string? PreferredProvider = null,  // "azure", "llm", "auto"
-    int MaxLlmRetries = 2);
+interface ExtractionConfig {
+  enableClientExtraction: boolean;   // Use client-side LLM
+  enableQualityCheck: boolean;       // Pre-flight image quality
+  fallbackToServer: boolean;         // If client extraction fails
+  confidenceThreshold: number;       // Below this → flag for review
+}
+```
 
-public class HybridExtractionService : IDocumentExtractionService
-{
-    private readonly IDocumentIntelligenceService _primaryOcr;
-    private readonly ILlmExtractionService _llmFallback;
+**API Key Security:**
+- Keys stored encrypted in organization settings (server-side)
+- Fetched on app initialization, held in memory only
+- Never logged or transmitted except to LLM provider
+- Can be rotated without app update
 
-    public async Task<ExtractionResult> ExtractAsync(...)
-    {
-        // Try primary OCR first
-        var result = await _primaryOcr.ExtractAsync(document, contentType);
+### Client-Side Extraction Flow
 
-        if (result.OverallConfidence >= options.MinConfidenceThreshold)
-            return result;
+```typescript
+// apps/pos/src/services/document-extraction.ts
 
-        // Low confidence - try LLM if enabled
-        if (options.AllowLlmFallback)
-        {
-            var llmResult = await _llmFallback.ExtractWithVisionAsync(
-                document, contentType, result); // Pass OCR result as hint
+interface ExtractedDocument {
+  vendorName?: string;
+  documentNumber?: string;
+  documentDate?: string;
+  lineItems: ExtractedLineItem[];
+  subtotal?: number;
+  tax?: number;
+  total?: number;
+  confidence: number;
+  extractedAt: string;
+  extractionMethod: 'client-llm' | 'server-ocr' | 'server-llm';
+}
 
-            // LLM can validate/correct OCR output
-            return MergeResults(result, llmResult);
-        }
+async function extractDocument(
+  imageData: Blob,
+  config: LlmConfig,
+  documentType: 'invoice' | 'receipt'
+): Promise<ExtractedDocument> {
 
-        return result; // Return low-confidence result
+  // 1. Quality check (local, no API call)
+  const quality = await checkImageQuality(imageData);
+  if (quality.score < 0.5) {
+    throw new QualityError('Image too blurry or dark. Please retake.');
+  }
+
+  // 2. Client-side LLM extraction if configured
+  if (config.enabled && config.apiKey) {
+    const prompt = buildExtractionPrompt(documentType);
+    const result = await callLlmVision(config, imageData, prompt);
+
+    if (result.confidence >= config.confidenceThreshold) {
+      return {
+        ...result,
+        extractionMethod: 'client-llm'
+      };
     }
+  }
+
+  // 3. Fallback: upload to server for processing
+  return await uploadForServerExtraction(imageData, documentType);
 }
 ```
 
-**LLM extraction prompt template:**
+### LLM Extraction Prompt
 
 ```
-You are extracting data from a {document_type} image.
+You are extracting data from a {document_type} image for a restaurant's
+cost tracking system.
 
 Extract the following information in JSON format:
-- vendor_name: The supplier or store name
-- document_number: Invoice/receipt number
-- document_date: Date of the document (YYYY-MM-DD)
-- line_items: Array of {description, quantity, unit, unit_price, total}
-- subtotal, tax, total: Monetary amounts
-
-Previous OCR attempt extracted:
-{ocr_result_json}
-
-Review the image and correct any errors in the OCR output.
-Pay special attention to:
-- Abbreviated item names (expand if possible)
-- Numeric values (quantities, prices)
-- Date formats
-
-Return corrected JSON.
-```
-
-### LLM for Semantic Item Mapping
-
-**When to use LLM over fuzzy matching:**
-- Fuzzy match confidence is below threshold (e.g., <60%)
-- Description uses brand names, synonyms, or industry jargon
-- Measurement/unit conversions needed (e.g., "5LB BAG" → ingredient measured in kg)
-- Ingredient substitutions (e.g., "ROMAINE HEARTS" might map to "lettuce")
-- Multi-word abbreviations that token matching misses
-
-**Implementation approach:**
-
-```csharp
-public interface IItemMappingService
 {
-    Task<MappingResult> MapItemAsync(
-        string vendorDescription,
-        string vendorId,
-        IReadOnlyList<IngredientInfo> candidateIngredients,
-        MappingOptions options,
-        CancellationToken cancellationToken = default);
+  "vendor_name": "Store or supplier name",
+  "document_number": "Invoice/receipt number if visible",
+  "document_date": "YYYY-MM-DD format",
+  "line_items": [
+    {
+      "description": "Item description (expand abbreviations if obvious)",
+      "product_code": "SKU/product code if visible",
+      "quantity": 1.0,
+      "unit": "each/lb/kg/case/etc",
+      "unit_price": 0.00,
+      "total": 0.00
+    }
+  ],
+  "subtotal": 0.00,
+  "tax": 0.00,
+  "tip": 0.00,
+  "total": 0.00,
+  "payment_method": "cash/credit/debit if visible",
+  "confidence": 0.0-1.0
 }
 
-public record MappingOptions(
-    bool AllowLlmFallback = true,
-    decimal MinFuzzyConfidence = 0.60m,
-    int MaxLlmCandidates = 10);
+Guidelines:
+- Expand common abbreviations: CHKN=Chicken, ORG=Organic, LG=Large, etc.
+- If a value is unclear, omit it rather than guess
+- Set confidence based on image quality and extraction certainty
+- For receipts, items may be abbreviated - do your best to interpret
 
-public class HybridMappingService : IItemMappingService
+Return ONLY valid JSON, no explanation.
+```
+
+### Server-Side Item Mapping
+
+Item mapping remains server-side because it requires access to the organization's ingredient catalog. The server can optionally use LLM for semantic matching when fuzzy matching confidence is low.
+
+```csharp
+public class ItemMappingService : IItemMappingService
 {
     private readonly IFuzzyMatchingService _fuzzyMatcher;
-    private readonly ILlmMappingService _llmMapper;
-    private readonly IVendorItemMappingGrain _mappingGrain;
+    private readonly ILlmMappingService? _llmMapper;  // Optional
 
-    public async Task<MappingResult> MapItemAsync(...)
+    public async Task<MappingResult> MapItemAsync(
+        string vendorDescription,
+        string vendorId,
+        IReadOnlyList<IngredientInfo> ingredients,
+        MappingOptions options)
     {
-        // 1. Check exact mappings first (free, instant)
-        var exactMatch = await _mappingGrain.GetExactMatchAsync(vendorDescription);
-        if (exactMatch != null)
-            return exactMatch;
+        // 1. Exact match (instant, free)
+        var exact = await GetExactMatchAsync(vendorDescription, vendorId);
+        if (exact != null) return exact;
 
-        // 2. Try fuzzy matching (fast, local)
-        var fuzzyMatches = _fuzzyMatcher.FindIngredientMatches(
-            vendorDescription, candidateIngredients);
+        // 2. Fuzzy match (fast, free)
+        var fuzzy = _fuzzyMatcher.FindBestMatch(vendorDescription, ingredients);
+        if (fuzzy?.Confidence >= options.MinFuzzyConfidence)
+            return fuzzy;
 
-        if (fuzzyMatches.Any(m => m.Confidence >= options.MinFuzzyConfidence))
-            return fuzzyMatches.First();
-
-        // 3. LLM semantic matching (slower, costs money)
-        if (options.AllowLlmFallback && fuzzyMatches.Count > 0)
+        // 3. LLM semantic match (if configured, costs money)
+        if (_llmMapper != null && options.AllowLlmFallback)
         {
-            // Give LLM the top fuzzy candidates to choose from
-            var topCandidates = fuzzyMatches.Take(options.MaxLlmCandidates).ToList();
-            var llmResult = await _llmMapper.SelectBestMatchAsync(
-                vendorDescription, topCandidates);
-            return llmResult;
+            var candidates = _fuzzyMatcher.FindTopMatches(vendorDescription, ingredients, 10);
+            var llmResult = await _llmMapper.SelectBestMatchAsync(vendorDescription, candidates);
+            if (llmResult?.Confidence >= options.MinLlmConfidence)
+                return llmResult;
         }
 
-        // 4. Return best fuzzy match or null
-        return fuzzyMatches.FirstOrDefault();
+        // 4. Return best fuzzy match or null (needs manual mapping)
+        return fuzzy;
     }
 }
 ```
 
-**LLM mapping prompt template:**
+### Cost and Latency Summary
+
+| Stage | Location | Cost | Latency | Notes |
+|-------|----------|------|---------|-------|
+| Image quality check | Client | Free | <100ms | Local analysis |
+| LLM vision extraction | Client | $0.01-0.10/doc | 3-10s | Org pays via BYOK |
+| Server OCR fallback | Server | $0.01/page | 2-5s | Platform cost |
+| Exact mapping | Server | Free | <10ms | Database lookup |
+| Fuzzy mapping | Server | Free | <50ms | In-memory |
+| LLM semantic mapping | Server | $0.01-0.03/call | 1-3s | Platform cost (optional) |
+
+### Configuration Tiers
+
+| Tier | Client Extraction | Server Mapping | Cost Bearer |
+|------|-------------------|----------------|-------------|
+| **Free** | None (upload raw) | Exact + Fuzzy only | Platform (OCR) |
+| **Standard** | None (upload raw) | Exact + Fuzzy + LLM | Platform |
+| **BYOK** | Client LLM (org key) | Exact + Fuzzy + LLM | Organization (extraction) + Platform (mapping) |
+| **Enterprise** | Client LLM (org key) | Full LLM (org key passthrough) | Organization (all LLM) |
+
+### Fallback Strategy
 
 ```
-You are matching a vendor item description to internal inventory ingredients.
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         EXTRACTION FALLBACK                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  1. Client LLM configured?                                               │
+│     ├─► YES: Extract on client                                          │
+│     │        └─► Success? Send JSON to server                           │
+│     │        └─► Failure? Fall through to step 2                        │
+│     └─► NO: Fall through to step 2                                      │
+│                                                                          │
+│  2. Upload raw document to server                                        │
+│     └─► Server runs Azure Document Intelligence                         │
+│         └─► Low confidence? Server LLM fallback (if enabled)            │
+│             └─► Still low? Flag for manual review                       │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
 
-Vendor item: "{vendor_description}"
-Vendor: {vendor_name}
-
-Candidate ingredients (from inventory):
-{candidates_json}
-
-Select the BEST matching ingredient, considering:
-- The item might use abbreviations (CHKN=chicken, ORG=organic, LG=large)
-- Brand names should be ignored (focus on the actual product)
-- Unit conversions are acceptable (5LB → 2.27kg ingredient is fine)
-- "None of the above" if no good match exists
-
-Return JSON: {"ingredient_id": "...", "confidence": 0.0-1.0, "reasoning": "..."}
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         MAPPING FALLBACK (Server)                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  1. Exact match from learned mappings ──► Found? Done                   │
+│                                                                          │
+│  2. Fuzzy token matching ──► Confidence ≥60%? Done                      │
+│                                                                          │
+│  3. LLM semantic matching ──► Confidence ≥80%? Done                     │
+│                                                                          │
+│  4. Flag for manual mapping                                              │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Cost and Latency Considerations
+### Privacy Considerations
 
-| Approach | Cost | Latency | Best For |
-|----------|------|---------|----------|
-| Azure Document Intelligence | ~$0.01/page | ~2-5s | Clean PDFs, standard formats |
-| LLM Vision (GPT-4V/Claude) | ~$0.03-0.10/image | ~5-15s | Complex layouts, corrections |
-| Local Fuzzy Matching | Free | <10ms | Exact/near-exact matches |
-| LLM Semantic Matching | ~$0.01-0.03/call | ~1-3s | Ambiguous items, synonyms |
+With client-side extraction:
 
-**Recommended thresholds:**
-- OCR confidence threshold: 70% (below this → LLM fallback)
-- Fuzzy match confidence threshold: 60% (below this → LLM fallback)
-- LLM confidence threshold: 80% (below this → flag for manual review)
+1. **Document images stay on device** - Only structured JSON transmitted
+2. **LLM calls go directly to provider** - Platform never sees raw documents
+3. **Audit trail preserved** - Server logs what was submitted, not raw images
+4. **Optional raw storage** - User can opt-in to store originals for audit
+
+```typescript
+// When submitting extracted document
+interface SubmitDocumentRequest {
+  extractedData: ExtractedDocument;       // Always sent
+  rawDocument?: Blob;                      // Optional, user consent required
+  storeRawDocument: boolean;               // Explicit opt-in
+  extractionMethod: 'client-llm' | 'server';
+}
+```
 
 ### Implementation Phases
 
-**Phase A: Instrumentation**
-- Add confidence tracking to current OCR and fuzzy matching
-- Log all low-confidence extractions and mappings
-- Analyze patterns to tune thresholds
+**Phase A: Server-side baseline**
+- Azure Document Intelligence integration (current stub)
+- Confidence tracking and logging
+- Manual review workflow for low-confidence extractions
 
-**Phase B: LLM Vision for OCR**
-- Implement `ILlmExtractionService` with Claude or GPT-4V
-- Add fallback logic to extraction pipeline
-- A/B test against pure OCR for accuracy improvement
+**Phase B: Client-side extraction**
+- LLM configuration in organization settings
+- Client-side extraction service in POS/back-office apps
+- Quality check before extraction
+- Fallback to server when needed
 
-**Phase C: LLM Semantic Mapping**
-- Implement `ILlmMappingService`
-- Add fallback logic to mapping pipeline
-- Track cost per successful mapping vs manual intervention saved
-
-### Service Interface
-
-```csharp
-public interface ILlmExtractionService
-{
-    /// <summary>
-    /// Extract document data using vision-capable LLM.
-    /// </summary>
-    Task<ExtractionResult> ExtractWithVisionAsync(
-        Stream document,
-        string contentType,
-        ExtractionResult? ocrHint = null,
-        CancellationToken cancellationToken = default);
-}
-
-public interface ILlmMappingService
-{
-    /// <summary>
-    /// Select best ingredient match using semantic understanding.
-    /// </summary>
-    Task<MappingResult?> SelectBestMatchAsync(
-        string vendorDescription,
-        IReadOnlyList<MappingCandidate> candidates,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Generate mapping suggestions for unknown items.
-    /// </summary>
-    Task<IReadOnlyList<MappingSuggestion>> SuggestMappingsAsync(
-        string vendorDescription,
-        IReadOnlyList<IngredientInfo> allIngredients,
-        CancellationToken cancellationToken = default);
-}
-```
-
-### Fallback Strategy Summary
-
-```
-Document Extraction:
-1. Azure Document Intelligence (fast, cheap)
-   └─► If confidence < 70% ──► 2. LLM Vision (accurate, slower)
-                                   └─► If still low ──► Manual review flag
-
-Item Mapping:
-1. Exact match from learned mappings (instant, free)
-   └─► If no match ──► 2. Fuzzy token matching (fast, free)
-                           └─► If confidence < 60% ──► 3. LLM semantic (smart, costs $)
-                                                           └─► If confidence < 80% ──► Manual review
-```
-
-This layered approach balances cost, latency, and accuracy:
-- Fast path (most items): Exact match + high-confidence fuzzy = 0ms-10ms, $0
-- Medium path: OCR fallback or LLM mapping = 1-15s, $0.01-0.10
-- Slow path (rare): Full LLM pipeline = 10-20s, $0.05-0.15
-- Manual path: Flagged for human review when confidence insufficient
+**Phase C: Enhanced mapping**
+- Server-side LLM for semantic matching
+- Optional BYOK passthrough for enterprise tier
+- A/B testing to measure accuracy improvement
 
 ---
 
