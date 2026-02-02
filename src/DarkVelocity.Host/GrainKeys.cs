@@ -356,6 +356,48 @@ public static class GrainKeys
     public static string DeviceAuth(string userCode) => $"deviceauth:{userCode.ToUpperInvariant()}";
 
     /// <summary>
+    /// Creates a key for an OAuth state grain (CSRF protection).
+    /// Key is the state parameter.
+    /// </summary>
+    public static string OAuthState(string state) => $"oauthstate:{state}";
+
+    /// <summary>
+    /// Creates a key for an external identity grain.
+    /// Maps external OAuth identities to internal users.
+    /// </summary>
+    public static string ExternalIdentity(string provider, string externalId)
+        => $"extid:{provider.ToLowerInvariant()}:{externalId}";
+
+    /// <summary>
+    /// Creates a key for an authorization code grain.
+    /// </summary>
+    public static string AuthorizationCode(string code) => $"authcode:{code}";
+
+    /// <summary>
+    /// Generates a secure random state parameter for OAuth flows.
+    /// </summary>
+    public static string GenerateOAuthState()
+    {
+        var bytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+        return Convert.ToBase64String(bytes)
+            .Replace("+", "-")
+            .Replace("/", "_")
+            .TrimEnd('=');
+    }
+
+    /// <summary>
+    /// Generates a secure random authorization code.
+    /// </summary>
+    public static string GenerateAuthorizationCode()
+    {
+        var bytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+        return Convert.ToBase64String(bytes)
+            .Replace("+", "-")
+            .Replace("/", "_")
+            .TrimEnd('=');
+    }
+
+    /// <summary>
     /// Creates a key for a user session grain.
     /// </summary>
     public static string Session(Guid orgId, Guid sessionId) => OrgEntity(orgId, "session", sessionId);
