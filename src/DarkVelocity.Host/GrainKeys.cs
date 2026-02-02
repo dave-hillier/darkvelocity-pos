@@ -408,6 +408,18 @@ public static class GrainKeys
     public static string UserLookup(Guid orgId) => $"{orgId}:userlookup";
 
     /// <summary>
+    /// Creates a key for OAuth lookup grain (external OAuth identity to user mapping).
+    /// One per organization.
+    /// </summary>
+    public static string OAuthLookup(Guid orgId) => $"{orgId}:oauthlookup";
+
+    /// <summary>
+    /// Creates a key for global email lookup grain (email to organization/user mapping).
+    /// Single global instance for cross-org email lookup.
+    /// </summary>
+    public static string EmailLookup() => "global:emaillookup";
+
+    /// <summary>
     /// Creates a key for a channel grain.
     /// </summary>
     public static string Channel(Guid orgId, Guid channelId) => OrgEntity(orgId, "channel", channelId);

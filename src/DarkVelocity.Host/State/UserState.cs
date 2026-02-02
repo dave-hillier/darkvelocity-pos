@@ -45,6 +45,7 @@ public sealed class UserState
     [Id(15)] public DateTime? LastLoginAt { get; set; }
     [Id(16)] public int FailedLoginAttempts { get; set; }
     [Id(17)] public int Version { get; set; }
+    [Id(18)] public Dictionary<string, string> ExternalIds { get; set; } = [];
 }
 
 [GenerateSerializer]

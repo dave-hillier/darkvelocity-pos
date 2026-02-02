@@ -1,19 +1,36 @@
 using DarkVelocity.Host.Auth;
+using DarkVelocity.Host.Contracts;
 using DarkVelocity.Host.Grains;
+using DarkVelocity.Host.State;
+using DarkVelocity.Host.Streams;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
+using Orleans.Streams;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 
 namespace DarkVelocity.Host.Endpoints;
 
+/// <summary>
+/// Pending OAuth state for multi-org login.
+/// </summary>
+public sealed record PendingOAuthState(
+    string Email,
+    string? Name,
+    string Provider,
+    string ExternalId,
+    List<EmailUserMapping> Organizations,
+    DateTime ExpiresAt);
+
 public static class OAuthEndpoints
 {
-    private static readonly Guid DefaultOrgId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    private const string PendingOAuthCachePrefix = "pending_oauth_";
+    private static readonly TimeSpan PendingOAuthExpiry = TimeSpan.FromMinutes(5);
 
     public static WebApplication MapOAuthEndpoints(this WebApplication app)
     {
@@ -123,13 +140,14 @@ public static class OAuthEndpoints
           .WithDescription("Simplified OAuth login - redirects to provider");
 
         // ========================================================================
-        // OAuth Callback Handler
+        // OAuth Callback Handler - Uses Real User Management
         // ========================================================================
 
         group.MapGet("/callback", async (
             HttpContext context,
             IGrainFactory grainFactory,
             JwtTokenService tokenService,
+            IMemoryCache cache,
             string? state = null,
             string? response_type = null,
             string? error = null,
@@ -183,114 +201,125 @@ public static class OAuthEndpoints
                 return Results.Redirect($"{validation.ReturnUrl}?error=missing_claims");
             }
 
-            // Lookup or create user based on external identity
-            var provider = validation.Provider ?? "google";
-            var identityGrain = grainFactory.GetGrain<IExternalIdentityGrain>(
-                GrainKeys.ExternalIdentity(provider, externalId));
-            var existingIdentity = await identityGrain.GetLinkedUserAsync();
-
-            Guid userId;
-            Guid orgId;
-            string displayName;
-            IReadOnlyList<string> roles;
-
-            if (existingIdentity != null)
-            {
-                // Existing user - update info if changed
-                userId = existingIdentity.UserId;
-                orgId = existingIdentity.OrganizationId;
-                displayName = existingIdentity.Name ?? name ?? email;
-
-                await identityGrain.UpdateInfoAsync(email, name, pictureUrl);
-
-                // Get user details for roles
-                var userGrain = grainFactory.GetGrain<IUserGrain>(GrainKeys.User(orgId, userId));
-                var userState = await userGrain.GetStateAsync();
-                roles = MapUserTypeToRoles(userState.Type);
-            }
-            else
-            {
-                // New user - create account
-                userId = Guid.NewGuid();
-                orgId = DefaultOrgId; // In production, this would be determined by domain/invitation
-                displayName = name ?? email;
-                roles = ["backoffice"]; // Default role for new OAuth users
-
-                // Create user
-                var userGrain = grainFactory.GetGrain<IUserGrain>(GrainKeys.User(orgId, userId));
-                await userGrain.CreateAsync(new CreateUserCommand(
-                    orgId,
-                    email,
-                    displayName,
-                    State.UserType.Employee,
-                    name?.Split(' ').FirstOrDefault(),
-                    name?.Split(' ').Skip(1).FirstOrDefault()));
-
-                // Link external identity
-                await identityGrain.LinkAsync(new LinkExternalIdentityCommand(
-                    userId,
-                    orgId,
-                    provider,
-                    externalId,
-                    email,
-                    name,
-                    pictureUrl));
-            }
-
             // Sign out of cookie auth
             await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
+            var provider = validation.Provider ?? "google";
             var redirectTarget = validation.ReturnUrl ?? "http://localhost:5174";
 
-            // Handle response types
-            if (response_type == "code")
+            // Look up user by email across all organizations
+            var emailLookup = grainFactory.GetGrain<IEmailLookupGrain>(GrainKeys.EmailLookup());
+            var emailMappings = await emailLookup.FindByEmailAsync(email);
+
+            if (emailMappings.Count == 0)
             {
-                // Authorization Code Flow - issue code
-                var code = GrainKeys.GenerateAuthorizationCode();
-                var codeGrain = grainFactory.GetGrain<IAuthorizationCodeGrain>(GrainKeys.AuthorizationCode(code));
-                await codeGrain.IssueAsync(new AuthorizationCodeRequest(
-                    userId,
-                    orgId,
-                    validation.ClientId ?? "default",
-                    redirectTarget,
-                    validation.Scope,
-                    validation.CodeChallenge,
-                    validation.CodeChallengeMethod,
-                    validation.Nonce,
-                    displayName,
-                    roles));
-
-                var codeRedirect = AddQueryParam(redirectTarget, "code", code);
-                if (!string.IsNullOrEmpty(clientState))
-                    codeRedirect = AddQueryParam(codeRedirect, "state", clientState);
-
-                return Results.Redirect(codeRedirect);
+                // No user found with this email - not invited
+                return Results.Redirect($"{redirectTarget}?error=not_invited&email={Uri.EscapeDataString(email)}");
             }
-            else
+
+            if (emailMappings.Count == 1)
             {
-                // Implicit Flow - issue tokens directly (fragment)
-                var (accessToken, expires) = tokenService.GenerateAccessToken(
-                    userId,
-                    displayName,
-                    orgId,
-                    roles: roles);
-                var refreshToken = tokenService.GenerateRefreshToken();
-
-                var fragment = $"access_token={accessToken}" +
-                    $"&token_type=Bearer" +
-                    $"&expires_in={(int)(expires - DateTime.UtcNow).TotalSeconds}" +
-                    $"&refresh_token={refreshToken}" +
-                    $"&user_id={userId}" +
-                    $"&display_name={Uri.EscapeDataString(displayName)}";
-
-                if (!string.IsNullOrEmpty(clientState))
-                    fragment += $"&state={Uri.EscapeDataString(clientState)}";
-
-                var separator = redirectTarget.Contains('#') ? "&" : "#";
-                return Results.Redirect($"{redirectTarget}{separator}{fragment}");
+                // Single organization - complete login directly
+                var mapping = emailMappings[0];
+                return await CompleteOAuthLoginAsync(
+                    grainFactory, tokenService, cache,
+                    mapping.OrganizationId, mapping.UserId,
+                    provider, externalId, email, name,
+                    response_type, validation, clientState, redirectTarget);
             }
+
+            // Multiple organizations - store pending state and redirect to org selector
+            var pendingToken = Guid.NewGuid().ToString("N");
+            var pendingState = new PendingOAuthState(
+                email, name, provider, externalId, emailMappings.ToList(),
+                DateTime.UtcNow.Add(PendingOAuthExpiry));
+
+            cache.Set(
+                PendingOAuthCachePrefix + pendingToken,
+                pendingState,
+                PendingOAuthExpiry);
+
+            return Results.Redirect($"{redirectTarget}/select-org?pending_token={pendingToken}");
         }).WithName("OAuthCallback")
           .WithDescription("OAuth callback handler - completes authorization flow");
+
+        // ========================================================================
+        // Pending OAuth State Endpoint (for multi-org flow)
+        // ========================================================================
+
+        group.MapGet("/pending", (
+            [FromQuery] string pendingToken,
+            IGrainFactory grainFactory,
+            IMemoryCache cache) =>
+        {
+            if (string.IsNullOrEmpty(pendingToken))
+            {
+                return Results.BadRequest(Hal.Error("missing_token", "Pending token is required"));
+            }
+
+            if (!cache.TryGetValue<PendingOAuthState>(PendingOAuthCachePrefix + pendingToken, out var pendingState) ||
+                pendingState == null)
+            {
+                return Results.NotFound(Hal.Error("expired_or_invalid", "Pending OAuth session not found or expired"));
+            }
+
+            if (pendingState.ExpiresAt < DateTime.UtcNow)
+            {
+                cache.Remove(PendingOAuthCachePrefix + pendingToken);
+                return Results.NotFound(Hal.Error("expired", "Pending OAuth session expired"));
+            }
+
+            var orgOptions = pendingState.Organizations
+                .Select(m => new OrganizationOption(m.OrganizationId, m.OrganizationId.ToString()))
+                .ToList();
+
+            return Results.Ok(new PendingOAuthResponse(
+                pendingToken,
+                pendingState.Email,
+                pendingState.Name,
+                orgOptions));
+        }).WithName("OAuthPending")
+          .WithDescription("Get pending OAuth state for organization selection");
+
+        // ========================================================================
+        // Select Organization Endpoint (for multi-org flow)
+        // ========================================================================
+
+        group.MapPost("/select-org", async (
+            [FromBody] SelectOrganizationRequest request,
+            IGrainFactory grainFactory,
+            JwtTokenService tokenService,
+            IMemoryCache cache) =>
+        {
+            if (string.IsNullOrEmpty(request.PendingToken))
+            {
+                return Results.BadRequest(Hal.Error("missing_token", "Pending token is required"));
+            }
+
+            if (!cache.TryGetValue<PendingOAuthState>(PendingOAuthCachePrefix + request.PendingToken, out var pendingState) ||
+                pendingState == null)
+            {
+                return Results.NotFound(Hal.Error("expired_or_invalid", "Pending OAuth session not found or expired"));
+            }
+
+            var selectedMapping = pendingState.Organizations
+                .FirstOrDefault(m => m.OrganizationId == request.OrganizationId);
+
+            if (selectedMapping == null)
+            {
+                return Results.BadRequest(Hal.Error("invalid_org", "Selected organization is not valid for this login"));
+            }
+
+            cache.Remove(PendingOAuthCachePrefix + request.PendingToken);
+
+            return await CompleteOAuthLoginAsync(
+                grainFactory, tokenService, cache,
+                selectedMapping.OrganizationId, selectedMapping.UserId,
+                pendingState.Provider, pendingState.ExternalId,
+                pendingState.Email, pendingState.Name,
+                "token", null, null, null);
+        }).WithName("OAuthSelectOrg")
+          .WithDescription("Complete OAuth login after organization selection");
 
         // ========================================================================
         // Token Endpoint (RFC 6749)
@@ -301,13 +330,12 @@ public static class OAuthEndpoints
             IGrainFactory grainFactory,
             JwtTokenService tokenService) =>
         {
-            // Read form data
             var form = await context.Request.ReadFormAsync();
             var grantType = form["grant_type"].FirstOrDefault();
             var clientId = form["client_id"].FirstOrDefault();
             var clientSecret = form["client_secret"].FirstOrDefault();
 
-            // Also check Authorization header for client credentials
+            // Check Authorization header for client credentials
             if (string.IsNullOrEmpty(clientId))
             {
                 var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
@@ -353,7 +381,6 @@ public static class OAuthEndpoints
         {
             var form = await context.Request.ReadFormAsync();
             var token = form["token"].FirstOrDefault();
-            var tokenTypeHint = form["token_type_hint"].FirstOrDefault();
 
             if (string.IsNullOrEmpty(token))
             {
@@ -361,7 +388,6 @@ public static class OAuthEndpoints
                     statusCode: 400);
             }
 
-            // Try to decode the token to get session info
             var principal = tokenService.ValidateToken(token);
             if (principal != null)
             {
@@ -376,7 +402,6 @@ public static class OAuthEndpoints
                 }
             }
 
-            // Per RFC 7009, always return 200 even if token wasn't found
             return Results.Ok();
         }).WithName("OAuthRevoke")
           .WithDescription("OAuth 2.0 Token Revocation Endpoint");
@@ -430,33 +455,43 @@ public static class OAuthEndpoints
                 return Results.Unauthorized();
 
             var claims = context.User.Claims.ToList();
-            var userId = claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == JwtRegisteredClaimNames.Sub)?.Value;
-            var orgId = claims.FirstOrDefault(c => c.Type == "org_id")?.Value;
+            var userIdClaim = claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+            var orgIdClaim = claims.FirstOrDefault(c => c.Type == "org_id")?.Value;
 
-            var response = new Dictionary<string, object?>
+            if (Guid.TryParse(userIdClaim, out var userId) && Guid.TryParse(orgIdClaim, out var orgId))
             {
-                ["sub"] = userId,
-                ["name"] = claims.FirstOrDefault(c => c.Type == ClaimTypes.Name || c.Type == JwtRegisteredClaimNames.Name)?.Value,
-                ["org_id"] = orgId,
-                ["site_id"] = claims.FirstOrDefault(c => c.Type == "site_id")?.Value,
-                ["roles"] = claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).ToArray()
-            };
-
-            // Fetch additional user info if available
-            if (Guid.TryParse(userId, out var uid) && Guid.TryParse(orgId, out var oid))
-            {
-                var userGrain = grainFactory.GetGrain<IUserGrain>(GrainKeys.User(oid, uid));
-                var userState = await userGrain.GetStateAsync();
-                if (userState.Id != Guid.Empty)
+                var userGrain = grainFactory.GetGrain<IUserGrain>(GrainKeys.User(orgId, userId));
+                if (await userGrain.ExistsAsync())
                 {
-                    response["email"] = userState.Email;
-                    response["given_name"] = userState.FirstName;
-                    response["family_name"] = userState.LastName;
-                    response["preferred_username"] = userState.DisplayName;
+                    var state = await userGrain.GetStateAsync();
+                    var roles = await userGrain.GetRolesAsync();
+
+                    return Results.Ok(new
+                    {
+                        sub = state.Id.ToString(),
+                        name = state.DisplayName,
+                        email = state.Email,
+                        given_name = state.FirstName,
+                        family_name = state.LastName,
+                        preferred_username = state.DisplayName,
+                        org_id = state.OrganizationId.ToString(),
+                        site_id = claims.FirstOrDefault(c => c.Type == "site_id")?.Value,
+                        roles = roles.ToArray(),
+                        user_type = state.Type.ToString(),
+                        status = state.Status.ToString()
+                    });
                 }
             }
 
-            return Results.Json(response);
+            // Fallback to claims if grain lookup fails
+            return Results.Ok(new
+            {
+                sub = userIdClaim,
+                name = claims.FirstOrDefault(c => c.Type == ClaimTypes.Name || c.Type == JwtRegisteredClaimNames.Name)?.Value,
+                org_id = orgIdClaim,
+                site_id = claims.FirstOrDefault(c => c.Type == "site_id")?.Value,
+                roles = claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).ToArray()
+            });
         }).RequireAuthorization()
           .WithName("OAuthUserInfo")
           .WithDescription("OpenID Connect UserInfo Endpoint");
@@ -496,8 +531,6 @@ public static class OAuthEndpoints
 
         app.MapGet("/.well-known/jwks.json", (JwtSettings jwtSettings) =>
         {
-            // For HMAC, we expose the key ID but not the secret
-            // In production with RSA, this would expose the public key
             var keyId = ComputeKeyId(jwtSettings.SecretKey);
             return Results.Json(new
             {
@@ -520,6 +553,142 @@ public static class OAuthEndpoints
     }
 
     // ========================================================================
+    // Complete OAuth Login - Real User Management
+    // ========================================================================
+
+    private static async Task<IResult> CompleteOAuthLoginAsync(
+        IGrainFactory grainFactory,
+        JwtTokenService tokenService,
+        IMemoryCache cache,
+        Guid orgId,
+        Guid userId,
+        string provider,
+        string externalId,
+        string email,
+        string? name,
+        string? responseType,
+        OAuthStateValidation? validation,
+        string? clientState,
+        string? redirectTarget)
+    {
+        // Get user grain
+        var userGrain = grainFactory.GetGrain<IUserGrain>(GrainKeys.User(orgId, userId));
+        if (!await userGrain.ExistsAsync())
+        {
+            var target = redirectTarget ?? validation?.ReturnUrl ?? "http://localhost:5174";
+            return Results.Redirect($"{target}?error=user_not_found");
+        }
+
+        var state = await userGrain.GetStateAsync();
+
+        // Check user status
+        if (state.Status == UserStatus.Inactive)
+        {
+            var target = redirectTarget ?? validation?.ReturnUrl ?? "http://localhost:5174";
+            return Results.Redirect($"{target}?error=user_inactive");
+        }
+
+        if (state.Status == UserStatus.Locked)
+        {
+            var target = redirectTarget ?? validation?.ReturnUrl ?? "http://localhost:5174";
+            return Results.Redirect($"{target}?error=user_locked");
+        }
+
+        // Link external identity if not already linked
+        var externalIds = await userGrain.GetExternalIdsAsync();
+        if (!externalIds.ContainsKey(provider.ToLowerInvariant()))
+        {
+            await userGrain.LinkExternalIdentityAsync(provider, externalId, email);
+        }
+
+        // Record login
+        await userGrain.RecordLoginAsync();
+
+        // Publish OAuth login event
+        try
+        {
+            var streamProvider = grainFactory.GetStreamProvider(StreamConstants.DefaultStreamProvider);
+            var streamId = StreamId.Create(StreamConstants.UserStreamNamespace, orgId.ToString());
+            var stream = streamProvider.GetStream<IStreamEvent>(streamId);
+            await stream.OnNextAsync(new UserOAuthLoginEvent(userId, provider, email)
+            {
+                OrganizationId = orgId
+            });
+        }
+        catch
+        {
+            // Non-critical: stream event publishing failure shouldn't block login
+        }
+
+        // Get roles from user state
+        var roles = await userGrain.GetRolesAsync();
+        var displayName = name ?? state.DisplayName;
+        var finalRedirectTarget = redirectTarget ?? validation?.ReturnUrl ?? "http://localhost:5174";
+
+        // Handle authorization code flow
+        if (responseType == "code" && validation != null)
+        {
+            var code = GrainKeys.GenerateAuthorizationCode();
+            var codeGrain = grainFactory.GetGrain<IAuthorizationCodeGrain>(GrainKeys.AuthorizationCode(code));
+            await codeGrain.IssueAsync(new AuthorizationCodeRequest(
+                userId,
+                orgId,
+                validation.ClientId ?? "default",
+                finalRedirectTarget,
+                validation.Scope,
+                validation.CodeChallenge,
+                validation.CodeChallengeMethod,
+                validation.Nonce,
+                displayName,
+                roles));
+
+            var codeRedirect = AddQueryParam(finalRedirectTarget, "code", code);
+            if (!string.IsNullOrEmpty(clientState))
+                codeRedirect = AddQueryParam(codeRedirect, "state", clientState);
+
+            return Results.Redirect(codeRedirect);
+        }
+
+        // Implicit flow - issue tokens directly
+        var (accessToken, expires) = tokenService.GenerateAccessToken(
+            userId,
+            displayName,
+            orgId,
+            roles: roles);
+        var refreshToken = tokenService.GenerateRefreshToken();
+
+        // Check if we should return JSON (API call) or redirect (browser flow)
+        if (string.IsNullOrEmpty(redirectTarget) && validation == null)
+        {
+            return Results.Ok(new
+            {
+                access_token = accessToken,
+                refresh_token = refreshToken,
+                expires_in = (int)(expires - DateTime.UtcNow).TotalSeconds,
+                token_type = "Bearer",
+                user_id = userId,
+                org_id = orgId,
+                display_name = displayName,
+                roles
+            });
+        }
+
+        var fragment = $"access_token={accessToken}" +
+            $"&token_type=Bearer" +
+            $"&expires_in={(int)(expires - DateTime.UtcNow).TotalSeconds}" +
+            $"&refresh_token={refreshToken}" +
+            $"&user_id={userId}" +
+            $"&org_id={orgId}" +
+            $"&display_name={Uri.EscapeDataString(displayName)}";
+
+        if (!string.IsNullOrEmpty(clientState))
+            fragment += $"&state={Uri.EscapeDataString(clientState)}";
+
+        var separator = finalRedirectTarget.Contains('#') ? "&" : "#";
+        return Results.Redirect($"{finalRedirectTarget}{separator}{fragment}");
+    }
+
+    // ========================================================================
     // Helper Methods
     // ========================================================================
 
@@ -530,7 +699,6 @@ public static class OAuthEndpoints
         JwtTokenService tokenService)
     {
         var code = form["code"].FirstOrDefault();
-        var redirectUri = form["redirect_uri"].FirstOrDefault();
         var codeVerifier = form["code_verifier"].FirstOrDefault();
 
         if (string.IsNullOrEmpty(code))
@@ -580,21 +748,10 @@ public static class OAuthEndpoints
                 statusCode: 400);
         }
 
-        // In a full implementation, we'd look up the refresh token
-        // For now, generate new tokens (stateless refresh)
-        var newAccessToken = tokenService.GenerateAccessToken(
-            Guid.NewGuid(),
-            "User",
-            DefaultOrgId);
-        var newRefreshToken = tokenService.GenerateRefreshToken();
-
-        return Results.Json(new
-        {
-            access_token = newAccessToken.AccessToken,
-            token_type = "Bearer",
-            expires_in = (int)(newAccessToken.Expires - DateTime.UtcNow).TotalSeconds,
-            refresh_token = newRefreshToken
-        });
+        // TODO: Implement proper refresh token validation with stored sessions
+        // For now, return error as stateless refresh is not secure
+        return Results.Json(new OAuthError("invalid_grant", "Refresh token not found or expired"),
+            statusCode: 400);
     }
 
     private static IResult HandleClientCredentialsGrant(
@@ -602,7 +759,6 @@ public static class OAuthEndpoints
         string? clientSecret,
         JwtTokenService tokenService)
     {
-        // Validate client credentials (in production, lookup from database)
         if (!IsValidClientCredentials(clientId, clientSecret))
         {
             return Results.Json(new OAuthError("invalid_client", "Invalid client credentials"),
@@ -610,9 +766,9 @@ public static class OAuthEndpoints
         }
 
         var (accessToken, expires) = tokenService.GenerateAccessToken(
-            Guid.Empty, // No user for client credentials
+            Guid.Empty,
             clientId,
-            DefaultOrgId,
+            Guid.Empty,
             roles: ["api_client"]);
 
         return Results.Json(new
@@ -625,8 +781,6 @@ public static class OAuthEndpoints
 
     private static bool IsValidClient(string clientId, string redirectUri)
     {
-        // In production, validate against registered clients
-        // For development, accept known clients
         var validClients = new Dictionary<string, string[]>
         {
             ["default"] = ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
@@ -635,29 +789,18 @@ public static class OAuthEndpoints
         };
 
         if (!validClients.TryGetValue(clientId, out var allowedUris))
-            return true; // Allow unknown clients in development
+            return true;
 
         return allowedUris.Any(u => redirectUri.StartsWith(u, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsValidClientCredentials(string clientId, string? clientSecret)
     {
-        // In production, validate against registered clients with secrets
-        // For development, accept test credentials
         if (clientId.StartsWith("test_") || clientId == "default")
             return true;
 
         return !string.IsNullOrEmpty(clientSecret);
     }
-
-    private static IReadOnlyList<string> MapUserTypeToRoles(State.UserType userType) => userType switch
-    {
-        State.UserType.Owner => ["owner", "admin", "manager", "backoffice"],
-        State.UserType.Admin => ["admin", "manager", "backoffice"],
-        State.UserType.Manager => ["manager", "backoffice"],
-        State.UserType.Employee => ["backoffice"],
-        _ => ["backoffice"]
-    };
 
     private static string AddQueryParam(string url, string key, string value)
     {

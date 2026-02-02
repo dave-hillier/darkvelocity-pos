@@ -357,6 +357,112 @@ public class UserGrain : Grain, IUserGrain
         return Task.FromResult(_state.State.Id != Guid.Empty);
     }
 
+    public async Task LinkExternalIdentityAsync(string provider, string externalId, string? email)
+    {
+        EnsureExists();
+        ArgumentException.ThrowIfNullOrWhiteSpace(provider);
+        ArgumentException.ThrowIfNullOrWhiteSpace(externalId);
+
+        var normalizedProvider = provider.ToLowerInvariant();
+
+        // Update local state
+        _state.State.ExternalIds[normalizedProvider] = externalId;
+        _state.State.UpdatedAt = DateTime.UtcNow;
+        _state.State.Version++;
+
+        await _state.WriteStateAsync();
+
+        // Register with OAuth lookup grain
+        var oauthLookupGrain = GrainFactory.GetGrain<IOAuthLookupGrain>(
+            GrainKeys.OAuthLookup(_state.State.OrganizationId));
+        await oauthLookupGrain.RegisterExternalIdAsync(normalizedProvider, externalId, _state.State.Id);
+
+        // Publish external identity linked event
+        if (GetUserStream() != null)
+        {
+            await GetUserStream().OnNextAsync(new ExternalIdentityLinkedEvent(
+                _state.State.Id,
+                normalizedProvider,
+                externalId,
+                email)
+            {
+                OrganizationId = _state.State.OrganizationId
+            });
+        }
+    }
+
+    public async Task UnlinkExternalIdentityAsync(string provider)
+    {
+        EnsureExists();
+        ArgumentException.ThrowIfNullOrWhiteSpace(provider);
+
+        var normalizedProvider = provider.ToLowerInvariant();
+
+        if (!_state.State.ExternalIds.TryGetValue(normalizedProvider, out var externalId))
+        {
+            return; // Not linked
+        }
+
+        // Remove from local state
+        _state.State.ExternalIds.Remove(normalizedProvider);
+        _state.State.UpdatedAt = DateTime.UtcNow;
+        _state.State.Version++;
+
+        await _state.WriteStateAsync();
+
+        // Unregister from OAuth lookup grain
+        var oauthLookupGrain = GrainFactory.GetGrain<IOAuthLookupGrain>(
+            GrainKeys.OAuthLookup(_state.State.OrganizationId));
+        await oauthLookupGrain.UnregisterExternalIdAsync(normalizedProvider, externalId);
+
+        // Publish external identity unlinked event
+        if (GetUserStream() != null)
+        {
+            await GetUserStream().OnNextAsync(new ExternalIdentityUnlinkedEvent(
+                _state.State.Id,
+                normalizedProvider,
+                externalId)
+            {
+                OrganizationId = _state.State.OrganizationId
+            });
+        }
+    }
+
+    public Task<Dictionary<string, string>> GetExternalIdsAsync()
+    {
+        return Task.FromResult(new Dictionary<string, string>(_state.State.ExternalIds));
+    }
+
+    public Task<IReadOnlyList<string>> GetRolesAsync()
+    {
+        var roles = new List<string>();
+
+        // Map UserType to roles
+        switch (_state.State.Type)
+        {
+            case UserType.Owner:
+                roles.Add("owner");
+                roles.Add("admin");
+                roles.Add("manager");
+                roles.Add("backoffice");
+                break;
+            case UserType.Admin:
+                roles.Add("admin");
+                roles.Add("manager");
+                roles.Add("backoffice");
+                break;
+            case UserType.Manager:
+                roles.Add("manager");
+                roles.Add("backoffice");
+                break;
+            case UserType.Employee:
+                roles.Add("employee");
+                break;
+        }
+
+        return Task.FromResult<IReadOnlyList<string>>(roles);
+    }
+
     private void EnsureExists()
     {
         if (_state.State.Id == Guid.Empty)
