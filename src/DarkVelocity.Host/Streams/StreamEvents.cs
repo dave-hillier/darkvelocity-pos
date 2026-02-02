@@ -79,6 +79,37 @@ public sealed record UserSiteAccessRevokedEvent(
     [property: Id(1)] Guid SiteId
 ) : StreamEvent;
 
+/// <summary>
+/// Published when an external OAuth identity is linked to a user.
+/// </summary>
+[GenerateSerializer]
+public sealed record ExternalIdentityLinkedEvent(
+    [property: Id(0)] Guid UserId,
+    [property: Id(1)] string Provider,
+    [property: Id(2)] string ExternalId,
+    [property: Id(3)] string? Email
+) : StreamEvent;
+
+/// <summary>
+/// Published when an external OAuth identity is unlinked from a user.
+/// </summary>
+[GenerateSerializer]
+public sealed record ExternalIdentityUnlinkedEvent(
+    [property: Id(0)] Guid UserId,
+    [property: Id(1)] string Provider,
+    [property: Id(2)] string ExternalId
+) : StreamEvent;
+
+/// <summary>
+/// Published when a user logs in via OAuth.
+/// </summary>
+[GenerateSerializer]
+public sealed record UserOAuthLoginEvent(
+    [property: Id(0)] Guid UserId,
+    [property: Id(1)] string Provider,
+    [property: Id(2)] string? Email
+) : StreamEvent;
+
 #endregion
 
 #region Employee Stream Events

@@ -43,6 +43,26 @@ public interface IUserGrain : IGrainWithStringKey
     Task UnlockAsync();
     Task RecordLoginAsync();
     Task<bool> ExistsAsync();
+
+    /// <summary>
+    /// Links an external OAuth identity to this user.
+    /// </summary>
+    Task LinkExternalIdentityAsync(string provider, string externalId, string? email);
+
+    /// <summary>
+    /// Unlinks an external OAuth identity from this user.
+    /// </summary>
+    Task UnlinkExternalIdentityAsync(string provider);
+
+    /// <summary>
+    /// Gets all linked external identities for this user.
+    /// </summary>
+    Task<Dictionary<string, string>> GetExternalIdsAsync();
+
+    /// <summary>
+    /// Converts UserType to role strings for JWT claims.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetRolesAsync();
 }
 
 [GenerateSerializer]
