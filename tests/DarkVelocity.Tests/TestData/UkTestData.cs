@@ -21,6 +21,13 @@ public static class UkTestData
     public static readonly Guid SilverTierId = Guid.Parse("30000000-0000-0000-0000-000000000003");
     public static readonly Guid GoldTierId = Guid.Parse("30000000-0000-0000-0000-000000000004");
 
+    // User Groups
+    public static readonly Guid AdminsGroupId = Guid.Parse("31000000-0000-0000-0000-000000000001");
+    public static readonly Guid ManagersGroupId = Guid.Parse("31000000-0000-0000-0000-000000000002");
+    public static readonly Guid KitchenGroupId = Guid.Parse("31000000-0000-0000-0000-000000000003");
+    public static readonly Guid FrontOfHouseGroupId = Guid.Parse("31000000-0000-0000-0000-000000000004");
+    public static readonly Guid BarGroupId = Guid.Parse("31000000-0000-0000-0000-000000000005");
+
     #region Organization
 
     public static class Organization
@@ -37,6 +44,297 @@ public static class UkTestData
             RequireManagerApprovalForDiscounts = true,
             DataRetentionDays = 365 * 7
         };
+    }
+
+    #endregion
+
+    #region Users
+
+    public static class Users
+    {
+        // Super Admin / Owner - full access to everything
+        public static readonly Guid SuperAdminId = Guid.Parse("32000000-0000-0000-0000-000000000001");
+
+        public static IEnumerable<UserData> All =>
+        [
+            // Owner - Company founder with full access
+            new()
+            {
+                Id = SuperAdminId,
+                Email = "richard.harrow@ploughandharrow.co.uk",
+                DisplayName = "Richard Harrow",
+                FirstName = "Richard",
+                LastName = "Harrow",
+                Type = UserType.Owner,
+                Pin = "1234",
+                SiteAccess = [LondonSiteId, ManchesterSiteId, BirminghamSiteId, EdinburghSiteId],
+                GroupIds = [AdminsGroupId]
+            },
+            // Admin - Operations Director
+            new()
+            {
+                Id = Guid.Parse("32000000-0000-0000-0000-000000000002"),
+                Email = "victoria.chen@ploughandharrow.co.uk",
+                DisplayName = "Victoria Chen",
+                FirstName = "Victoria",
+                LastName = "Chen",
+                Type = UserType.Admin,
+                Pin = "2345",
+                SiteAccess = [LondonSiteId, ManchesterSiteId, BirminghamSiteId, EdinburghSiteId],
+                GroupIds = [AdminsGroupId]
+            },
+            // Admin - Finance Director
+            new()
+            {
+                Id = Guid.Parse("32000000-0000-0000-0000-000000000003"),
+                Email = "marcus.thompson@ploughandharrow.co.uk",
+                DisplayName = "Marcus Thompson",
+                FirstName = "Marcus",
+                LastName = "Thompson",
+                Type = UserType.Admin,
+                Pin = "3456",
+                SiteAccess = [LondonSiteId, ManchesterSiteId, BirminghamSiteId, EdinburghSiteId],
+                GroupIds = [AdminsGroupId]
+            },
+
+            // London Site Users
+            new()
+            {
+                Id = Guid.Parse("32000000-0000-0000-0001-000000000001"),
+                Email = "james.wilson@ploughandharrow.co.uk",
+                DisplayName = "James Wilson",
+                FirstName = "James",
+                LastName = "Wilson",
+                Type = UserType.Manager,
+                Pin = "1111",
+                SiteAccess = [LondonSiteId],
+                GroupIds = [ManagersGroupId]
+            },
+            new()
+            {
+                Id = Guid.Parse("32000000-0000-0000-0001-000000000002"),
+                Email = "sophie.taylor@ploughandharrow.co.uk",
+                DisplayName = "Sophie Taylor",
+                FirstName = "Sophie",
+                LastName = "Taylor",
+                Type = UserType.Manager,
+                Pin = "1112",
+                SiteAccess = [LondonSiteId],
+                GroupIds = [ManagersGroupId]
+            },
+            new()
+            {
+                Id = Guid.Parse("32000000-0000-0000-0001-000000000003"),
+                Email = "oliver.brown@ploughandharrow.co.uk",
+                DisplayName = "Oliver Brown",
+                FirstName = "Oliver",
+                LastName = "Brown",
+                Type = UserType.Employee,
+                Pin = "1113",
+                SiteAccess = [LondonSiteId],
+                GroupIds = [KitchenGroupId]
+            },
+            new()
+            {
+                Id = Guid.Parse("32000000-0000-0000-0001-000000000004"),
+                Email = "charlotte.evans@ploughandharrow.co.uk",
+                DisplayName = "Charlotte Evans",
+                FirstName = "Charlotte",
+                LastName = "Evans",
+                Type = UserType.Employee,
+                Pin = "1114",
+                SiteAccess = [LondonSiteId],
+                GroupIds = [FrontOfHouseGroupId]
+            },
+            new()
+            {
+                Id = Guid.Parse("32000000-0000-0000-0001-000000000005"),
+                Email = "amelia.walker@ploughandharrow.co.uk",
+                DisplayName = "Amelia Walker",
+                FirstName = "Amelia",
+                LastName = "Walker",
+                Type = UserType.Employee,
+                Pin = "1115",
+                SiteAccess = [LondonSiteId],
+                GroupIds = [BarGroupId]
+            },
+
+            // Manchester Site Users
+            new()
+            {
+                Id = Guid.Parse("32000000-0000-0000-0002-000000000001"),
+                Email = "jack.hughes@ploughandharrow.co.uk",
+                DisplayName = "Jack Hughes",
+                FirstName = "Jack",
+                LastName = "Hughes",
+                Type = UserType.Manager,
+                Pin = "2111",
+                SiteAccess = [ManchesterSiteId],
+                GroupIds = [ManagersGroupId]
+            },
+            new()
+            {
+                Id = Guid.Parse("32000000-0000-0000-0002-000000000002"),
+                Email = "mia.clarke@ploughandharrow.co.uk",
+                DisplayName = "Mia Clarke",
+                FirstName = "Mia",
+                LastName = "Clarke",
+                Type = UserType.Employee,
+                Pin = "2112",
+                SiteAccess = [ManchesterSiteId],
+                GroupIds = [KitchenGroupId]
+            },
+            new()
+            {
+                Id = Guid.Parse("32000000-0000-0000-0002-000000000003"),
+                Email = "noah.scott@ploughandharrow.co.uk",
+                DisplayName = "Noah Scott",
+                FirstName = "Noah",
+                LastName = "Scott",
+                Type = UserType.Employee,
+                Pin = "2113",
+                SiteAccess = [ManchesterSiteId],
+                GroupIds = [FrontOfHouseGroupId]
+            },
+
+            // Birmingham Site Users
+            new()
+            {
+                Id = Guid.Parse("32000000-0000-0000-0003-000000000001"),
+                Email = "william.king@ploughandharrow.co.uk",
+                DisplayName = "William King",
+                FirstName = "William",
+                LastName = "King",
+                Type = UserType.Manager,
+                Pin = "3111",
+                SiteAccess = [BirminghamSiteId],
+                GroupIds = [ManagersGroupId]
+            },
+            new()
+            {
+                Id = Guid.Parse("32000000-0000-0000-0003-000000000002"),
+                Email = "lily.wright@ploughandharrow.co.uk",
+                DisplayName = "Lily Wright",
+                FirstName = "Lily",
+                LastName = "Wright",
+                Type = UserType.Employee,
+                Pin = "3112",
+                SiteAccess = [BirminghamSiteId],
+                GroupIds = [KitchenGroupId]
+            },
+
+            // Edinburgh Site Users
+            new()
+            {
+                Id = Guid.Parse("32000000-0000-0000-0004-000000000001"),
+                Email = "isla.campbell@ploughandharrow.co.uk",
+                DisplayName = "Isla Campbell",
+                FirstName = "Isla",
+                LastName = "Campbell",
+                Type = UserType.Manager,
+                Pin = "4111",
+                SiteAccess = [EdinburghSiteId],
+                GroupIds = [ManagersGroupId]
+            },
+            new()
+            {
+                Id = Guid.Parse("32000000-0000-0000-0004-000000000002"),
+                Email = "finlay.stewart@ploughandharrow.co.uk",
+                DisplayName = "Finlay Stewart",
+                FirstName = "Finlay",
+                LastName = "Stewart",
+                Type = UserType.Employee,
+                Pin = "4112",
+                SiteAccess = [EdinburghSiteId],
+                GroupIds = [KitchenGroupId]
+            },
+            new()
+            {
+                Id = Guid.Parse("32000000-0000-0000-0004-000000000003"),
+                Email = "ava.macdonald@ploughandharrow.co.uk",
+                DisplayName = "Ava MacDonald",
+                FirstName = "Ava",
+                LastName = "MacDonald",
+                Type = UserType.Employee,
+                Pin = "4113",
+                SiteAccess = [EdinburghSiteId],
+                GroupIds = [FrontOfHouseGroupId]
+            }
+        ];
+
+        // Convenience accessors
+        public static UserData SuperAdmin => All.First(u => u.Id == SuperAdminId);
+        public static IEnumerable<UserData> Owners => All.Where(u => u.Type == UserType.Owner);
+        public static IEnumerable<UserData> Admins => All.Where(u => u.Type == UserType.Admin);
+        public static IEnumerable<UserData> Managers => All.Where(u => u.Type == UserType.Manager);
+        public static IEnumerable<UserData> ForSite(Guid siteId) => All.Where(u => u.SiteAccess.Contains(siteId));
+    }
+
+    public record UserData
+    {
+        public required Guid Id { get; init; }
+        public required string Email { get; init; }
+        public required string DisplayName { get; init; }
+        public string? FirstName { get; init; }
+        public string? LastName { get; init; }
+        public required UserType Type { get; init; }
+        public string? Pin { get; init; }
+        public List<Guid> SiteAccess { get; init; } = [];
+        public List<Guid> GroupIds { get; init; } = [];
+    }
+
+    #endregion
+
+    #region User Groups
+
+    public static class UserGroups
+    {
+        public static IEnumerable<UserGroupData> All =>
+        [
+            new()
+            {
+                Id = AdminsGroupId,
+                Name = "Administrators",
+                Description = "Full system access - owners and operations team",
+                IsSystemGroup = true
+            },
+            new()
+            {
+                Id = ManagersGroupId,
+                Name = "Site Managers",
+                Description = "Site-level management access - can manage staff, view reports, approve discounts",
+                IsSystemGroup = true
+            },
+            new()
+            {
+                Id = KitchenGroupId,
+                Name = "Kitchen Staff",
+                Description = "Kitchen display access, inventory management, recipe viewing",
+                IsSystemGroup = false
+            },
+            new()
+            {
+                Id = FrontOfHouseGroupId,
+                Name = "Front of House",
+                Description = "POS access, table management, order taking",
+                IsSystemGroup = false
+            },
+            new()
+            {
+                Id = BarGroupId,
+                Name = "Bar Staff",
+                Description = "Bar POS access, drinks orders, tab management",
+                IsSystemGroup = false
+            }
+        ];
+    }
+
+    public record UserGroupData
+    {
+        public required Guid Id { get; init; }
+        public required string Name { get; init; }
+        public string? Description { get; init; }
+        public bool IsSystemGroup { get; init; }
     }
 
     #endregion
