@@ -1,5 +1,5 @@
 using DarkVelocity.Host;
-using DarkVelocity.Host.Events.JournaledEvents;
+using DarkVelocity.Host.Events;
 using DarkVelocity.Host.Grains;
 using DarkVelocity.Host.State;
 using DarkVelocity.Host.Streams;
@@ -10,7 +10,7 @@ using Orleans.Streams;
 namespace DarkVelocity.Host.Grains;
 
 [LogConsistencyProvider(ProviderName = "LogStorage")]
-public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEvent>, IEmployeeGrain
+public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeEvent>, IEmployeeGrain
 {
     private Lazy<IAsyncStream<IStreamEvent>>? _employeeStream;
 
@@ -26,11 +26,11 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
         return base.OnActivateAsync(cancellationToken);
     }
 
-    protected override void TransitionState(EmployeeState state, IEmployeeJournaledEvent @event)
+    protected override void TransitionState(EmployeeState state, IEmployeeEvent @event)
     {
         switch (@event)
         {
-            case EmployeeCreatedJournaledEvent e:
+            case EmployeeCreated e:
                 state.Id = e.EmployeeId;
                 state.OrganizationId = e.OrganizationId;
                 state.UserId = e.UserId;
@@ -46,29 +46,29 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
                 state.CreatedAt = e.OccurredAt;
                 break;
 
-            case EmployeeProfileUpdatedJournaledEvent e:
+            case EmployeeProfileUpdated e:
                 if (e.FirstName != null) state.FirstName = e.FirstName;
                 if (e.LastName != null) state.LastName = e.LastName;
                 if (e.Email != null) state.Email = e.Email;
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case EmployeeStatusChangedJournaledEvent e:
+            case EmployeeStatusChanged e:
                 state.Status = e.NewStatus;
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case EmployeeRoleAssignedJournaledEvent e:
+            case EmployeeRoleAssigned e:
                 // Add role assignment - handled differently in grain logic
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case EmployeeRoleRevokedJournaledEvent e:
+            case EmployeeRoleRevoked e:
                 // Remove role assignment - handled differently in grain logic
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case EmployeeSiteAssignedJournaledEvent e:
+            case EmployeeSiteAssigned e:
                 if (!state.AllowedSiteIds.Contains(e.SiteId))
                 {
                     state.AllowedSiteIds.Add(e.SiteId);
@@ -76,12 +76,12 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case EmployeeSiteRemovedJournaledEvent e:
+            case EmployeeSiteRemoved e:
                 state.AllowedSiteIds.Remove(e.SiteId);
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case EmployeeClockedInJournaledEvent e:
+            case EmployeeClockedIn e:
                 state.CurrentTimeEntry = new TimeEntry
                 {
                     Id = Guid.NewGuid(),
@@ -92,7 +92,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case EmployeeClockedOutJournaledEvent e:
+            case EmployeeClockedOut e:
                 if (state.CurrentTimeEntry != null)
                 {
                     var entry = state.CurrentTimeEntry;
@@ -108,7 +108,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case EmployeePayRateChangedJournaledEvent e:
+            case EmployeePayRateChanged e:
                 if (e.RateType == "hourly")
                 {
                     state.HourlyRate = e.NewRate;
@@ -120,7 +120,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case EmployeeTerminatedJournaledEvent e:
+            case EmployeeTerminated e:
                 state.Status = EmployeeStatus.Terminated;
                 state.TerminationDate = e.TerminationDate;
                 state.TerminationReason = e.Reason;
@@ -136,7 +136,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case EmployeeRehiredJournaledEvent e:
+            case EmployeeRehired e:
                 state.Status = EmployeeStatus.Active;
                 state.HireDate = e.RehireDate;
                 state.DefaultSiteId = e.DefaultSiteId;
@@ -159,7 +159,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
         var key = this.GetPrimaryKeyString();
         var (_, _, employeeId) = GrainKeys.ParseOrgEntity(key);
 
-        RaiseEvent(new EmployeeCreatedJournaledEvent
+        RaiseEvent(new EmployeeCreated
         {
             EmployeeId = employeeId,
             OrganizationId = command.OrganizationId,
@@ -226,7 +226,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
 
         if (newFirstName != null || newLastName != null || newEmail != null)
         {
-            RaiseEvent(new EmployeeProfileUpdatedJournaledEvent
+            RaiseEvent(new EmployeeProfileUpdated
             {
                 EmployeeId = State.Id,
                 FirstName = newFirstName,
@@ -240,7 +240,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
         // Handle pay rate changes
         if (command.HourlyRate != null && State.HourlyRate != command.HourlyRate)
         {
-            RaiseEvent(new EmployeePayRateChangedJournaledEvent
+            RaiseEvent(new EmployeePayRateChanged
             {
                 EmployeeId = State.Id,
                 OldRate = State.HourlyRate ?? 0,
@@ -255,7 +255,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
 
         if (command.SalaryAmount != null && State.SalaryAmount != command.SalaryAmount)
         {
-            RaiseEvent(new EmployeePayRateChangedJournaledEvent
+            RaiseEvent(new EmployeePayRateChanged
             {
                 EmployeeId = State.Id,
                 OldRate = State.SalaryAmount ?? 0,
@@ -330,7 +330,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
             });
         }
 
-        RaiseEvent(new EmployeeRoleAssignedJournaledEvent
+        RaiseEvent(new EmployeeRoleAssigned
         {
             EmployeeId = State.Id,
             RoleName = command.RoleName,
@@ -356,7 +356,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
                 State.RoleAssignments[0].IsPrimary = true;
             }
 
-            RaiseEvent(new EmployeeRoleRevokedJournaledEvent
+            RaiseEvent(new EmployeeRoleRevoked
             {
                 EmployeeId = State.Id,
                 RoleName = role.RoleName,
@@ -374,7 +374,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
 
         if (!State.AllowedSiteIds.Contains(siteId))
         {
-            RaiseEvent(new EmployeeSiteAssignedJournaledEvent
+            RaiseEvent(new EmployeeSiteAssigned
             {
                 EmployeeId = State.Id,
                 SiteId = siteId,
@@ -395,7 +395,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
 
         if (State.AllowedSiteIds.Contains(siteId))
         {
-            RaiseEvent(new EmployeeSiteRemovedJournaledEvent
+            RaiseEvent(new EmployeeSiteRemoved
             {
                 EmployeeId = State.Id,
                 SiteId = siteId,
@@ -416,7 +416,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
         var oldStatus = State.Status;
         if (oldStatus != EmployeeStatus.Active)
         {
-            RaiseEvent(new EmployeeStatusChangedJournaledEvent
+            RaiseEvent(new EmployeeStatusChanged
             {
                 EmployeeId = State.Id,
                 OldStatus = oldStatus,
@@ -449,7 +449,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
         var oldStatus = State.Status;
         if (oldStatus != EmployeeStatus.Inactive)
         {
-            RaiseEvent(new EmployeeStatusChangedJournaledEvent
+            RaiseEvent(new EmployeeStatusChanged
             {
                 EmployeeId = State.Id,
                 OldStatus = oldStatus,
@@ -482,7 +482,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
         var oldStatus = State.Status;
         if (oldStatus != EmployeeStatus.OnLeave)
         {
-            RaiseEvent(new EmployeeStatusChangedJournaledEvent
+            RaiseEvent(new EmployeeStatusChanged
             {
                 EmployeeId = State.Id,
                 OldStatus = oldStatus,
@@ -511,7 +511,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
     {
         EnsureExists();
 
-        RaiseEvent(new EmployeeTerminatedJournaledEvent
+        RaiseEvent(new EmployeeTerminated
         {
             EmployeeId = State.Id,
             TerminationDate = terminationDate,
@@ -548,7 +548,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
         if (!State.AllowedSiteIds.Contains(command.SiteId))
             throw new InvalidOperationException("Employee does not have access to this site");
 
-        RaiseEvent(new EmployeeClockedInJournaledEvent
+        RaiseEvent(new EmployeeClockedIn
         {
             EmployeeId = State.Id,
             SiteId = command.SiteId,
@@ -588,7 +588,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
         // Set notes before the event (not captured in journaled event)
         entry.Notes = command.Notes;
 
-        RaiseEvent(new EmployeeClockedOutJournaledEvent
+        RaiseEvent(new EmployeeClockedOut
         {
             EmployeeId = State.Id,
             SiteId = entry.SiteId,
@@ -647,7 +647,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
 
         if (hasProfileChanges)
         {
-            RaiseEvent(new EmployeeProfileUpdatedJournaledEvent
+            RaiseEvent(new EmployeeProfileUpdated
             {
                 EmployeeId = State.Id,
                 FirstName = newFirstName,
@@ -671,7 +671,7 @@ public class EmployeeGrain : JournaledGrain<EmployeeState, IEmployeeJournaledEve
 
             if (State.Status != newStatus)
             {
-                RaiseEvent(new EmployeeStatusChangedJournaledEvent
+                RaiseEvent(new EmployeeStatusChanged
                 {
                     EmployeeId = State.Id,
                     OldStatus = State.Status,

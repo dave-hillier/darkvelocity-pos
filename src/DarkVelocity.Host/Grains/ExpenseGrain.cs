@@ -1,5 +1,4 @@
 using DarkVelocity.Host.Events;
-using DarkVelocity.Host.Events.JournaledEvents;
 using DarkVelocity.Host.State;
 using DarkVelocity.Host.Streams;
 using Microsoft.Extensions.Logging;
@@ -14,7 +13,7 @@ namespace DarkVelocity.Host.Grains;
 /// Grain representing an expense record.
 /// </summary>
 [LogConsistencyProvider(ProviderName = "LogStorage")]
-public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseJournaledEvent>, IExpenseGrain
+public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseEvent>, IExpenseGrain
 {
     private readonly IGrainFactory _grainFactory;
     private readonly ILogger<ExpenseGrain> _logger;
@@ -41,11 +40,11 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseJournaledEvent>
         return base.OnActivateAsync(cancellationToken);
     }
 
-    protected override void TransitionState(ExpenseState state, IExpenseJournaledEvent @event)
+    protected override void TransitionState(ExpenseState state, IExpenseEvent @event)
     {
         switch (@event)
         {
-            case ExpenseCreatedJournaledEvent e:
+            case ExpenseCreated e:
                 state.ExpenseId = e.ExpenseId;
                 state.OrganizationId = e.OrganizationId;
                 state.SiteId = e.SiteId;
@@ -61,7 +60,7 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseJournaledEvent>
                 state.CreatedBy = e.SubmittedBy;
                 break;
 
-            case ExpenseUpdatedJournaledEvent e:
+            case ExpenseUpdated e:
                 if (e.Description != null) state.Description = e.Description;
                 if (e.Amount.HasValue) state.Amount = e.Amount.Value;
                 if (e.Category != null && Enum.TryParse<ExpenseCategory>(e.Category, out var updCat))
@@ -72,7 +71,7 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseJournaledEvent>
                 state.UpdatedBy = e.UpdatedBy;
                 break;
 
-            case ExpenseApprovedJournaledEvent e:
+            case ExpenseApproved e:
                 state.Status = ExpenseStatus.Approved;
                 state.ApprovedBy = e.ApprovedBy;
                 state.ApprovedAt = e.OccurredAt;
@@ -80,34 +79,34 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseJournaledEvent>
                     state.Notes = (state.Notes ?? "") + $"\nApproval note: {e.Notes}";
                 break;
 
-            case ExpenseRejectedJournaledEvent e:
+            case ExpenseRejected e:
                 state.Status = ExpenseStatus.Rejected;
                 state.Notes = (state.Notes ?? "") + $"\nRejection reason: {e.Reason}";
                 break;
 
-            case ExpensePaidJournaledEvent e:
+            case ExpensePaid e:
                 state.Status = ExpenseStatus.Paid;
                 if (e.ReferenceNumber != null) state.ReferenceNumber = e.ReferenceNumber;
                 if (e.PaymentMethod != null && Enum.TryParse<PaymentMethod>(e.PaymentMethod, out var pm))
                     state.PaymentMethod = pm;
                 break;
 
-            case ExpenseVoidedJournaledEvent e:
+            case ExpenseVoided e:
                 state.Status = ExpenseStatus.Voided;
                 state.Notes = (state.Notes ?? "") + $"\nVoided: {e.Reason}";
                 break;
 
-            case ExpenseCancelledJournaledEvent e:
+            case ExpenseCancelled e:
                 state.Status = ExpenseStatus.Voided;
                 state.Notes = (state.Notes ?? "") + $"\nCancelled: {e.Reason}";
                 break;
 
-            case ExpenseReceiptAttachedJournaledEvent e:
+            case ExpenseReceiptAttached e:
                 state.DocumentUrl = e.ReceiptUrl;
                 state.DocumentFilename = e.FileName;
                 break;
 
-            case ExpenseRecurrenceSetJournaledEvent e:
+            case ExpenseRecurrenceSet e:
                 state.IsRecurring = true;
                 state.RecurrencePattern = new RecurrencePattern
                 {
@@ -123,7 +122,7 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseJournaledEvent>
         if (State.ExpenseId != Guid.Empty)
             throw new InvalidOperationException("Expense already exists");
 
-        RaiseEvent(new ExpenseCreatedJournaledEvent
+        RaiseEvent(new ExpenseCreated
         {
             ExpenseId = command.ExpenseId,
             OrganizationId = command.OrganizationId,
@@ -186,7 +185,7 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseJournaledEvent>
         EnsureExists();
         EnsureModifiable();
 
-        RaiseEvent(new ExpenseUpdatedJournaledEvent
+        RaiseEvent(new ExpenseUpdated
         {
             ExpenseId = State.ExpenseId,
             Description = command.Description,
@@ -240,7 +239,7 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseJournaledEvent>
         if (State.Status != ExpenseStatus.Pending)
             throw new InvalidOperationException($"Cannot approve expense in status {State.Status}");
 
-        RaiseEvent(new ExpenseApprovedJournaledEvent
+        RaiseEvent(new ExpenseApproved
         {
             ExpenseId = State.ExpenseId,
             ApprovedBy = command.ApprovedBy,
@@ -275,7 +274,7 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseJournaledEvent>
         if (State.Status != ExpenseStatus.Pending)
             throw new InvalidOperationException($"Cannot reject expense in status {State.Status}");
 
-        RaiseEvent(new ExpenseRejectedJournaledEvent
+        RaiseEvent(new ExpenseRejected
         {
             ExpenseId = State.ExpenseId,
             RejectedBy = command.RejectedBy,
@@ -311,7 +310,7 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseJournaledEvent>
         if (State.Status != ExpenseStatus.Approved && State.Status != ExpenseStatus.Pending)
             throw new InvalidOperationException($"Cannot mark expense as paid in status {State.Status}");
 
-        RaiseEvent(new ExpensePaidJournaledEvent
+        RaiseEvent(new ExpensePaid
         {
             ExpenseId = State.ExpenseId,
             PaidBy = command.PaidBy,
@@ -352,7 +351,7 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseJournaledEvent>
         if (State.Status == ExpenseStatus.Voided)
             throw new InvalidOperationException("Expense already voided");
 
-        RaiseEvent(new ExpenseVoidedJournaledEvent
+        RaiseEvent(new ExpenseVoided
         {
             ExpenseId = State.ExpenseId,
             VoidedBy = command.VoidedBy,
@@ -387,7 +386,7 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseJournaledEvent>
     {
         EnsureExists();
 
-        RaiseEvent(new ExpenseReceiptAttachedJournaledEvent
+        RaiseEvent(new ExpenseReceiptAttached
         {
             ExpenseId = State.ExpenseId,
             ReceiptUrl = command.DocumentUrl,
@@ -424,7 +423,7 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseJournaledEvent>
     {
         EnsureExists();
 
-        RaiseEvent(new ExpenseRecurrenceSetJournaledEvent
+        RaiseEvent(new ExpenseRecurrenceSet
         {
             ExpenseId = State.ExpenseId,
             Frequency = command.Pattern.Frequency.ToString(),

@@ -1,5 +1,5 @@
 using DarkVelocity.Host;
-using DarkVelocity.Host.Events.JournaledEvents;
+using DarkVelocity.Host.Events;
 using DarkVelocity.Host.Extensions;
 using DarkVelocity.Host.Grains;
 using DarkVelocity.Host.State;
@@ -12,15 +12,15 @@ using Orleans.Streams;
 namespace DarkVelocity.Host.Grains;
 
 [LogConsistencyProvider(ProviderName = "LogStorage")]
-public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>, IBookingGrain
+public class BookingGrain : JournaledGrain<BookingState, IBookingEvent>, IBookingGrain
 {
     private Lazy<IAsyncStream<IStreamEvent>>? _bookingStream;
 
-    protected override void TransitionState(BookingState state, IBookingJournaledEvent @event)
+    protected override void TransitionState(BookingState state, IBookingEvent @event)
     {
         switch (@event)
         {
-            case BookingCreatedJournaledEvent e:
+            case BookingCreated e:
                 state.Id = e.BookingId;
                 state.OrganizationId = e.OrganizationId;
                 state.SiteId = e.SiteId;
@@ -39,13 +39,13 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
                 state.CreatedAt = e.OccurredAt;
                 break;
 
-            case BookingConfirmedJournaledEvent e:
+            case BookingConfirmed e:
                 state.Status = BookingStatus.Confirmed;
                 state.ConfirmedTime = state.RequestedTime;
                 state.ConfirmedAt = e.OccurredAt;
                 break;
 
-            case BookingModifiedJournaledEvent e:
+            case BookingModified e:
                 if (e.NewDateTime.HasValue)
                 {
                     state.RequestedTime = e.NewDateTime.Value;
@@ -58,14 +58,14 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
                     state.SpecialRequests = e.NewSpecialRequests;
                 break;
 
-            case BookingCancelledJournaledEvent e:
+            case BookingCancelled e:
                 state.Status = BookingStatus.Cancelled;
                 state.CancelledAt = e.OccurredAt;
                 state.CancellationReason = e.Reason;
                 state.CancelledBy = e.CancelledBy;
                 break;
 
-            case BookingDepositRequiredJournaledEvent e:
+            case BookingDepositRequired e:
                 state.Deposit = new DepositInfo
                 {
                     Amount = e.AmountRequired,
@@ -75,7 +75,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
                 state.Status = BookingStatus.PendingDeposit;
                 break;
 
-            case BookingDepositPaidJournaledEvent e:
+            case BookingDepositPaid e:
                 if (state.Deposit != null)
                 {
                     state.Deposit = state.Deposit with
@@ -88,7 +88,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
                 }
                 break;
 
-            case BookingDepositRefundedJournaledEvent e:
+            case BookingDepositRefunded e:
                 if (state.Deposit != null)
                 {
                     state.Deposit = state.Deposit with
@@ -100,7 +100,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
                 }
                 break;
 
-            case BookingDepositForfeitedJournaledEvent e:
+            case BookingDepositForfeited e:
                 if (state.Deposit != null)
                 {
                     state.Deposit = state.Deposit with
@@ -111,14 +111,14 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
                 }
                 break;
 
-            case BookingGuestArrivedJournaledEvent e:
+            case BookingGuestArrived e:
                 state.Status = BookingStatus.Arrived;
                 state.ArrivedAt = e.OccurredAt;
                 if (e.ActualPartySize.HasValue)
                     state.PartySize = e.ActualPartySize.Value;
                 break;
 
-            case BookingSeatedJournaledEvent e:
+            case BookingSeated e:
                 state.Status = BookingStatus.Seated;
                 state.SeatedAt = e.OccurredAt;
                 state.SeatedBy = e.SeatedBy;
@@ -136,7 +136,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
                 }
                 break;
 
-            case BookingTableAssignedJournaledEvent e:
+            case BookingTableAssigned e:
                 state.TableAssignments.Add(new TableAssignment
                 {
                     TableId = e.TableId,
@@ -145,16 +145,16 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
                 });
                 break;
 
-            case BookingLinkedToOrderJournaledEvent e:
+            case BookingLinkedToOrder e:
                 state.LinkedOrderId = e.OrderId;
                 break;
 
-            case BookingDepartedJournaledEvent e:
+            case BookingDeparted e:
                 state.Status = BookingStatus.Completed;
                 state.DepartedAt = e.OccurredAt;
                 break;
 
-            case BookingNoShowJournaledEvent e:
+            case BookingNoShow e:
                 state.Status = BookingStatus.NoShow;
                 break;
         }
@@ -185,7 +185,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
 
         var confirmationCode = GenerateConfirmationCode();
 
-        RaiseEvent(new BookingCreatedJournaledEvent
+        RaiseEvent(new BookingCreated
         {
             BookingId = bookingId,
             OrganizationId = command.OrganizationId,
@@ -221,7 +221,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
         if (State.Deposit != null && State.Deposit.Status == DepositStatus.Required)
             throw new InvalidOperationException("Deposit required but not paid");
 
-        RaiseEvent(new BookingConfirmedJournaledEvent
+        RaiseEvent(new BookingConfirmed
         {
             BookingId = State.Id,
             OccurredAt = DateTime.UtcNow
@@ -240,7 +240,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
         EnsureExists();
         EnsureStatus(BookingStatus.Requested, BookingStatus.Confirmed);
 
-        RaiseEvent(new BookingModifiedJournaledEvent
+        RaiseEvent(new BookingModified
         {
             BookingId = State.Id,
             NewDateTime = command.NewTime,
@@ -266,7 +266,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
         if (State.Status == BookingStatus.Completed)
             throw new InvalidOperationException("Cannot cancel completed booking");
 
-        RaiseEvent(new BookingCancelledJournaledEvent
+        RaiseEvent(new BookingCancelled
         {
             BookingId = State.Id,
             Reason = command.Reason,
@@ -280,7 +280,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
     {
         EnsureExists();
 
-        RaiseEvent(new BookingTableAssignedJournaledEvent
+        RaiseEvent(new BookingTableAssigned
         {
             BookingId = State.Id,
             TableId = command.TableId,
@@ -307,7 +307,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
         EnsureExists();
         EnsureStatus(BookingStatus.Confirmed);
 
-        RaiseEvent(new BookingGuestArrivedJournaledEvent
+        RaiseEvent(new BookingGuestArrived
         {
             BookingId = State.Id,
             OccurredAt = DateTime.UtcNow
@@ -324,7 +324,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
         EnsureExists();
         EnsureStatus(BookingStatus.Arrived, BookingStatus.Confirmed);
 
-        RaiseEvent(new BookingSeatedJournaledEvent
+        RaiseEvent(new BookingSeated
         {
             BookingId = State.Id,
             TableId = command.TableId,
@@ -343,7 +343,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
 
         if (command.OrderId != null)
         {
-            RaiseEvent(new BookingLinkedToOrderJournaledEvent
+            RaiseEvent(new BookingLinkedToOrder
             {
                 BookingId = State.Id,
                 OrderId = command.OrderId.Value,
@@ -351,7 +351,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
             });
         }
 
-        RaiseEvent(new BookingDepartedJournaledEvent
+        RaiseEvent(new BookingDeparted
         {
             BookingId = State.Id,
             OccurredAt = DateTime.UtcNow
@@ -364,7 +364,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
         EnsureExists();
         EnsureStatus(BookingStatus.Confirmed);
 
-        RaiseEvent(new BookingNoShowJournaledEvent
+        RaiseEvent(new BookingNoShow
         {
             BookingId = State.Id,
             MarkedBy = markedBy ?? Guid.Empty,
@@ -381,7 +381,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
             ? request
             : $"{State.SpecialRequests}; {request}";
 
-        RaiseEvent(new BookingModifiedJournaledEvent
+        RaiseEvent(new BookingModified
         {
             BookingId = State.Id,
             NewSpecialRequests = newRequests,
@@ -413,7 +413,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
         EnsureExists();
         EnsureStatus(BookingStatus.Requested);
 
-        RaiseEvent(new BookingDepositRequiredJournaledEvent
+        RaiseEvent(new BookingDepositRequired
         {
             BookingId = State.Id,
             AmountRequired = command.Amount,
@@ -449,7 +449,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
 
         var depositAmount = State.Deposit.Amount;
 
-        RaiseEvent(new BookingDepositPaidJournaledEvent
+        RaiseEvent(new BookingDepositPaid
         {
             BookingId = State.Id,
             PaymentId = Guid.NewGuid(),
@@ -496,7 +496,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
 
         var depositAmount = State.Deposit.Amount;
 
-        RaiseEvent(new BookingDepositForfeitedJournaledEvent
+        RaiseEvent(new BookingDepositForfeited
         {
             BookingId = State.Id,
             Amount = depositAmount,
@@ -531,7 +531,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
 
         var depositAmount = State.Deposit.Amount;
 
-        RaiseEvent(new BookingDepositRefundedJournaledEvent
+        RaiseEvent(new BookingDepositRefunded
         {
             BookingId = State.Id,
             Amount = depositAmount,
@@ -561,7 +561,7 @@ public class BookingGrain : JournaledGrain<BookingState, IBookingJournaledEvent>
     {
         EnsureExists();
 
-        RaiseEvent(new BookingLinkedToOrderJournaledEvent
+        RaiseEvent(new BookingLinkedToOrder
         {
             BookingId = State.Id,
             OrderId = orderId,

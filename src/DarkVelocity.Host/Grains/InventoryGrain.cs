@@ -1,5 +1,5 @@
 using DarkVelocity.Host;
-using DarkVelocity.Host.Events.JournaledEvents;
+using DarkVelocity.Host.Events;
 using DarkVelocity.Host.Grains;
 using DarkVelocity.Host.State;
 using DarkVelocity.Host.Streams;
@@ -12,7 +12,7 @@ using Orleans.Streams;
 namespace DarkVelocity.Host.Grains;
 
 [LogConsistencyProvider(ProviderName = "LogStorage")]
-public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaledEvent>, IInventoryGrain
+public class InventoryGrain : JournaledGrain<InventoryState, IInventoryEvent>, IInventoryGrain
 {
     private readonly IGrainFactory _grainFactory;
     private readonly ILogger<InventoryGrain> _logger;
@@ -37,11 +37,11 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
         return base.OnActivateAsync(cancellationToken);
     }
 
-    protected override void TransitionState(InventoryState state, IInventoryJournaledEvent @event)
+    protected override void TransitionState(InventoryState state, IInventoryEvent @event)
     {
         switch (@event)
         {
-            case InventoryInitializedJournaledEvent e:
+            case InventoryInitialized e:
                 state.IngredientId = e.IngredientId;
                 state.OrganizationId = e.OrganizationId;
                 state.SiteId = e.SiteId;
@@ -51,7 +51,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
                 state.ParLevel = e.ParLevel;
                 break;
 
-            case StockBatchReceivedJournaledEvent e:
+            case StockBatchReceived e:
                 var batch = new StockBatch
                 {
                     Id = e.BatchId,
@@ -71,7 +71,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
                 RecalculateQuantitiesAndCost(state);
                 break;
 
-            case StockTransferredInJournaledEvent e:
+            case StockTransferredIn e:
                 var transferBatch = new StockBatch
                 {
                     Id = Guid.NewGuid(),
@@ -88,23 +88,23 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
                 RecalculateQuantitiesAndCost(state);
                 break;
 
-            case StockConsumedJournaledEvent e:
+            case StockConsumed e:
                 ConsumeFifoForState(state, e.Quantity);
                 state.LastConsumedAt = e.OccurredAt;
                 RecalculateQuantitiesAndCost(state);
                 break;
 
-            case StockWrittenOffJournaledEvent e:
+            case StockWrittenOff e:
                 ConsumeFifoForState(state, e.Quantity);
                 RecalculateQuantitiesAndCost(state);
                 break;
 
-            case StockTransferredOutJournaledEvent e:
+            case StockTransferredOut e:
                 ConsumeFifoForState(state, e.Quantity);
                 RecalculateQuantitiesAndCost(state);
                 break;
 
-            case StockAdjustedJournaledEvent e:
+            case StockAdjusted e:
                 var variance = e.NewQuantity - e.PreviousQuantity;
                 if (variance > 0)
                 {
@@ -130,7 +130,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
                 RecalculateQuantitiesAndCost(state);
                 break;
 
-            case InventorySettingsUpdatedJournaledEvent e:
+            case InventorySettingsUpdated e:
                 if (e.ReorderPoint.HasValue)
                     state.ReorderPoint = e.ReorderPoint.Value;
                 if (e.ParLevel.HasValue)
@@ -138,8 +138,8 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
                 UpdateStockLevel(state);
                 break;
 
-            case LowStockAlertTriggeredJournaledEvent:
-            case StockDepletedJournaledEvent:
+            case LowStockAlertTriggered:
+            case StockDepleted:
                 // These are marker events, no state change needed
                 break;
         }
@@ -231,7 +231,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
         if (State.IngredientId != Guid.Empty)
             throw new InvalidOperationException("Inventory already initialized");
 
-        RaiseEvent(new InventoryInitializedJournaledEvent
+        RaiseEvent(new InventoryInitialized
         {
             IngredientId = command.IngredientId,
             OrganizationId = command.OrganizationId,
@@ -265,7 +265,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
 
         var batchId = Guid.NewGuid();
 
-        RaiseEvent(new StockBatchReceivedJournaledEvent
+        RaiseEvent(new StockBatchReceived
         {
             IngredientId = State.IngredientId,
             BatchId = batchId,
@@ -336,7 +336,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
     {
         EnsureExists();
 
-        RaiseEvent(new StockTransferredInJournaledEvent
+        RaiseEvent(new StockTransferredIn
         {
             IngredientId = State.IngredientId,
             TransferId = command.TransferId,
@@ -382,7 +382,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
         var breakdown = CalculateFifoBreakdown(command.Quantity);
         var totalCost = breakdown.Sum(b => b.TotalCost);
 
-        RaiseEvent(new StockConsumedJournaledEvent
+        RaiseEvent(new StockConsumed
         {
             IngredientId = State.IngredientId,
             Quantity = command.Quantity,
@@ -467,7 +467,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
         // Publish reorder point breached event when crossing threshold
         if (currentLevel == StockLevel.Low && previousLevel != StockLevel.Low)
         {
-            RaiseEvent(new LowStockAlertTriggeredJournaledEvent
+            RaiseEvent(new LowStockAlertTriggered
             {
                 IngredientId = State.IngredientId,
                 QuantityOnHand = State.QuantityOnHand,
@@ -500,7 +500,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
         // Publish stock depleted event
         if (currentLevel == StockLevel.OutOfStock && previousLevel != StockLevel.OutOfStock)
         {
-            RaiseEvent(new StockDepletedJournaledEvent
+            RaiseEvent(new StockDepleted
             {
                 IngredientId = State.IngredientId,
                 LastConsumingOrderId = lastOrderId,
@@ -551,7 +551,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
             });
 
         // Use stock adjustment event for reversal
-        RaiseEvent(new StockAdjustedJournaledEvent
+        RaiseEvent(new StockAdjusted
         {
             IngredientId = State.IngredientId,
             PreviousQuantity = State.QuantityOnHand,
@@ -589,7 +589,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
         if (!ledgerResult.Success)
             throw new InvalidOperationException(ledgerResult.Error ?? "Insufficient stock");
 
-        RaiseEvent(new StockWrittenOffJournaledEvent
+        RaiseEvent(new StockWrittenOff
         {
             IngredientId = State.IngredientId,
             Quantity = command.Quantity,
@@ -625,7 +625,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
         if (!ledgerResult.Success)
             throw new InvalidOperationException(ledgerResult.Error ?? "Failed to adjust quantity");
 
-        RaiseEvent(new StockAdjustedJournaledEvent
+        RaiseEvent(new StockAdjusted
         {
             IngredientId = State.IngredientId,
             PreviousQuantity = previousQuantity,
@@ -664,7 +664,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
         if (!ledgerResult.Success)
             throw new InvalidOperationException(ledgerResult.Error ?? "Insufficient stock for transfer");
 
-        RaiseEvent(new StockTransferredOutJournaledEvent
+        RaiseEvent(new StockTransferredOut
         {
             IngredientId = State.IngredientId,
             TransferId = command.TransferId,
@@ -704,7 +704,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
                     ["batchCount"] = expiredBatches.Count.ToString()
                 });
 
-            RaiseEvent(new StockWrittenOffJournaledEvent
+            RaiseEvent(new StockWrittenOff
             {
                 IngredientId = State.IngredientId,
                 Quantity = totalExpiredQuantity,
@@ -731,7 +731,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
     {
         EnsureExists();
 
-        RaiseEvent(new InventorySettingsUpdatedJournaledEvent
+        RaiseEvent(new InventorySettingsUpdated
         {
             IngredientId = State.IngredientId,
             ReorderPoint = reorderPoint,
@@ -744,7 +744,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
     {
         EnsureExists();
 
-        RaiseEvent(new InventorySettingsUpdatedJournaledEvent
+        RaiseEvent(new InventorySettingsUpdated
         {
             IngredientId = State.IngredientId,
             ParLevel = parLevel,

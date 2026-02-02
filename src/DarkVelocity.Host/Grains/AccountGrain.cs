@@ -1,4 +1,4 @@
-using DarkVelocity.Host.Events.JournaledEvents;
+using DarkVelocity.Host.Events;
 using DarkVelocity.Host.Grains;
 using DarkVelocity.Host.State;
 using Orleans.EventSourcing;
@@ -12,15 +12,15 @@ namespace DarkVelocity.Host.Grains;
 /// Implements double-entry accounting with complete audit trail using event sourcing.
 /// </summary>
 [LogConsistencyProvider(ProviderName = "LogStorage")]
-public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>, IAccountGrain
+public class AccountGrain : JournaledGrain<AccountState, IAccountEvent>, IAccountGrain
 {
     private const int MaxJournalEntries = 500;
 
-    protected override void TransitionState(AccountState state, IAccountJournaledEvent @event)
+    protected override void TransitionState(AccountState state, IAccountEvent @event)
     {
         switch (@event)
         {
-            case AccountCreatedJournaledEvent e:
+            case AccountCreated e:
                 state.Id = e.AccountId;
                 state.OrganizationId = e.OrganizationId;
                 state.AccountCode = e.AccountCode;
@@ -31,7 +31,7 @@ public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>
                 state.CreatedAt = e.OccurredAt;
                 break;
 
-            case AccountDebitedJournaledEvent e:
+            case AccountDebited e:
                 var debitBalanceChange = IsDebitNormalBalance(state.AccountType)
                     ? e.Amount
                     : -e.Amount;
@@ -54,7 +54,7 @@ public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>
                 });
                 break;
 
-            case AccountCreditedJournaledEvent e:
+            case AccountCredited e:
                 state.Balance = e.NewBalance;
                 state.TotalCredits += e.Amount;
                 state.TotalEntryCount++;
@@ -74,7 +74,7 @@ public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>
                 });
                 break;
 
-            case AccountEntryReversedJournaledEvent e:
+            case AccountEntryReversed e:
                 state.Balance = e.NewBalance;
                 state.TotalEntryCount++;
                 state.LastEntryAt = e.OccurredAt;
@@ -104,7 +104,7 @@ public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>
                 });
                 break;
 
-            case AccountUpdatedJournaledEvent e:
+            case AccountUpdated e:
                 if (e.AccountName != null)
                     state.Name = e.AccountName;
                 if (e.IsActive.HasValue)
@@ -112,7 +112,7 @@ public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>
                 state.LastModifiedAt = e.OccurredAt;
                 break;
 
-            case AccountPeriodClosedJournaledEvent e:
+            case AccountPeriodClosed e:
                 var periodSummary = new AccountPeriodSummary
                 {
                     Year = e.Year,
@@ -172,7 +172,7 @@ public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>
 
         var now = DateTime.UtcNow;
 
-        RaiseEvent(new AccountCreatedJournaledEvent
+        RaiseEvent(new AccountCreated
         {
             AccountId = command.AccountId,
             OrganizationId = command.OrganizationId,
@@ -258,7 +258,7 @@ public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>
     {
         EnsureExists();
 
-        RaiseEvent(new AccountUpdatedJournaledEvent
+        RaiseEvent(new AccountUpdated
         {
             AccountId = State.Id,
             AccountName = command.Name,
@@ -288,7 +288,7 @@ public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>
         if (State.IsActive)
             throw new InvalidOperationException("Account is already active");
 
-        RaiseEvent(new AccountUpdatedJournaledEvent
+        RaiseEvent(new AccountUpdated
         {
             AccountId = State.Id,
             IsActive = true,
@@ -309,7 +309,7 @@ public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>
         if (State.IsSystemAccount)
             throw new InvalidOperationException("System accounts cannot be deactivated");
 
-        RaiseEvent(new AccountUpdatedJournaledEvent
+        RaiseEvent(new AccountUpdated
         {
             AccountId = State.Id,
             IsActive = false,
@@ -342,7 +342,7 @@ public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>
 
         var newBalance = State.Balance + balanceChange;
 
-        RaiseEvent(new AccountDebitedJournaledEvent
+        RaiseEvent(new AccountDebited
         {
             AccountId = State.Id,
             EntryId = entryId,
@@ -391,7 +391,7 @@ public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>
 
         var newBalance = State.Balance + balanceChange;
 
-        RaiseEvent(new AccountCreditedJournaledEvent
+        RaiseEvent(new AccountCredited
         {
             AccountId = State.Id,
             EntryId = entryId,
@@ -438,7 +438,7 @@ public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>
         if ((adjustment > 0 && IsDebitNormalBalance(State.AccountType)) ||
             (adjustment < 0 && !IsDebitNormalBalance(State.AccountType)))
         {
-            RaiseEvent(new AccountDebitedJournaledEvent
+            RaiseEvent(new AccountDebited
             {
                 AccountId = State.Id,
                 EntryId = entryId,
@@ -451,7 +451,7 @@ public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>
         }
         else
         {
-            RaiseEvent(new AccountCreditedJournaledEvent
+            RaiseEvent(new AccountCredited
             {
                 AccountId = State.Id,
                 EntryId = entryId,
@@ -526,7 +526,7 @@ public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>
 
         var newBalance = State.Balance + balanceChange;
 
-        RaiseEvent(new AccountEntryReversedJournaledEvent
+        RaiseEvent(new AccountEntryReversed
         {
             AccountId = State.Id,
             OriginalEntryId = command.EntryId,
@@ -590,7 +590,7 @@ public class AccountGrain : JournaledGrain<AccountState, IAccountJournaledEvent>
         // Entry count excludes Opening entries (not real activity)
         var activityEntries = periodEntries.Count(e => e.EntryType != JournalEntryType.Opening);
 
-        RaiseEvent(new AccountPeriodClosedJournaledEvent
+        RaiseEvent(new AccountPeriodClosed
         {
             AccountId = State.Id,
             Year = command.Year,

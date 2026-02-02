@@ -1,307 +1,220 @@
-using Orleans;
-
 namespace DarkVelocity.Host.Events;
 
-// ============================================================================
-// Purchase Document Enums
-// ============================================================================
-
 /// <summary>
-/// Type of purchase document being processed.
+/// Base interface for all PurchaseDocument events used in event sourcing.
 /// </summary>
-public enum PurchaseDocumentType
+public interface IPurchaseDocumentEvent
 {
-    /// <summary>Formal supplier invoice (typically Net 30, creates payable)</summary>
-    Invoice,
-    /// <summary>Retail receipt (already paid at point of purchase)</summary>
-    Receipt
+    Guid DocumentId { get; }
+    DateTime OccurredAt { get; }
 }
 
-/// <summary>
-/// Source of the purchase document.
-/// </summary>
-public enum DocumentSource
-{
-    /// <summary>Forwarded email with attachment</summary>
-    Email,
-    /// <summary>Manual file upload via back-office</summary>
-    Upload,
-    /// <summary>Mobile photo capture</summary>
-    Photo,
-    /// <summary>Direct integration / webhook</summary>
-    Api
-}
-
-/// <summary>
-/// Processing status of the purchase document.
-/// </summary>
-public enum PurchaseDocumentStatus
-{
-    /// <summary>Document received, awaiting processing</summary>
-    Received,
-    /// <summary>OCR/extraction in progress</summary>
-    Processing,
-    /// <summary>Extraction complete, awaiting review</summary>
-    Extracted,
-    /// <summary>Extraction failed, needs manual intervention</summary>
-    Failed,
-    /// <summary>User confirmed data is correct</summary>
-    Confirmed,
-    /// <summary>Document rejected/discarded</summary>
-    Rejected,
-    /// <summary>Archived after downstream processing</summary>
-    Archived
-}
-
-/// <summary>
-/// Source of item-to-SKU mapping.
-/// </summary>
-public enum MappingSource
-{
-    /// <summary>Automatically matched from previous mappings</summary>
-    Auto,
-    /// <summary>User manually selected the mapping</summary>
-    Manual,
-    /// <summary>System suggested, user accepted</summary>
-    Suggested,
-    /// <summary>Bulk categorization (all items marked as category)</summary>
-    Bulk
-}
-
-// ============================================================================
-// Purchase Document Lifecycle Events
-// ============================================================================
-
-/// <summary>
-/// A purchase document (invoice or receipt) was received from an external source.
-/// This is an observed fact - the document already exists.
-/// </summary>
 [GenerateSerializer]
-public sealed record PurchaseDocumentReceived : DomainEvent
+public sealed record PurchaseDocumentCreated : IPurchaseDocumentEvent
 {
-    public override string EventType => "purchase-document.received";
-    public override string AggregateType => "PurchaseDocument";
-    public override Guid AggregateId => DocumentId;
-
-    [Id(100)] public required Guid DocumentId { get; init; }
-    [Id(101)] public required PurchaseDocumentType DocumentType { get; init; }
-    [Id(102)] public new required DocumentSource Source { get; init; }
-    [Id(103)] public required string OriginalFilename { get; init; }
-    [Id(104)] public required string StorageUrl { get; init; }
-    [Id(105)] public required string ContentType { get; init; }
-    [Id(106)] public required long FileSizeBytes { get; init; }
-    [Id(107)] public string? EmailFrom { get; init; }
-    [Id(108)] public string? EmailSubject { get; init; }
-    /// <summary>True for receipts (already paid), false for invoices by default</summary>
-    [Id(109)] public bool IsPaid { get; init; }
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public Guid OrganizationId { get; init; }
+    [Id(2)] public Guid SiteId { get; init; }
+    [Id(3)] public string DocumentType { get; init; } = ""; // Invoice, Receipt, PurchaseOrder
+    [Id(4)] public string DocumentNumber { get; init; } = "";
+    [Id(5)] public Guid VendorId { get; init; }
+    [Id(6)] public string VendorName { get; init; } = "";
+    [Id(7)] public DateOnly DocumentDate { get; init; }
+    [Id(8)] public string? Source { get; init; }
+    [Id(9)] public Guid CreatedBy { get; init; }
+    [Id(10)] public DateTime OccurredAt { get; init; }
 }
 
-/// <summary>
-/// OCR/extraction processing started on a document.
-/// </summary>
 [GenerateSerializer]
-public sealed record PurchaseDocumentProcessingStarted : DomainEvent
+public sealed record PurchaseDocumentLineAdded : IPurchaseDocumentEvent
 {
-    public override string EventType => "purchase-document.processing.started";
-    public override string AggregateType => "PurchaseDocument";
-    public override Guid AggregateId => DocumentId;
-
-    [Id(100)] public required Guid DocumentId { get; init; }
-    [Id(101)] public required string ProcessorType { get; init; }
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public Guid LineId { get; init; }
+    [Id(2)] public string Description { get; init; } = "";
+    [Id(3)] public decimal Quantity { get; init; }
+    [Id(4)] public string Unit { get; init; } = "";
+    [Id(5)] public decimal UnitPrice { get; init; }
+    [Id(6)] public decimal LineTotal { get; init; }
+    [Id(7)] public Guid? IngredientId { get; init; }
+    [Id(8)] public DateTime OccurredAt { get; init; }
 }
 
-/// <summary>
-/// OCR/extraction completed successfully.
-/// </summary>
 [GenerateSerializer]
-public sealed record PurchaseDocumentExtracted : DomainEvent
+public sealed record PurchaseDocumentLineUpdated : IPurchaseDocumentEvent
 {
-    public override string EventType => "purchase-document.extracted";
-    public override string AggregateType => "PurchaseDocument";
-    public override Guid AggregateId => DocumentId;
-
-    [Id(100)] public required Guid DocumentId { get; init; }
-    [Id(101)] public required ExtractedDocumentData Data { get; init; }
-    [Id(102)] public required decimal ExtractionConfidence { get; init; }
-    [Id(103)] public required string ProcessorVersion { get; init; }
-}
-
-/// <summary>
-/// Extraction failed - needs manual intervention.
-/// </summary>
-[GenerateSerializer]
-public sealed record PurchaseDocumentExtractionFailed : DomainEvent
-{
-    public override string EventType => "purchase-document.extraction.failed";
-    public override string AggregateType => "PurchaseDocument";
-    public override Guid AggregateId => DocumentId;
-
-    [Id(100)] public required Guid DocumentId { get; init; }
-    [Id(101)] public required string FailureReason { get; init; }
-    [Id(102)] public string? ProcessorError { get; init; }
-}
-
-/// <summary>
-/// A line item was mapped to an internal SKU.
-/// </summary>
-[GenerateSerializer]
-public sealed record PurchaseDocumentLineMapped : DomainEvent
-{
-    public override string EventType => "purchase-document.line.mapped";
-    public override string AggregateType => "PurchaseDocument";
-    public override Guid AggregateId => DocumentId;
-
-    [Id(100)] public required Guid DocumentId { get; init; }
-    [Id(101)] public required int LineIndex { get; init; }
-    [Id(102)] public required Guid IngredientId { get; init; }
-    [Id(103)] public required string VendorDescription { get; init; }
-    [Id(104)] public new required MappingSource Source { get; init; }
-    [Id(105)] public required decimal Confidence { get; init; }
-}
-
-/// <summary>
-/// A line item could not be mapped - flagged for manual review.
-/// </summary>
-[GenerateSerializer]
-public sealed record PurchaseDocumentLineUnmapped : DomainEvent
-{
-    public override string EventType => "purchase-document.line.unmapped";
-    public override string AggregateType => "PurchaseDocument";
-    public override Guid AggregateId => DocumentId;
-
-    [Id(100)] public required Guid DocumentId { get; init; }
-    [Id(101)] public required int LineIndex { get; init; }
-    [Id(102)] public required string VendorDescription { get; init; }
-    [Id(103)] public IReadOnlyList<SuggestedMapping>? Suggestions { get; init; }
-}
-
-/// <summary>
-/// User confirmed the document data is correct.
-/// </summary>
-[GenerateSerializer]
-public sealed record PurchaseDocumentConfirmed : DomainEvent
-{
-    public override string EventType => "purchase-document.confirmed";
-    public override string AggregateType => "PurchaseDocument";
-    public override Guid AggregateId => DocumentId;
-
-    [Id(100)] public required Guid DocumentId { get; init; }
-    [Id(101)] public required Guid ConfirmedBy { get; init; }
-    [Id(102)] public required ConfirmedDocumentData Data { get; init; }
-}
-
-/// <summary>
-/// Document was rejected/discarded.
-/// </summary>
-[GenerateSerializer]
-public sealed record PurchaseDocumentRejected : DomainEvent
-{
-    public override string EventType => "purchase-document.rejected";
-    public override string AggregateType => "PurchaseDocument";
-    public override Guid AggregateId => DocumentId;
-
-    [Id(100)] public required Guid DocumentId { get; init; }
-    [Id(101)] public required Guid RejectedBy { get; init; }
-    [Id(102)] public required string Reason { get; init; }
-}
-
-// ============================================================================
-// Supporting Records
-// ============================================================================
-
-/// <summary>
-/// Data extracted from OCR processing.
-/// </summary>
-[GenerateSerializer]
-public sealed record ExtractedDocumentData
-{
-    [Id(0)] public PurchaseDocumentType DetectedType { get; init; }
-
-    // Vendor info (supplier for invoices, merchant for receipts)
-    [Id(1)] public string? VendorName { get; init; }
-    [Id(2)] public string? VendorAddress { get; init; }
-    [Id(3)] public string? VendorPhone { get; init; }
-
-    // Invoice-specific
-    [Id(4)] public string? InvoiceNumber { get; init; }
-    [Id(5)] public string? PurchaseOrderNumber { get; init; }
-    [Id(6)] public DateOnly? DueDate { get; init; }
-    [Id(7)] public string? PaymentTerms { get; init; }
-
-    // Receipt-specific
-    [Id(8)] public TimeOnly? TransactionTime { get; init; }
-    [Id(9)] public string? PaymentMethod { get; init; }
-    [Id(10)] public string? CardLastFour { get; init; }
-
-    // Common fields
-    [Id(11)] public DateOnly? DocumentDate { get; init; }
-    [Id(12)] public required IReadOnlyList<ExtractedLineItem> Lines { get; init; }
-    [Id(13)] public decimal? Subtotal { get; init; }
-    [Id(14)] public decimal? Tax { get; init; }
-    [Id(15)] public decimal? Tip { get; init; }
-    [Id(16)] public decimal? DeliveryFee { get; init; }
-    [Id(17)] public decimal? Total { get; init; }
-    [Id(18)] public string? Currency { get; init; }
-}
-
-/// <summary>
-/// A line item extracted from the document.
-/// </summary>
-[GenerateSerializer]
-public sealed record ExtractedLineItem
-{
-    [Id(0)] public required string Description { get; init; }
-    [Id(1)] public decimal? Quantity { get; init; }
-    [Id(2)] public string? Unit { get; init; }
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public Guid LineId { get; init; }
+    [Id(2)] public decimal? Quantity { get; init; }
     [Id(3)] public decimal? UnitPrice { get; init; }
-    [Id(4)] public decimal? TotalPrice { get; init; }
-    [Id(5)] public string? ProductCode { get; init; }
+    [Id(4)] public decimal? LineTotal { get; init; }
+    [Id(5)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record PurchaseDocumentLineRemoved : IPurchaseDocumentEvent
+{
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public Guid LineId { get; init; }
+    [Id(2)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record PurchaseDocumentTotalsUpdated : IPurchaseDocumentEvent
+{
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public decimal Subtotal { get; init; }
+    [Id(2)] public decimal TaxAmount { get; init; }
+    [Id(3)] public decimal ShippingAmount { get; init; }
+    [Id(4)] public decimal TotalAmount { get; init; }
+    [Id(5)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record PurchaseDocumentSubmitted : IPurchaseDocumentEvent
+{
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public Guid SubmittedBy { get; init; }
+    [Id(2)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record PurchaseDocumentApproved : IPurchaseDocumentEvent
+{
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public Guid ApprovedBy { get; init; }
+    [Id(2)] public string? Notes { get; init; }
+    [Id(3)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record PurchaseDocumentRejected : IPurchaseDocumentEvent
+{
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public Guid RejectedBy { get; init; }
+    [Id(2)] public string Reason { get; init; } = "";
+    [Id(3)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record PurchaseDocumentReceived : IPurchaseDocumentEvent
+{
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public Guid ReceivedBy { get; init; }
+    [Id(2)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record PurchaseDocumentPartiallyReceived : IPurchaseDocumentEvent
+{
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public List<LineReceiptInfo> LinesReceived { get; init; } = [];
+    [Id(2)] public Guid ReceivedBy { get; init; }
+    [Id(3)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record LineReceiptInfo
+{
+    [Id(0)] public Guid LineId { get; init; }
+    [Id(1)] public decimal QuantityReceived { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record PurchaseDocumentPaid : IPurchaseDocumentEvent
+{
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public decimal AmountPaid { get; init; }
+    [Id(2)] public string PaymentMethod { get; init; } = "";
+    [Id(3)] public string? PaymentReference { get; init; }
+    [Id(4)] public Guid PaidBy { get; init; }
+    [Id(5)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record PurchaseDocumentCancelled : IPurchaseDocumentEvent
+{
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public Guid CancelledBy { get; init; }
+    [Id(2)] public string Reason { get; init; } = "";
+    [Id(3)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record PurchaseDocumentLinkedToDelivery : IPurchaseDocumentEvent
+{
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public Guid DeliveryId { get; init; }
+    [Id(2)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record PurchaseDocumentProcessingRequested : IPurchaseDocumentEvent
+{
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record PurchaseDocumentExtractionApplied : IPurchaseDocumentEvent
+{
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public string? VendorName { get; init; }
+    [Id(2)] public DateOnly? DocumentDate { get; init; }
+    [Id(3)] public decimal? Total { get; init; }
+    [Id(4)] public int LineCount { get; init; }
+    [Id(5)] public decimal Confidence { get; init; }
+    [Id(6)] public string? ProcessorVersion { get; init; }
+    [Id(7)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record PurchaseDocumentExtractionFailed : IPurchaseDocumentEvent
+{
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public string Reason { get; init; } = "";
+    [Id(2)] public DateTime OccurredAt { get; init; }
+}
+
+[GenerateSerializer]
+public sealed record PurchaseDocumentLineMapped : IPurchaseDocumentEvent
+{
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public int LineIndex { get; init; }
+    [Id(2)] public Guid IngredientId { get; init; }
+    [Id(3)] public string? IngredientSku { get; init; }
+    [Id(4)] public string? IngredientName { get; init; }
+    [Id(5)] public string MappingSource { get; init; } = "";
     [Id(6)] public decimal Confidence { get; init; }
+    [Id(7)] public DateTime OccurredAt { get; init; }
 }
 
-/// <summary>
-/// A suggested SKU mapping for an unmatched item.
-/// </summary>
 [GenerateSerializer]
-public sealed record SuggestedMapping
+public sealed record PurchaseDocumentLineUnmapped : IPurchaseDocumentEvent
 {
-    [Id(0)] public required Guid IngredientId { get; init; }
-    [Id(1)] public required string IngredientName { get; init; }
-    [Id(2)] public required string Sku { get; init; }
-    [Id(3)] public required decimal Confidence { get; init; }
-    [Id(4)] public string? MatchReason { get; init; }
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public int LineIndex { get; init; }
+    [Id(2)] public DateTime OccurredAt { get; init; }
 }
 
-/// <summary>
-/// Confirmed document data after user review.
-/// </summary>
 [GenerateSerializer]
-public sealed record ConfirmedDocumentData
+public sealed record PurchaseDocumentLineModified : IPurchaseDocumentEvent
 {
-    [Id(0)] public Guid? VendorId { get; init; }
-    [Id(1)] public required string VendorName { get; init; }
-    [Id(2)] public required DateOnly DocumentDate { get; init; }
-    [Id(3)] public string? InvoiceNumber { get; init; }
-    [Id(4)] public required IReadOnlyList<ConfirmedLineItem> Lines { get; init; }
-    [Id(5)] public required decimal Total { get; init; }
-    [Id(6)] public decimal Tax { get; init; }
-    [Id(7)] public required string Currency { get; init; }
-    [Id(8)] public bool IsPaid { get; init; }
-    [Id(9)] public DateOnly? DueDate { get; init; }
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public int LineIndex { get; init; }
+    [Id(2)] public string? Description { get; init; }
+    [Id(3)] public decimal? Quantity { get; init; }
+    [Id(4)] public string? Unit { get; init; }
+    [Id(5)] public decimal? UnitPrice { get; init; }
+    [Id(6)] public DateTime OccurredAt { get; init; }
 }
 
-/// <summary>
-/// A confirmed line item with SKU mapping.
-/// </summary>
 [GenerateSerializer]
-public sealed record ConfirmedLineItem
+public sealed record PurchaseDocumentConfirmed : IPurchaseDocumentEvent
 {
-    [Id(0)] public required string Description { get; init; }
-    [Id(1)] public required decimal Quantity { get; init; }
-    [Id(2)] public required string Unit { get; init; }
-    [Id(3)] public required decimal UnitPrice { get; init; }
-    [Id(4)] public required decimal TotalPrice { get; init; }
-    [Id(5)] public Guid? IngredientId { get; init; }
-    [Id(6)] public string? IngredientSku { get; init; }
-    [Id(7)] public MappingSource? MappingSource { get; init; }
+    [Id(0)] public Guid DocumentId { get; init; }
+    [Id(1)] public Guid ConfirmedBy { get; init; }
+    [Id(2)] public Guid? VendorId { get; init; }
+    [Id(3)] public string? VendorName { get; init; }
+    [Id(4)] public DateOnly? DocumentDate { get; init; }
+    [Id(5)] public DateTime OccurredAt { get; init; }
 }

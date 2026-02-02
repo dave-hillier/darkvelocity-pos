@@ -1,5 +1,5 @@
 using DarkVelocity.Host;
-using DarkVelocity.Host.Events.JournaledEvents;
+using DarkVelocity.Host.Events;
 using DarkVelocity.Host.Extensions;
 using DarkVelocity.Host.Grains;
 using DarkVelocity.Host.State;
@@ -11,7 +11,7 @@ using Orleans.Streams;
 namespace DarkVelocity.Host.Grains;
 
 [LogConsistencyProvider(ProviderName = "LogStorage")]
-public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEvent>, ICustomerGrain
+public class CustomerGrain : JournaledGrain<CustomerState, ICustomerEvent>, ICustomerGrain
 {
     private Lazy<IAsyncStream<IStreamEvent>>? _customerStream;
 
@@ -26,11 +26,11 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
         return base.OnActivateAsync(cancellationToken);
     }
 
-    protected override void TransitionState(CustomerState state, ICustomerJournaledEvent @event)
+    protected override void TransitionState(CustomerState state, ICustomerEvent @event)
     {
         switch (@event)
         {
-            case CustomerCreatedJournaledEvent e:
+            case CustomerCreated e:
                 state.Id = e.CustomerId;
                 state.OrganizationId = e.OrganizationId;
                 state.FirstName = e.FirstName ?? "";
@@ -43,7 +43,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
                 state.CreatedAt = e.OccurredAt;
                 break;
 
-            case CustomerProfileUpdatedJournaledEvent e:
+            case CustomerProfileUpdated e:
                 if (e.FirstName != null) state.FirstName = e.FirstName;
                 if (e.LastName != null) state.LastName = e.LastName;
                 if (e.DisplayName != null) state.DisplayName = e.DisplayName;
@@ -58,15 +58,15 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case CustomerTagAddedJournaledEvent e:
+            case CustomerTagAdded e:
                 state.Tags.TryAddTag(e.Tag);
                 break;
 
-            case CustomerTagRemovedJournaledEvent e:
+            case CustomerTagRemoved e:
                 state.Tags.Remove(e.Tag);
                 break;
 
-            case CustomerNoteAddedJournaledEvent e:
+            case CustomerNoteAdded e:
                 state.Notes.Add(new CustomerNote
                 {
                     Id = e.NoteId,
@@ -76,7 +76,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
                 });
                 break;
 
-            case CustomerLoyaltyEnrolledJournaledEvent e:
+            case CustomerLoyaltyEnrolled e:
                 state.Loyalty = new LoyaltyStatus
                 {
                     EnrolledAt = e.OccurredAt,
@@ -91,7 +91,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
                 };
                 break;
 
-            case CustomerPointsEarnedJournaledEvent e:
+            case CustomerPointsEarned e:
                 if (state.Loyalty != null)
                 {
                     state.Loyalty = state.Loyalty with
@@ -107,14 +107,14 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
                 }
                 break;
 
-            case CustomerPointsRedeemedJournaledEvent e:
+            case CustomerPointsRedeemed e:
                 if (state.Loyalty != null)
                 {
                     state.Loyalty = state.Loyalty with { PointsBalance = e.NewBalance };
                 }
                 break;
 
-            case CustomerPointsAdjustedJournaledEvent e:
+            case CustomerPointsAdjusted e:
                 if (state.Loyalty != null)
                 {
                     state.Loyalty = state.Loyalty with { PointsBalance = e.NewBalance };
@@ -125,14 +125,14 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
                 }
                 break;
 
-            case CustomerPointsExpiredJournaledEvent e:
+            case CustomerPointsExpired e:
                 if (state.Loyalty != null)
                 {
                     state.Loyalty = state.Loyalty with { PointsBalance = e.NewBalance };
                 }
                 break;
 
-            case CustomerTierChangedJournaledEvent e:
+            case CustomerTierChanged e:
                 if (state.Loyalty != null)
                 {
                     state.Loyalty = state.Loyalty with
@@ -143,7 +143,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
                 }
                 break;
 
-            case CustomerRewardIssuedJournaledEvent e:
+            case CustomerRewardIssued e:
                 var reward = new CustomerReward
                 {
                     Id = e.RewardId,
@@ -157,7 +157,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
                 state.Rewards.Add(reward);
                 break;
 
-            case CustomerRewardRedeemedJournaledEvent e:
+            case CustomerRewardRedeemed e:
                 var rewardIdx = state.Rewards.FindIndex(r => r.Id == e.RewardId);
                 if (rewardIdx >= 0)
                 {
@@ -170,7 +170,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
                 }
                 break;
 
-            case CustomerRewardsExpiredJournaledEvent e:
+            case CustomerRewardsExpired e:
                 foreach (var rewardId in e.ExpiredRewardIds)
                 {
                     var idx = state.Rewards.FindIndex(r => r.Id == rewardId);
@@ -181,7 +181,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
                 }
                 break;
 
-            case CustomerVisitRecordedJournaledEvent e:
+            case CustomerVisitRecorded e:
                 state.Stats = state.Stats with
                 {
                     TotalVisits = e.VisitNumber,
@@ -193,7 +193,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
                 state.LastVisitAt = e.OccurredAt;
                 break;
 
-            case CustomerPreferencesUpdatedJournaledEvent e:
+            case CustomerPreferencesUpdated e:
                 state.Preferences = state.Preferences with
                 {
                     DietaryRestrictions = e.DietaryRestrictions ?? state.Preferences.DietaryRestrictions,
@@ -204,7 +204,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case CustomerDietaryRestrictionAddedJournaledEvent e:
+            case CustomerDietaryRestrictionAdded e:
                 var restrictions = state.Preferences.DietaryRestrictions.ToList();
                 if (!restrictions.Contains(e.Restriction))
                 {
@@ -214,14 +214,14 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case CustomerDietaryRestrictionRemovedJournaledEvent e:
+            case CustomerDietaryRestrictionRemoved e:
                 var restrictionsList = state.Preferences.DietaryRestrictions.ToList();
                 restrictionsList.Remove(e.Restriction);
                 state.Preferences = state.Preferences with { DietaryRestrictions = restrictionsList };
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case CustomerAllergenAddedJournaledEvent e:
+            case CustomerAllergenAdded e:
                 var allergens = state.Preferences.Allergens.ToList();
                 if (!allergens.Contains(e.Allergen))
                 {
@@ -231,43 +231,43 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case CustomerAllergenRemovedJournaledEvent e:
+            case CustomerAllergenRemoved e:
                 var allergensList = state.Preferences.Allergens.ToList();
                 allergensList.Remove(e.Allergen);
                 state.Preferences = state.Preferences with { Allergens = allergensList };
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case CustomerSeatingPreferenceSetJournaledEvent e:
+            case CustomerSeatingPreferenceSet e:
                 state.Preferences = state.Preferences with { SeatingPreference = e.Preference };
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case CustomerReferralCodeGeneratedJournaledEvent e:
+            case CustomerReferralCodeGenerated e:
                 state.ReferralCode = e.ReferralCode;
                 break;
 
-            case CustomerReferredBySetJournaledEvent e:
+            case CustomerReferredBySet e:
                 state.ReferredBy = e.ReferrerId;
                 break;
 
-            case CustomerReferralCompletedJournaledEvent e:
+            case CustomerReferralCompleted e:
                 state.SuccessfulReferrals++;
                 break;
 
-            case CustomerMergedJournaledEvent e:
+            case CustomerMerged e:
                 state.MergedFrom.Add(e.SourceCustomerId);
                 break;
 
-            case CustomerDeactivatedJournaledEvent e:
+            case CustomerDeactivated e:
                 state.Status = CustomerStatus.Inactive;
                 break;
 
-            case CustomerReactivatedJournaledEvent e:
+            case CustomerReactivated e:
                 state.Status = CustomerStatus.Active;
                 break;
 
-            case CustomerAnonymizedJournaledEvent e:
+            case CustomerAnonymized e:
                 state.FirstName = "REDACTED";
                 state.LastName = "REDACTED";
                 state.DisplayName = "REDACTED";
@@ -286,7 +286,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
         var key = this.GetPrimaryKeyString();
         var (_, _, customerId) = GrainKeys.ParseOrgEntity(key);
 
-        RaiseEvent(new CustomerCreatedJournaledEvent
+        RaiseEvent(new CustomerCreated
         {
             CustomerId = customerId,
             OrganizationId = command.OrganizationId,
@@ -360,7 +360,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
 
         var displayName = $"{newFirstName ?? State.FirstName} {newLastName ?? State.LastName}".Trim();
 
-        RaiseEvent(new CustomerProfileUpdatedJournaledEvent
+        RaiseEvent(new CustomerProfileUpdated
         {
             CustomerId = State.Id,
             FirstName = newFirstName,
@@ -388,7 +388,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
         EnsureExists();
         if (!State.Tags.Contains(tag))
         {
-            RaiseEvent(new CustomerTagAddedJournaledEvent
+            RaiseEvent(new CustomerTagAdded
             {
                 CustomerId = State.Id,
                 Tag = tag,
@@ -412,7 +412,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
         EnsureExists();
         if (State.Tags.Contains(tag))
         {
-            RaiseEvent(new CustomerTagRemovedJournaledEvent
+            RaiseEvent(new CustomerTagRemoved
             {
                 CustomerId = State.Id,
                 Tag = tag,
@@ -434,7 +434,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
     public async Task AddNoteAsync(string content, Guid createdBy)
     {
         EnsureExists();
-        RaiseEvent(new CustomerNoteAddedJournaledEvent
+        RaiseEvent(new CustomerNoteAdded
         {
             CustomerId = State.Id,
             NoteId = Guid.NewGuid(),
@@ -451,7 +451,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
         if (State.Loyalty != null)
             throw new InvalidOperationException("Customer already enrolled in loyalty");
 
-        RaiseEvent(new CustomerLoyaltyEnrolledJournaledEvent
+        RaiseEvent(new CustomerLoyaltyEnrolled
         {
             CustomerId = State.Id,
             ProgramId = command.ProgramId,
@@ -483,7 +483,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
 
         var newBalance = State.Loyalty!.PointsBalance + command.Points;
 
-        RaiseEvent(new CustomerPointsEarnedJournaledEvent
+        RaiseEvent(new CustomerPointsEarned
         {
             CustomerId = State.Id,
             Points = command.Points,
@@ -508,7 +508,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
 
         var newBalance = State.Loyalty.PointsBalance - command.Points;
 
-        RaiseEvent(new CustomerPointsRedeemedJournaledEvent
+        RaiseEvent(new CustomerPointsRedeemed
         {
             CustomerId = State.Id,
             Points = command.Points,
@@ -532,7 +532,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
         if (newBalance < 0)
             throw new InvalidOperationException("Adjustment would result in negative balance");
 
-        RaiseEvent(new CustomerPointsAdjustedJournaledEvent
+        RaiseEvent(new CustomerPointsAdjusted
         {
             CustomerId = State.Id,
             Adjustment = command.Points,
@@ -553,7 +553,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
 
         var newBalance = Math.Max(0, State.Loyalty!.PointsBalance - points);
 
-        RaiseEvent(new CustomerPointsExpiredJournaledEvent
+        RaiseEvent(new CustomerPointsExpired
         {
             CustomerId = State.Id,
             ExpiredPoints = points,
@@ -568,7 +568,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
         EnsureExists();
         EnsureLoyaltyEnrolled();
 
-        RaiseEvent(new CustomerTierChangedJournaledEvent
+        RaiseEvent(new CustomerTierChanged
         {
             CustomerId = State.Id,
             OldTierId = State.Loyalty!.TierId,
@@ -593,7 +593,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
 
         var rewardId = Guid.NewGuid();
 
-        RaiseEvent(new CustomerRewardIssuedJournaledEvent
+        RaiseEvent(new CustomerRewardIssued
         {
             CustomerId = State.Id,
             RewardId = rewardId,
@@ -607,7 +607,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
 
         if (command.PointsCost > 0)
         {
-            RaiseEvent(new CustomerPointsRedeemedJournaledEvent
+            RaiseEvent(new CustomerPointsRedeemed
             {
                 CustomerId = State.Id,
                 Points = command.PointsCost,
@@ -638,7 +638,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
         if (reward.ExpiresAt < DateTime.UtcNow)
             throw new InvalidOperationException("Reward has expired");
 
-        RaiseEvent(new CustomerRewardRedeemedJournaledEvent
+        RaiseEvent(new CustomerRewardRedeemed
         {
             CustomerId = State.Id,
             RewardId = command.RewardId,
@@ -661,7 +661,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
 
         if (expiredIds.Count > 0)
         {
-            RaiseEvent(new CustomerRewardsExpiredJournaledEvent
+            RaiseEvent(new CustomerRewardsExpired
             {
                 CustomerId = State.Id,
                 ExpiredRewardIds = expiredIds,
@@ -704,7 +704,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
             State.VisitHistory.RemoveAt(State.VisitHistory.Count - 1);
         }
 
-        RaiseEvent(new CustomerVisitRecordedJournaledEvent
+        RaiseEvent(new CustomerVisitRecorded
         {
             CustomerId = State.Id,
             SiteId = command.SiteId,
@@ -756,7 +756,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
     {
         EnsureExists();
 
-        RaiseEvent(new CustomerPreferencesUpdatedJournaledEvent
+        RaiseEvent(new CustomerPreferencesUpdated
         {
             CustomerId = State.Id,
             DietaryRestrictions = command.DietaryRestrictions,
@@ -773,7 +773,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
         EnsureExists();
         if (!State.Preferences.DietaryRestrictions.Contains(restriction))
         {
-            RaiseEvent(new CustomerDietaryRestrictionAddedJournaledEvent
+            RaiseEvent(new CustomerDietaryRestrictionAdded
             {
                 CustomerId = State.Id,
                 Restriction = restriction,
@@ -788,7 +788,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
         EnsureExists();
         if (State.Preferences.DietaryRestrictions.Contains(restriction))
         {
-            RaiseEvent(new CustomerDietaryRestrictionRemovedJournaledEvent
+            RaiseEvent(new CustomerDietaryRestrictionRemoved
             {
                 CustomerId = State.Id,
                 Restriction = restriction,
@@ -803,7 +803,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
         EnsureExists();
         if (!State.Preferences.Allergens.Contains(allergen))
         {
-            RaiseEvent(new CustomerAllergenAddedJournaledEvent
+            RaiseEvent(new CustomerAllergenAdded
             {
                 CustomerId = State.Id,
                 Allergen = allergen,
@@ -818,7 +818,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
         EnsureExists();
         if (State.Preferences.Allergens.Contains(allergen))
         {
-            RaiseEvent(new CustomerAllergenRemovedJournaledEvent
+            RaiseEvent(new CustomerAllergenRemoved
             {
                 CustomerId = State.Id,
                 Allergen = allergen,
@@ -831,7 +831,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
     public async Task SetSeatingPreferenceAsync(string preference)
     {
         EnsureExists();
-        RaiseEvent(new CustomerSeatingPreferenceSetJournaledEvent
+        RaiseEvent(new CustomerSeatingPreferenceSet
         {
             CustomerId = State.Id,
             Preference = preference,
@@ -843,7 +843,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
     public async Task SetReferralCodeAsync(string code)
     {
         EnsureExists();
-        RaiseEvent(new CustomerReferralCodeGeneratedJournaledEvent
+        RaiseEvent(new CustomerReferralCodeGenerated
         {
             CustomerId = State.Id,
             ReferralCode = code,
@@ -855,7 +855,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
     public async Task SetReferredByAsync(Guid referrerId)
     {
         EnsureExists();
-        RaiseEvent(new CustomerReferredBySetJournaledEvent
+        RaiseEvent(new CustomerReferredBySet
         {
             CustomerId = State.Id,
             ReferrerId = referrerId,
@@ -867,7 +867,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
     public async Task IncrementReferralCountAsync()
     {
         EnsureExists();
-        RaiseEvent(new CustomerReferralCompletedJournaledEvent
+        RaiseEvent(new CustomerReferralCompleted
         {
             CustomerId = State.Id,
             ReferredCustomerId = Guid.Empty, // Would need to be passed in
@@ -880,7 +880,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
     public async Task MergeFromAsync(Guid sourceCustomerId)
     {
         EnsureExists();
-        RaiseEvent(new CustomerMergedJournaledEvent
+        RaiseEvent(new CustomerMerged
         {
             CustomerId = State.Id,
             SourceCustomerId = sourceCustomerId,
@@ -896,7 +896,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
     public async Task DeleteAsync()
     {
         EnsureExists();
-        RaiseEvent(new CustomerDeactivatedJournaledEvent
+        RaiseEvent(new CustomerDeactivated
         {
             CustomerId = State.Id,
             Reason = "Deleted",
@@ -909,7 +909,7 @@ public class CustomerGrain : JournaledGrain<CustomerState, ICustomerJournaledEve
     public async Task AnonymizeAsync()
     {
         EnsureExists();
-        RaiseEvent(new CustomerAnonymizedJournaledEvent
+        RaiseEvent(new CustomerAnonymized
         {
             CustomerId = State.Id,
             OccurredAt = DateTime.UtcNow
