@@ -1,4 +1,4 @@
-using DarkVelocity.Host.Events.JournaledEvents;
+using DarkVelocity.Host.Events;
 using DarkVelocity.Host.State;
 using DarkVelocity.Host.Streams;
 using Orleans.EventSourcing;
@@ -12,7 +12,7 @@ namespace DarkVelocity.Host.Grains;
 /// All state changes are recorded as events and can be replayed.
 /// </summary>
 [LogConsistencyProvider(ProviderName = "LogStorage")]
-public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrderGrain
+public class OrderGrain : JournaledGrain<OrderState, IOrderEvent>, IOrderGrain
 {
     private Lazy<IAsyncStream<IStreamEvent>>? _orderStream;
     private static int _orderCounter = 1000;
@@ -42,11 +42,11 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
     /// <summary>
     /// Applies an event to the grain state. This is the core of event sourcing.
     /// </summary>
-    protected override void TransitionState(OrderState state, IOrderJournaledEvent @event)
+    protected override void TransitionState(OrderState state, IOrderEvent @event)
     {
         switch (@event)
         {
-            case OrderCreatedJournaledEvent e:
+            case OrderCreated e:
                 state.Id = e.OrderId;
                 state.OrganizationId = e.OrganizationId;
                 state.SiteId = e.SiteId;
@@ -61,7 +61,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
                 state.CreatedAt = e.OccurredAt;
                 break;
 
-            case OrderLineAddedJournaledEvent e:
+            case OrderLineAdded e:
                 state.Lines.Add(new OrderLine
                 {
                     Id = e.LineId,
@@ -79,7 +79,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case OrderLineUpdatedJournaledEvent e:
+            case OrderLineUpdated e:
                 var lineToUpdate = state.Lines.FirstOrDefault(l => l.Id == e.LineId);
                 if (lineToUpdate != null)
                 {
@@ -96,7 +96,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case OrderLineVoidedJournaledEvent e:
+            case OrderLineVoided e:
                 var lineToVoid = state.Lines.FirstOrDefault(l => l.Id == e.LineId);
                 if (lineToVoid != null)
                 {
@@ -113,13 +113,13 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case OrderLineRemovedJournaledEvent e:
+            case OrderLineRemoved e:
                 state.Lines.RemoveAll(l => l.Id == e.LineId);
                 state.RecalculateTotals();
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case OrderSentJournaledEvent e:
+            case OrderSent e:
                 foreach (var lineId in e.SentLineIds)
                 {
                     var line = state.Lines.FirstOrDefault(l => l.Id == lineId);
@@ -139,7 +139,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case OrderDiscountAppliedJournaledEvent e:
+            case OrderDiscountApplied e:
                 state.Discounts.Add(new OrderDiscount
                 {
                     Id = e.DiscountInstanceId,
@@ -157,13 +157,13 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case OrderDiscountRemovedJournaledEvent e:
+            case OrderDiscountRemoved e:
                 state.Discounts.RemoveAll(d => d.Id == e.DiscountInstanceId);
                 state.RecalculateTotals();
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case OrderServiceChargeAddedJournaledEvent e:
+            case OrderServiceChargeAdded e:
                 state.ServiceCharges.Add(new ServiceCharge
                 {
                     Id = e.ServiceChargeId,
@@ -176,25 +176,25 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case OrderCustomerAssignedJournaledEvent e:
+            case OrderCustomerAssigned e:
                 state.CustomerId = e.CustomerId;
                 state.CustomerName = e.CustomerName;
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case OrderServerAssignedJournaledEvent e:
+            case OrderServerAssigned e:
                 state.ServerId = e.ServerId;
                 state.ServerName = e.ServerName;
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case OrderTableTransferredJournaledEvent e:
+            case OrderTableTransferred e:
                 state.TableId = e.NewTableId;
                 state.TableNumber = e.NewTableNumber;
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case OrderPaymentRecordedJournaledEvent e:
+            case OrderPaymentRecorded e:
                 state.Payments.Add(new OrderPaymentSummary
                 {
                     PaymentId = e.PaymentId,
@@ -213,7 +213,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case OrderPaymentRemovedJournaledEvent e:
+            case OrderPaymentRemoved e:
                 state.Payments.RemoveAll(p => p.PaymentId == e.PaymentId);
                 state.PaidAmount -= e.Amount;
                 state.TipTotal -= e.TipAmount;
@@ -225,13 +225,13 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case OrderClosedJournaledEvent e:
+            case OrderClosed e:
                 state.Status = OrderStatus.Closed;
                 state.ClosedAt = e.OccurredAt;
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case OrderVoidedJournaledEvent e:
+            case OrderVoided e:
                 state.Status = OrderStatus.Voided;
                 state.VoidedBy = e.VoidedBy;
                 state.VoidedAt = e.OccurredAt;
@@ -239,7 +239,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
                 state.UpdatedAt = e.OccurredAt;
                 break;
 
-            case OrderReopenedJournaledEvent e:
+            case OrderReopened e:
                 state.Status = OrderStatus.Open;
                 state.ClosedAt = null;
                 state.VoidedBy = null;
@@ -264,7 +264,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
         var orderNumber = $"ORD-{Interlocked.Increment(ref _orderCounter):D6}";
         var now = DateTime.UtcNow;
 
-        RaiseEvent(new OrderCreatedJournaledEvent
+        RaiseEvent(new OrderCreated
         {
             OrderId = orderId,
             OrganizationId = orgId,
@@ -323,7 +323,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
         lineTotal += modifierTotal;
         var now = DateTime.UtcNow;
 
-        RaiseEvent(new OrderLineAddedJournaledEvent
+        RaiseEvent(new OrderLineAdded
         {
             OrderId = State.Id,
             LineId = lineId,
@@ -367,7 +367,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
         var line = State.Lines.FirstOrDefault(l => l.Id == command.LineId)
             ?? throw new InvalidOperationException("Line not found");
 
-        RaiseEvent(new OrderLineUpdatedJournaledEvent
+        RaiseEvent(new OrderLineUpdated
         {
             OrderId = State.Id,
             LineId = command.LineId,
@@ -387,7 +387,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
         var line = State.Lines.FirstOrDefault(l => l.Id == command.LineId)
             ?? throw new InvalidOperationException("Line not found");
 
-        RaiseEvent(new OrderLineVoidedJournaledEvent
+        RaiseEvent(new OrderLineVoided
         {
             OrderId = State.Id,
             LineId = command.LineId,
@@ -408,7 +408,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
         if (!exists)
             throw new InvalidOperationException("Line not found");
 
-        RaiseEvent(new OrderLineRemovedJournaledEvent
+        RaiseEvent(new OrderLineRemoved
         {
             OrderId = State.Id,
             LineId = lineId,
@@ -429,7 +429,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
 
         var pendingLineIds = pendingLines.Select(l => l.Id).ToList();
 
-        RaiseEvent(new OrderSentJournaledEvent
+        RaiseEvent(new OrderSent
         {
             OrderId = State.Id,
             SentBy = sentBy,
@@ -485,7 +485,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
             _ => command.Value
         };
 
-        RaiseEvent(new OrderDiscountAppliedJournaledEvent
+        RaiseEvent(new OrderDiscountApplied
         {
             OrderId = State.Id,
             DiscountInstanceId = Guid.NewGuid(),
@@ -508,7 +508,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
         EnsureExists();
         EnsureNotClosed();
 
-        RaiseEvent(new OrderDiscountRemovedJournaledEvent
+        RaiseEvent(new OrderDiscountRemoved
         {
             OrderId = State.Id,
             DiscountInstanceId = discountId,
@@ -525,7 +525,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
 
         var amount = State.Subtotal * (rate / 100m);
 
-        RaiseEvent(new OrderServiceChargeAddedJournaledEvent
+        RaiseEvent(new OrderServiceChargeAdded
         {
             OrderId = State.Id,
             ServiceChargeId = Guid.NewGuid(),
@@ -543,7 +543,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
     {
         EnsureExists();
 
-        RaiseEvent(new OrderCustomerAssignedJournaledEvent
+        RaiseEvent(new OrderCustomerAssigned
         {
             OrderId = State.Id,
             CustomerId = customerId,
@@ -558,7 +558,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
     {
         EnsureExists();
 
-        RaiseEvent(new OrderServerAssignedJournaledEvent
+        RaiseEvent(new OrderServerAssigned
         {
             OrderId = State.Id,
             ServerId = serverId,
@@ -574,7 +574,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
         EnsureExists();
         EnsureNotClosed();
 
-        RaiseEvent(new OrderTableTransferredJournaledEvent
+        RaiseEvent(new OrderTableTransferred
         {
             OrderId = State.Id,
             NewTableId = newTableId,
@@ -599,7 +599,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
         if (tipAmount < 0)
             throw new ArgumentException("Tip amount cannot be negative", nameof(tipAmount));
 
-        RaiseEvent(new OrderPaymentRecordedJournaledEvent
+        RaiseEvent(new OrderPaymentRecorded
         {
             OrderId = State.Id,
             PaymentId = paymentId,
@@ -619,7 +619,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
         var payment = State.Payments.FirstOrDefault(p => p.PaymentId == paymentId);
         if (payment != null)
         {
-            RaiseEvent(new OrderPaymentRemovedJournaledEvent
+            RaiseEvent(new OrderPaymentRemoved
             {
                 OrderId = State.Id,
                 PaymentId = paymentId,
@@ -639,7 +639,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
         if (State.BalanceDue > 0)
             throw new InvalidOperationException("Cannot close order with outstanding balance");
 
-        RaiseEvent(new OrderClosedJournaledEvent
+        RaiseEvent(new OrderClosed
         {
             OrderId = State.Id,
             ClosedBy = closedBy,
@@ -697,7 +697,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
         var voidedAmount = State.GrandTotal;
         var businessDate = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        RaiseEvent(new OrderVoidedJournaledEvent
+        RaiseEvent(new OrderVoided
         {
             OrderId = State.Id,
             VoidedBy = command.VoidedBy,
@@ -733,7 +733,7 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
         if (State.Status != OrderStatus.Closed && State.Status != OrderStatus.Voided)
             throw new InvalidOperationException("Can only reopen closed or voided orders");
 
-        RaiseEvent(new OrderReopenedJournaledEvent
+        RaiseEvent(new OrderReopened
         {
             OrderId = State.Id,
             ReopenedBy = reopenedBy,

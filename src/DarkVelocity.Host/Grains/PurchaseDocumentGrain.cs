@@ -1,5 +1,4 @@
 using DarkVelocity.Host.Events;
-using DarkVelocity.Host.Events.JournaledEvents;
 using DarkVelocity.Host.State;
 using DarkVelocity.Host.Streams;
 using Microsoft.Extensions.Logging;
@@ -13,7 +12,7 @@ namespace DarkVelocity.Host.Grains;
 /// Grain representing a purchase document (invoice or receipt).
 /// </summary>
 [LogConsistencyProvider(ProviderName = "LogStorage")]
-public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurchaseDocumentJournaledEvent>, IPurchaseDocumentGrain
+public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurchaseDocumentEvent>, IPurchaseDocumentGrain
 {
     private readonly ILogger<PurchaseDocumentGrain> _logger;
     private readonly IGrainFactory _grainFactory;
@@ -39,11 +38,11 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
         return base.OnActivateAsync(cancellationToken);
     }
 
-    protected override void TransitionState(PurchaseDocumentState state, IPurchaseDocumentJournaledEvent @event)
+    protected override void TransitionState(PurchaseDocumentState state, IPurchaseDocumentEvent @event)
     {
         switch (@event)
         {
-            case PurchaseDocumentCreatedJournaledEvent e:
+            case PurchaseDocumentCreated e:
                 state.DocumentId = e.DocumentId;
                 state.OrganizationId = e.OrganizationId;
                 state.SiteId = e.SiteId;
@@ -56,12 +55,12 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
                 state.CreatedAt = e.OccurredAt;
                 break;
 
-            case PurchaseDocumentProcessingRequestedJournaledEvent:
+            case PurchaseDocumentProcessingRequested:
                 state.Status = PurchaseDocumentStatus.Processing;
                 state.ProcessingError = null;
                 break;
 
-            case PurchaseDocumentExtractionAppliedJournaledEvent e:
+            case PurchaseDocumentExtractionApplied e:
                 state.VendorName = e.VendorName ?? state.VendorName;
                 state.DocumentDate = e.DocumentDate ?? state.DocumentDate;
                 state.Total = e.Total ?? state.Total;
@@ -71,12 +70,12 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
                 state.ProcessedAt = e.OccurredAt;
                 break;
 
-            case PurchaseDocumentExtractionFailedJournaledEvent e:
+            case PurchaseDocumentExtractionFailed e:
                 state.Status = PurchaseDocumentStatus.Failed;
                 state.ProcessingError = e.Reason;
                 break;
 
-            case PurchaseDocumentLineMappedJournaledEvent e:
+            case PurchaseDocumentLineMapped e:
                 if (e.LineIndex >= 0 && e.LineIndex < state.Lines.Count)
                 {
                     var line = state.Lines[e.LineIndex];
@@ -92,7 +91,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
                 }
                 break;
 
-            case PurchaseDocumentLineUnmappedJournaledEvent e:
+            case PurchaseDocumentLineUnmapped e:
                 if (e.LineIndex >= 0 && e.LineIndex < state.Lines.Count)
                 {
                     var line = state.Lines[e.LineIndex];
@@ -107,7 +106,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
                 }
                 break;
 
-            case PurchaseDocumentLineModifiedJournaledEvent e:
+            case PurchaseDocumentLineModified e:
                 if (e.LineIndex >= 0 && e.LineIndex < state.Lines.Count)
                 {
                     var line = state.Lines[e.LineIndex];
@@ -122,7 +121,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
                 }
                 break;
 
-            case PurchaseDocumentConfirmedJournaledEvent e:
+            case PurchaseDocumentConfirmed e:
                 if (e.VendorId.HasValue) state.VendorId = e.VendorId;
                 if (e.VendorName != null) state.VendorName = e.VendorName;
                 if (e.DocumentDate.HasValue) state.DocumentDate = e.DocumentDate;
@@ -131,7 +130,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
                 state.ConfirmedBy = e.ConfirmedBy;
                 break;
 
-            case PurchaseDocumentRejectedJournaledEvent e:
+            case PurchaseDocumentRejected e:
                 state.Status = PurchaseDocumentStatus.Rejected;
                 state.RejectedAt = e.OccurredAt;
                 state.RejectedBy = e.RejectedBy;
@@ -147,7 +146,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
 
         var isPaid = command.IsPaid ?? (command.DocumentType == PurchaseDocumentType.Receipt);
 
-        RaiseEvent(new PurchaseDocumentCreatedJournaledEvent
+        RaiseEvent(new PurchaseDocumentCreated
         {
             DocumentId = command.DocumentId,
             OrganizationId = command.OrganizationId,
@@ -193,7 +192,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
             throw new InvalidOperationException($"Cannot process document in status {State.Status}");
         }
 
-        RaiseEvent(new PurchaseDocumentProcessingRequestedJournaledEvent
+        RaiseEvent(new PurchaseDocumentProcessingRequested
         {
             DocumentId = State.DocumentId,
             OccurredAt = DateTime.UtcNow
@@ -209,7 +208,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
 
         var data = command.Data;
 
-        RaiseEvent(new PurchaseDocumentExtractionAppliedJournaledEvent
+        RaiseEvent(new PurchaseDocumentExtractionApplied
         {
             DocumentId = State.DocumentId,
             VendorName = data.VendorName,
@@ -312,7 +311,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
 
             if (result.Found && result.Mapping != null)
             {
-                RaiseEvent(new PurchaseDocumentLineMappedJournaledEvent
+                RaiseEvent(new PurchaseDocumentLineMapped
                 {
                     DocumentId = State.DocumentId,
                     LineIndex = i,
@@ -402,7 +401,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
         if (!string.IsNullOrEmpty(command.ProcessorError))
             reason += $" ({command.ProcessorError})";
 
-        RaiseEvent(new PurchaseDocumentExtractionFailedJournaledEvent
+        RaiseEvent(new PurchaseDocumentExtractionFailed
         {
             DocumentId = State.DocumentId,
             Reason = reason,
@@ -425,7 +424,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
         if (lineIndex < 0 || lineIndex >= State.Lines.Count)
             throw new ArgumentOutOfRangeException(nameof(command.LineIndex));
 
-        RaiseEvent(new PurchaseDocumentLineMappedJournaledEvent
+        RaiseEvent(new PurchaseDocumentLineMapped
         {
             DocumentId = State.DocumentId,
             LineIndex = lineIndex,
@@ -454,7 +453,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
         if (lineIndex < 0 || lineIndex >= State.Lines.Count)
             throw new ArgumentOutOfRangeException(nameof(command.LineIndex));
 
-        RaiseEvent(new PurchaseDocumentLineUnmappedJournaledEvent
+        RaiseEvent(new PurchaseDocumentLineUnmapped
         {
             DocumentId = State.DocumentId,
             LineIndex = lineIndex,
@@ -472,7 +471,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
         if (lineIndex < 0 || lineIndex >= State.Lines.Count)
             throw new ArgumentOutOfRangeException(nameof(command.LineIndex));
 
-        RaiseEvent(new PurchaseDocumentLineModifiedJournaledEvent
+        RaiseEvent(new PurchaseDocumentLineModified
         {
             DocumentId = State.DocumentId,
             LineIndex = lineIndex,
@@ -507,7 +506,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
         EnsureExists();
         EnsureExtracted();
 
-        RaiseEvent(new PurchaseDocumentConfirmedJournaledEvent
+        RaiseEvent(new PurchaseDocumentConfirmed
         {
             DocumentId = State.DocumentId,
             ConfirmedBy = command.ConfirmedBy,
@@ -620,7 +619,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
     {
         EnsureExists();
 
-        RaiseEvent(new PurchaseDocumentRejectedJournaledEvent
+        RaiseEvent(new PurchaseDocumentRejected
         {
             DocumentId = State.DocumentId,
             RejectedBy = command.RejectedBy,

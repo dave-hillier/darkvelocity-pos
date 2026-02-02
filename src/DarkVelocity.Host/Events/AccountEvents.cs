@@ -1,16 +1,16 @@
-namespace DarkVelocity.Host.Events.JournaledEvents;
+namespace DarkVelocity.Host.Events;
 
 /// <summary>
-/// Base interface for all Account (double-entry accounting) journaled events.
+/// Base interface for all Account (double-entry accounting) events.
 /// </summary>
-public interface IAccountJournaledEvent
+public interface IAccountEvent
 {
     Guid AccountId { get; }
     DateTime OccurredAt { get; }
 }
 
 [GenerateSerializer]
-public sealed record AccountCreatedJournaledEvent : IAccountJournaledEvent
+public sealed record AccountCreated : IAccountEvent
 {
     [Id(0)] public Guid AccountId { get; init; }
     [Id(1)] public Guid OrganizationId { get; init; }
@@ -23,7 +23,7 @@ public sealed record AccountCreatedJournaledEvent : IAccountJournaledEvent
 }
 
 [GenerateSerializer]
-public sealed record AccountDebitedJournaledEvent : IAccountJournaledEvent
+public sealed record AccountDebited : IAccountEvent
 {
     [Id(0)] public Guid AccountId { get; init; }
     [Id(1)] public Guid EntryId { get; init; }
@@ -37,7 +37,7 @@ public sealed record AccountDebitedJournaledEvent : IAccountJournaledEvent
 }
 
 [GenerateSerializer]
-public sealed record AccountCreditedJournaledEvent : IAccountJournaledEvent
+public sealed record AccountCredited : IAccountEvent
 {
     [Id(0)] public Guid AccountId { get; init; }
     [Id(1)] public Guid EntryId { get; init; }
@@ -51,7 +51,7 @@ public sealed record AccountCreditedJournaledEvent : IAccountJournaledEvent
 }
 
 [GenerateSerializer]
-public sealed record AccountEntryReversedJournaledEvent : IAccountJournaledEvent
+public sealed record AccountEntryReversed : IAccountEvent
 {
     [Id(0)] public Guid AccountId { get; init; }
     [Id(1)] public Guid OriginalEntryId { get; init; }
@@ -64,7 +64,7 @@ public sealed record AccountEntryReversedJournaledEvent : IAccountJournaledEvent
 }
 
 [GenerateSerializer]
-public sealed record AccountReconciliationRecordedJournaledEvent : IAccountJournaledEvent
+public sealed record AccountReconciliationRecorded : IAccountEvent
 {
     [Id(0)] public Guid AccountId { get; init; }
     [Id(1)] public Guid ReconciliationId { get; init; }
@@ -78,7 +78,7 @@ public sealed record AccountReconciliationRecordedJournaledEvent : IAccountJourn
 }
 
 [GenerateSerializer]
-public sealed record AccountUpdatedJournaledEvent : IAccountJournaledEvent
+public sealed record AccountUpdated : IAccountEvent
 {
     [Id(0)] public Guid AccountId { get; init; }
     [Id(1)] public string? AccountName { get; init; }
@@ -87,7 +87,7 @@ public sealed record AccountUpdatedJournaledEvent : IAccountJournaledEvent
 }
 
 [GenerateSerializer]
-public sealed record AccountPeriodClosedJournaledEvent : IAccountJournaledEvent
+public sealed record AccountPeriodClosed : IAccountEvent
 {
     [Id(0)] public Guid AccountId { get; init; }
     [Id(1)] public int Year { get; init; }

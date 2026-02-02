@@ -1,5 +1,5 @@
 using DarkVelocity.Host;
-using DarkVelocity.Host.Events.JournaledEvents;
+using DarkVelocity.Host.Events;
 using DarkVelocity.Host.Grains;
 using DarkVelocity.Host.State;
 using DarkVelocity.Host.Streams;
@@ -11,7 +11,7 @@ using Orleans.Streams;
 namespace DarkVelocity.Host.Grains;
 
 [LogConsistencyProvider(ProviderName = "LogStorage")]
-public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>, IPaymentGrain
+public class PaymentGrain : JournaledGrain<PaymentState, IPaymentEvent>, IPaymentGrain
 {
     private readonly IGrainFactory _grainFactory;
     private Lazy<IAsyncStream<IStreamEvent>>? _paymentStream;
@@ -30,11 +30,11 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
         return base.OnActivateAsync(cancellationToken);
     }
 
-    protected override void TransitionState(PaymentState state, IPaymentJournaledEvent @event)
+    protected override void TransitionState(PaymentState state, IPaymentEvent @event)
     {
         switch (@event)
         {
-            case PaymentInitiatedJournaledEvent e:
+            case PaymentInitiated e:
                 state.Id = e.PaymentId;
                 state.OrganizationId = e.OrganizationId;
                 state.SiteId = e.SiteId;
@@ -49,11 +49,11 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
                 state.CreatedAt = e.OccurredAt;
                 break;
 
-            case PaymentAuthorizationRequestedJournaledEvent:
+            case PaymentAuthorizationRequested:
                 state.Status = PaymentStatus.Authorizing;
                 break;
 
-            case PaymentAuthorizedJournaledEvent e:
+            case PaymentAuthorized e:
                 state.AuthorizationCode = e.AuthorizationCode;
                 state.GatewayReference = e.GatewayReference;
                 state.CardInfo = e.CardInfo;
@@ -61,16 +61,16 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
                 state.AuthorizedAt = e.OccurredAt;
                 break;
 
-            case PaymentDeclinedJournaledEvent:
+            case PaymentDeclined:
                 state.Status = PaymentStatus.Declined;
                 break;
 
-            case PaymentCapturedJournaledEvent e:
+            case PaymentCaptured e:
                 state.Status = PaymentStatus.Captured;
                 state.CapturedAt = e.OccurredAt;
                 break;
 
-            case CashPaymentCompletedJournaledEvent e:
+            case CashPaymentCompleted e:
                 state.AmountTendered = e.AmountTendered;
                 state.TipAmount = e.TipAmount;
                 state.TotalAmount = e.TotalAmount;
@@ -79,7 +79,7 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
                 state.CompletedAt = e.OccurredAt;
                 break;
 
-            case CardPaymentCompletedJournaledEvent e:
+            case CardPaymentCompleted e:
                 state.GatewayReference = e.GatewayReference;
                 state.AuthorizationCode = e.AuthorizationCode;
                 state.CardInfo = e.CardInfo;
@@ -91,7 +91,7 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
                 state.CompletedAt = e.OccurredAt;
                 break;
 
-            case GiftCardPaymentCompletedJournaledEvent e:
+            case GiftCardPaymentCompleted e:
                 state.GiftCardId = e.GiftCardId;
                 state.GiftCardNumber = e.CardNumber;
                 state.TotalAmount = e.TotalAmount;
@@ -99,14 +99,14 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
                 state.CompletedAt = e.OccurredAt;
                 break;
 
-            case PaymentVoidedJournaledEvent e:
+            case PaymentVoided e:
                 state.Status = PaymentStatus.Voided;
                 state.VoidedBy = e.VoidedBy;
                 state.VoidedAt = e.OccurredAt;
                 state.VoidReason = e.Reason;
                 break;
 
-            case PaymentRefundedJournaledEvent e:
+            case PaymentRefunded e:
                 var refund = new RefundInfo
                 {
                     RefundId = e.RefundId,
@@ -124,12 +124,12 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
                     state.Status = PaymentStatus.PartiallyRefunded;
                 break;
 
-            case PaymentTipAddedJournaledEvent e:
+            case PaymentTipAdded e:
                 state.TipAmount = e.TipAmount;
                 state.TotalAmount = e.NewTotalAmount;
                 break;
 
-            case PaymentBatchAssignedJournaledEvent e:
+            case PaymentBatchAssigned e:
                 state.BatchId = e.BatchId;
                 break;
         }
@@ -157,7 +157,7 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
         var (_, _, _, paymentId) = GrainKeys.ParseSiteEntity(key);
         var now = DateTime.UtcNow;
 
-        RaiseEvent(new PaymentInitiatedJournaledEvent
+        RaiseEvent(new PaymentInitiated
         {
             PaymentId = paymentId,
             OrganizationId = command.OrganizationId,
@@ -203,7 +203,7 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
         var totalAmount = State.Amount + command.TipAmount;
         var changeGiven = command.AmountTendered - totalAmount;
 
-        RaiseEvent(new CashPaymentCompletedJournaledEvent
+        RaiseEvent(new CashPaymentCompleted
         {
             PaymentId = State.Id,
             AmountTendered = command.AmountTendered,
@@ -228,7 +228,7 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
 
         var totalAmount = State.Amount + command.TipAmount;
 
-        RaiseEvent(new CardPaymentCompletedJournaledEvent
+        RaiseEvent(new CardPaymentCompleted
         {
             PaymentId = State.Id,
             GatewayReference = command.GatewayReference,
@@ -251,7 +251,7 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
         EnsureExists();
         EnsureStatus(PaymentStatus.Initiated);
 
-        RaiseEvent(new GiftCardPaymentCompletedJournaledEvent
+        RaiseEvent(new GiftCardPaymentCompleted
         {
             PaymentId = State.Id,
             GiftCardId = command.GiftCardId,
@@ -271,7 +271,7 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
         EnsureExists();
         EnsureStatus(PaymentStatus.Initiated);
 
-        RaiseEvent(new PaymentAuthorizationRequestedJournaledEvent
+        RaiseEvent(new PaymentAuthorizationRequested
         {
             PaymentId = State.Id,
             OccurredAt = DateTime.UtcNow
@@ -284,7 +284,7 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
         EnsureExists();
         EnsureStatus(PaymentStatus.Authorizing);
 
-        RaiseEvent(new PaymentAuthorizedJournaledEvent
+        RaiseEvent(new PaymentAuthorized
         {
             PaymentId = State.Id,
             AuthorizationCode = authCode,
@@ -300,7 +300,7 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
         EnsureExists();
         EnsureStatus(PaymentStatus.Authorizing);
 
-        RaiseEvent(new PaymentDeclinedJournaledEvent
+        RaiseEvent(new PaymentDeclined
         {
             PaymentId = State.Id,
             DeclineCode = declineCode,
@@ -315,7 +315,7 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
         EnsureExists();
         EnsureStatus(PaymentStatus.Authorized);
 
-        RaiseEvent(new PaymentCapturedJournaledEvent
+        RaiseEvent(new PaymentCaptured
         {
             PaymentId = State.Id,
             OccurredAt = DateTime.UtcNow
@@ -338,7 +338,7 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
 
         var refundId = Guid.NewGuid();
 
-        RaiseEvent(new PaymentRefundedJournaledEvent
+        RaiseEvent(new PaymentRefunded
         {
             PaymentId = State.Id,
             RefundId = refundId,
@@ -383,7 +383,7 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
 
         var voidedAmount = State.TotalAmount;
 
-        RaiseEvent(new PaymentVoidedJournaledEvent
+        RaiseEvent(new PaymentVoided
         {
             PaymentId = State.Id,
             VoidedBy = command.VoidedBy,
@@ -415,7 +415,7 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
 
         var newTotalAmount = State.Amount + command.NewTipAmount;
 
-        RaiseEvent(new PaymentTipAddedJournaledEvent
+        RaiseEvent(new PaymentTipAdded
         {
             PaymentId = State.Id,
             TipAmount = command.NewTipAmount,
@@ -429,7 +429,7 @@ public class PaymentGrain : JournaledGrain<PaymentState, IPaymentJournaledEvent>
     {
         EnsureExists();
 
-        RaiseEvent(new PaymentBatchAssignedJournaledEvent
+        RaiseEvent(new PaymentBatchAssigned
         {
             PaymentId = State.Id,
             BatchId = batchId,

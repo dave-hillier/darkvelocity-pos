@@ -1,202 +1,103 @@
 namespace DarkVelocity.Host.Events;
 
 /// <summary>
-/// Published when a new gift card is issued (created but not yet activated)
+/// Base interface for all GiftCard events used in event sourcing.
 /// </summary>
-public sealed record GiftCardIssued(
-    Guid CardId,
-    Guid TenantId,
-    Guid LocationId,
-    Guid ProgramId,
-    string CardNumber,
-    decimal InitialBalance,
-    string CurrencyCode,
-    string CardType,
-    DateTime? ExpiryDate,
-    DateTime IssuedAt,
-    Guid? IssuedByUserId
-) : IntegrationEvent
+public interface IGiftCardEvent
 {
-    public override string EventType => "giftcards.card.issued";
+    Guid CardId { get; }
+    DateTime OccurredAt { get; }
 }
 
-/// <summary>
-/// Published when a gift card is activated and ready for use
-/// </summary>
-public sealed record GiftCardActivated(
-    Guid CardId,
-    Guid TenantId,
-    Guid LocationId,
-    string CardNumber,
-    decimal Balance,
-    string CurrencyCode,
-    DateTime ActivatedAt,
-    Guid? ActivatedByUserId
-) : IntegrationEvent
+[GenerateSerializer]
+public sealed record GiftCardIssued : IGiftCardEvent
 {
-    public override string EventType => "giftcards.card.activated";
+    [Id(0)] public Guid CardId { get; init; }
+    [Id(1)] public Guid OrganizationId { get; init; }
+    [Id(2)] public string CardNumber { get; init; } = "";
+    [Id(3)] public decimal InitialBalance { get; init; }
+    [Id(4)] public Guid? PurchasedByCustomerId { get; init; }
+    [Id(5)] public Guid? SiteId { get; init; }
+    [Id(6)] public Guid? OrderId { get; init; }
+    [Id(7)] public DateOnly? ExpiryDate { get; init; }
+    [Id(8)] public DateTime OccurredAt { get; init; }
 }
 
-/// <summary>
-/// Published when a gift card balance is used for payment
-/// </summary>
-public sealed record GiftCardRedeemed(
-    Guid CardId,
-    Guid TenantId,
-    Guid LocationId,
-    Guid TransactionId,
-    decimal Amount,
-    decimal BalanceBefore,
-    decimal BalanceAfter,
-    Guid? OrderId,
-    Guid? PaymentId,
-    DateTime RedeemedAt,
-    Guid? UserId
-) : IntegrationEvent
+[GenerateSerializer]
+public sealed record GiftCardActivated : IGiftCardEvent
 {
-    public override string EventType => "giftcards.card.redeemed";
+    [Id(0)] public Guid CardId { get; init; }
+    [Id(1)] public Guid? ActivatedBy { get; init; }
+    [Id(2)] public DateTime OccurredAt { get; init; }
 }
 
-/// <summary>
-/// Published when additional value is added to a gift card
-/// </summary>
-public sealed record GiftCardReloaded(
-    Guid CardId,
-    Guid TenantId,
-    Guid LocationId,
-    Guid TransactionId,
-    decimal Amount,
-    decimal BalanceBefore,
-    decimal BalanceAfter,
-    DateTime ReloadedAt,
-    Guid? UserId
-) : IntegrationEvent
+[GenerateSerializer]
+public sealed record GiftCardRedeemed : IGiftCardEvent
 {
-    public override string EventType => "giftcards.card.reloaded";
+    [Id(0)] public Guid CardId { get; init; }
+    [Id(1)] public Guid TransactionId { get; init; }
+    [Id(2)] public decimal Amount { get; init; }
+    [Id(3)] public decimal NewBalance { get; init; }
+    [Id(4)] public Guid OrderId { get; init; }
+    [Id(5)] public Guid SiteId { get; init; }
+    [Id(6)] public Guid? CustomerId { get; init; }
+    [Id(7)] public DateTime OccurredAt { get; init; }
 }
 
-/// <summary>
-/// Published when a gift card expires
-/// </summary>
-public sealed record GiftCardExpired(
-    Guid CardId,
-    Guid TenantId,
-    Guid LocationId,
-    Guid ProgramId,
-    decimal FinalBalance,
-    string CurrencyCode,
-    DateTime ExpiredAt
-) : IntegrationEvent
+[GenerateSerializer]
+public sealed record GiftCardReloaded : IGiftCardEvent
 {
-    public override string EventType => "giftcards.card.expired";
+    [Id(0)] public Guid CardId { get; init; }
+    [Id(1)] public Guid TransactionId { get; init; }
+    [Id(2)] public decimal Amount { get; init; }
+    [Id(3)] public decimal NewBalance { get; init; }
+    [Id(4)] public Guid? SiteId { get; init; }
+    [Id(5)] public Guid? OrderId { get; init; }
+    [Id(6)] public DateTime OccurredAt { get; init; }
 }
 
-/// <summary>
-/// Published when a gift card balance is manually adjusted
-/// </summary>
-public sealed record GiftCardBalanceAdjusted(
-    Guid CardId,
-    Guid TenantId,
-    Guid LocationId,
-    Guid TransactionId,
-    decimal Amount,
-    decimal BalanceBefore,
-    decimal BalanceAfter,
-    string Reason,
-    DateTime AdjustedAt,
-    Guid? UserId
-) : IntegrationEvent
+[GenerateSerializer]
+public sealed record GiftCardRefundApplied : IGiftCardEvent
 {
-    public override string EventType => "giftcards.card.adjusted";
+    [Id(0)] public Guid CardId { get; init; }
+    [Id(1)] public Guid TransactionId { get; init; }
+    [Id(2)] public decimal Amount { get; init; }
+    [Id(3)] public decimal NewBalance { get; init; }
+    [Id(4)] public Guid OriginalOrderId { get; init; }
+    [Id(5)] public string? Reason { get; init; }
+    [Id(6)] public DateTime OccurredAt { get; init; }
 }
 
-/// <summary>
-/// Published when a refund is applied to a gift card
-/// </summary>
-public sealed record GiftCardRefunded(
-    Guid CardId,
-    Guid TenantId,
-    Guid LocationId,
-    Guid TransactionId,
-    decimal Amount,
-    decimal BalanceBefore,
-    decimal BalanceAfter,
-    Guid? OrderId,
-    string? Reason,
-    DateTime RefundedAt,
-    Guid? UserId
-) : IntegrationEvent
+[GenerateSerializer]
+public sealed record GiftCardSuspended : IGiftCardEvent
 {
-    public override string EventType => "giftcards.card.refunded";
+    [Id(0)] public Guid CardId { get; init; }
+    [Id(1)] public string Reason { get; init; } = "";
+    [Id(2)] public Guid? SuspendedBy { get; init; }
+    [Id(3)] public DateTime OccurredAt { get; init; }
 }
 
-/// <summary>
-/// Published when a gift card is suspended
-/// </summary>
-public sealed record GiftCardSuspended(
-    Guid CardId,
-    Guid TenantId,
-    string CardNumber,
-    string Reason,
-    DateTime SuspendedAt,
-    Guid? SuspendedByUserId
-) : IntegrationEvent
+[GenerateSerializer]
+public sealed record GiftCardResumed : IGiftCardEvent
 {
-    public override string EventType => "giftcards.card.suspended";
+    [Id(0)] public Guid CardId { get; init; }
+    [Id(1)] public Guid? ResumedBy { get; init; }
+    [Id(2)] public DateTime OccurredAt { get; init; }
 }
 
-/// <summary>
-/// Published when a gift card suspension is lifted
-/// </summary>
-public sealed record GiftCardResumed(
-    Guid CardId,
-    Guid TenantId,
-    string CardNumber,
-    decimal CurrentBalance,
-    DateTime ResumedAt,
-    Guid? ResumedByUserId
-) : IntegrationEvent
+[GenerateSerializer]
+public sealed record GiftCardExpired : IGiftCardEvent
 {
-    public override string EventType => "giftcards.card.resumed";
+    [Id(0)] public Guid CardId { get; init; }
+    [Id(1)] public decimal ExpiredBalance { get; init; }
+    [Id(2)] public DateTime OccurredAt { get; init; }
 }
 
-/// <summary>
-/// Published when a gift card is fully depleted (balance reaches zero)
-/// </summary>
-public sealed record GiftCardDepleted(
-    Guid CardId,
-    Guid TenantId,
-    Guid LocationId,
-    Guid ProgramId,
-    DateTime DepletedAt
-) : IntegrationEvent
+[GenerateSerializer]
+public sealed record GiftCardTransferred : IGiftCardEvent
 {
-    public override string EventType => "giftcards.card.depleted";
-}
-
-/// <summary>
-/// Published when a new gift card program is created
-/// </summary>
-public sealed record GiftCardProgramCreated(
-    Guid ProgramId,
-    Guid TenantId,
-    string Name,
-    string CurrencyCode,
-    DateTime CreatedAt
-) : IntegrationEvent
-{
-    public override string EventType => "giftcards.program.created";
-}
-
-/// <summary>
-/// Published when a gift card program is deactivated
-/// </summary>
-public sealed record GiftCardProgramDeactivated(
-    Guid ProgramId,
-    Guid TenantId,
-    string Name,
-    DateTime DeactivatedAt
-) : IntegrationEvent
-{
-    public override string EventType => "giftcards.program.deactivated";
+    [Id(0)] public Guid CardId { get; init; }
+    [Id(1)] public Guid? FromCustomerId { get; init; }
+    [Id(2)] public Guid? ToCustomerId { get; init; }
+    [Id(3)] public DateTime OccurredAt { get; init; }
 }
