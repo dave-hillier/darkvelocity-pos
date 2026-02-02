@@ -131,6 +131,83 @@ public static class CmsFieldChangeService
         return changes;
     }
 
+    /// <summary>
+    /// Computes the field changes between two recipe versions.
+    /// </summary>
+    public static IReadOnlyList<FieldChange> ComputeRecipeChanges(
+        RecipeVersionState? oldVersion,
+        RecipeVersionState newVersion)
+    {
+        var changes = new List<FieldChange>();
+
+        if (oldVersion == null)
+        {
+            // Creation
+            AddSetChange(changes, "Name", null, GetDefaultName(newVersion.Content));
+            AddSetChange(changes, "Description", null, GetDefaultDescription(newVersion.Content));
+            AddSetChange(changes, "PortionYield", null, newVersion.PortionYield);
+            AddSetChange(changes, "YieldUnit", null, newVersion.YieldUnit);
+            AddSetChange(changes, "PrepTimeMinutes", null, newVersion.PrepTimeMinutes);
+            AddSetChange(changes, "CookTimeMinutes", null, newVersion.CookTimeMinutes);
+            AddSetChange(changes, "PrepInstructions", null, newVersion.PrepInstructions);
+            AddSetChange(changes, "CategoryId", null, newVersion.CategoryId);
+            AddSetChange(changes, "ImageUrl", null, newVersion.Media?.PrimaryImageUrl);
+            AddSetChange(changes, "AllergenTags", null, newVersion.AllergenTags);
+            AddSetChange(changes, "DietaryTags", null, newVersion.DietaryTags);
+            AddSetChange(changes, "Ingredients", null, newVersion.Ingredients.Select(i => new { i.IngredientId, i.IngredientName, i.Quantity, i.Unit }).ToList());
+            return changes;
+        }
+
+        CompareField(changes, "Name", GetDefaultName(oldVersion.Content), GetDefaultName(newVersion.Content));
+        CompareField(changes, "Description", GetDefaultDescription(oldVersion.Content), GetDefaultDescription(newVersion.Content));
+        CompareField(changes, "PortionYield", oldVersion.PortionYield, newVersion.PortionYield);
+        CompareField(changes, "YieldUnit", oldVersion.YieldUnit, newVersion.YieldUnit);
+        CompareField(changes, "PrepTimeMinutes", oldVersion.PrepTimeMinutes, newVersion.PrepTimeMinutes);
+        CompareField(changes, "CookTimeMinutes", oldVersion.CookTimeMinutes, newVersion.CookTimeMinutes);
+        CompareField(changes, "PrepInstructions", oldVersion.PrepInstructions, newVersion.PrepInstructions);
+        CompareField(changes, "CategoryId", oldVersion.CategoryId, newVersion.CategoryId);
+        CompareField(changes, "ImageUrl", oldVersion.Media?.PrimaryImageUrl, newVersion.Media?.PrimaryImageUrl);
+
+        CompareCollection(changes, "AllergenTags", oldVersion.AllergenTags, newVersion.AllergenTags);
+        CompareCollection(changes, "DietaryTags", oldVersion.DietaryTags, newVersion.DietaryTags);
+        CompareIngredients(changes, oldVersion.Ingredients, newVersion.Ingredients);
+        CompareTranslations(changes, "Translations", oldVersion.Content.Translations, newVersion.Content.Translations);
+
+        return changes;
+    }
+
+    /// <summary>
+    /// Computes the field changes between two recipe category versions.
+    /// </summary>
+    public static IReadOnlyList<FieldChange> ComputeRecipeCategoryChanges(
+        RecipeCategoryVersionState? oldVersion,
+        RecipeCategoryVersionState newVersion)
+    {
+        var changes = new List<FieldChange>();
+
+        if (oldVersion == null)
+        {
+            // Creation
+            AddSetChange(changes, "Name", null, GetDefaultName(newVersion.Content));
+            AddSetChange(changes, "Description", null, GetDefaultDescription(newVersion.Content));
+            AddSetChange(changes, "Color", null, newVersion.Color);
+            AddSetChange(changes, "IconUrl", null, newVersion.IconUrl);
+            AddSetChange(changes, "DisplayOrder", null, newVersion.DisplayOrder);
+            AddSetChange(changes, "RecipeDocumentIds", null, newVersion.RecipeDocumentIds);
+            return changes;
+        }
+
+        CompareField(changes, "Name", GetDefaultName(oldVersion.Content), GetDefaultName(newVersion.Content));
+        CompareField(changes, "Description", GetDefaultDescription(oldVersion.Content), GetDefaultDescription(newVersion.Content));
+        CompareField(changes, "Color", oldVersion.Color, newVersion.Color);
+        CompareField(changes, "IconUrl", oldVersion.IconUrl, newVersion.IconUrl);
+        CompareField(changes, "DisplayOrder", oldVersion.DisplayOrder, newVersion.DisplayOrder);
+        CompareCollection(changes, "RecipeDocumentIds", oldVersion.RecipeDocumentIds, newVersion.RecipeDocumentIds);
+        CompareTranslations(changes, "Translations", oldVersion.Content.Translations, newVersion.Content.Translations);
+
+        return changes;
+    }
+
     private static string? GetDefaultName(LocalizedContent content)
     {
         return content.GetStrings().Name;
@@ -261,6 +338,47 @@ public static class CmsFieldChangeService
             CompareField(changes, $"Options[{id}].IsDefault", oldOpt.IsDefault, newOpt.IsDefault);
             CompareField(changes, $"Options[{id}].DisplayOrder", oldOpt.DisplayOrder, newOpt.DisplayOrder);
             CompareField(changes, $"Options[{id}].IsActive", oldOpt.IsActive, newOpt.IsActive);
+        }
+    }
+
+    private static void CompareIngredients(
+        List<FieldChange> changes,
+        List<RecipeIngredientState> oldIngredients,
+        List<RecipeIngredientState> newIngredients)
+    {
+        var oldById = oldIngredients.ToDictionary(i => i.IngredientId);
+        var newById = newIngredients.ToDictionary(i => i.IngredientId);
+
+        // Added ingredients
+        foreach (var id in newById.Keys.Except(oldById.Keys))
+        {
+            var ing = newById[id];
+            changes.Add(FieldChange.Add("Ingredients[]",
+                JsonSerializer.Serialize(new { ing.IngredientId, ing.IngredientName, ing.Quantity, ing.Unit, ing.UnitCost }, JsonOptions)));
+        }
+
+        // Removed ingredients
+        foreach (var id in oldById.Keys.Except(newById.Keys))
+        {
+            var ing = oldById[id];
+            changes.Add(FieldChange.Remove("Ingredients[]",
+                JsonSerializer.Serialize(new { ing.IngredientId, ing.IngredientName, ing.Quantity, ing.Unit, ing.UnitCost }, JsonOptions)));
+        }
+
+        // Modified ingredients
+        foreach (var id in oldById.Keys.Intersect(newById.Keys))
+        {
+            var oldIng = oldById[id];
+            var newIng = newById[id];
+
+            CompareField(changes, $"Ingredients[{id}].IngredientName", oldIng.IngredientName, newIng.IngredientName);
+            CompareField(changes, $"Ingredients[{id}].Quantity", oldIng.Quantity, newIng.Quantity);
+            CompareField(changes, $"Ingredients[{id}].Unit", oldIng.Unit, newIng.Unit);
+            CompareField(changes, $"Ingredients[{id}].WastePercentage", oldIng.WastePercentage, newIng.WastePercentage);
+            CompareField(changes, $"Ingredients[{id}].UnitCost", oldIng.UnitCost, newIng.UnitCost);
+            CompareField(changes, $"Ingredients[{id}].PrepInstructions", oldIng.PrepInstructions, newIng.PrepInstructions);
+            CompareField(changes, $"Ingredients[{id}].IsOptional", oldIng.IsOptional, newIng.IsOptional);
+            CompareField(changes, $"Ingredients[{id}].DisplayOrder", oldIng.DisplayOrder, newIng.DisplayOrder);
         }
     }
 }

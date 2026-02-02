@@ -1,4 +1,5 @@
 using DarkVelocity.Host.Contracts;
+using DarkVelocity.Host.Events;
 using DarkVelocity.Host.Grains;
 using DarkVelocity.Host.State;
 using Microsoft.AspNetCore.Mvc;
@@ -505,6 +506,210 @@ public static class RecipeCmsEndpoints
             {
                 ["self"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/search?query={query}&take={take}" }
             }));
+        });
+
+        // ========================================================================
+        // Recipe History and Undo Endpoints
+        // ========================================================================
+
+        group.MapGet("/recipes/{documentId}/history", async (
+            Guid orgId,
+            string documentId,
+            [FromQuery] int skip,
+            [FromQuery] int take,
+            IGrainFactory grainFactory) =>
+        {
+            var recipeGrain = grainFactory.GetGrain<IRecipeDocumentGrain>(GrainKeys.RecipeDocument(orgId, documentId));
+            if (!await recipeGrain.ExistsAsync())
+                return Results.NotFound();
+
+            take = take <= 0 ? 50 : Math.Min(take, 100);
+
+            var historyGrain = grainFactory.GetGrain<ICmsHistoryGrain>(
+                GrainKeys.CmsHistory(orgId, "Recipe", documentId));
+            var history = await historyGrain.GetHistorySummaryAsync(skip, take);
+            var totalChanges = await historyGrain.GetTotalChangesAsync();
+
+            return Results.Ok(Hal.Resource(new
+            {
+                changes = history.Select(h => new CmsHistoryEntryResponse(
+                    ChangeId: h.ChangeId,
+                    OccurredAt: h.OccurredAt,
+                    ChangedBy: h.ChangedBy,
+                    ChangeType: h.ChangeType.ToString(),
+                    FromVersion: h.FromVersion,
+                    ToVersion: h.ToVersion,
+                    ChangeNote: h.ChangeNote,
+                    FieldChangeCount: h.FieldChangeCount)).ToList(),
+                totalChanges,
+                skip,
+                take
+            }, new Dictionary<string, object>
+            {
+                ["self"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}/history?skip={skip}&take={take}" }
+            }));
+        });
+
+        group.MapGet("/recipes/{documentId}/history/{changeId}", async (
+            Guid orgId,
+            string documentId,
+            string changeId,
+            IGrainFactory grainFactory) =>
+        {
+            var recipeGrain = grainFactory.GetGrain<IRecipeDocumentGrain>(GrainKeys.RecipeDocument(orgId, documentId));
+            if (!await recipeGrain.ExistsAsync())
+                return Results.NotFound();
+
+            var historyGrain = grainFactory.GetGrain<ICmsHistoryGrain>(
+                GrainKeys.CmsHistory(orgId, "Recipe", documentId));
+            var change = await historyGrain.GetChangeAsync(changeId);
+
+            if (change == null)
+                return Results.NotFound(new { message = "Change not found" });
+
+            return Results.Ok(new CmsHistoryDetailResponse(
+                ChangeId: change.ChangeId,
+                OccurredAt: change.OccurredAt,
+                ChangedBy: change.ChangedBy,
+                ChangeType: change.ChangeType.ToString(),
+                FromVersion: change.FromVersion,
+                ToVersion: change.ToVersion,
+                ChangeNote: change.ChangeNote,
+                Changes: change.Changes.Select(c => new FieldChangeResponse(
+                    FieldPath: c.FieldPath,
+                    OldValue: c.OldValue,
+                    NewValue: c.NewValue,
+                    Operation: c.Op.ToString())).ToList()));
+        });
+
+        group.MapGet("/recipes/{documentId}/diff", async (
+            Guid orgId,
+            string documentId,
+            [FromQuery] int from,
+            [FromQuery] int to,
+            IGrainFactory grainFactory) =>
+        {
+            var recipeGrain = grainFactory.GetGrain<IRecipeDocumentGrain>(GrainKeys.RecipeDocument(orgId, documentId));
+            if (!await recipeGrain.ExistsAsync())
+                return Results.NotFound();
+
+            var historyGrain = grainFactory.GetGrain<ICmsHistoryGrain>(
+                GrainKeys.CmsHistory(orgId, "Recipe", documentId));
+            var diff = await historyGrain.GetDiffAsync(from, to);
+
+            return Results.Ok(new CmsDiffResponse(
+                FromVersion: diff.FromVersion,
+                ToVersion: diff.ToVersion,
+                Changes: diff.Changes.Select(c => new FieldChangeResponse(
+                    FieldPath: c.FieldPath,
+                    OldValue: c.OldValue,
+                    NewValue: c.NewValue,
+                    Operation: c.Op.ToString())).ToList(),
+                ChangeCount: diff.ChangeEvents.Count));
+        });
+
+        group.MapPost("/recipes/{documentId}/undo", async (
+            Guid orgId,
+            string documentId,
+            [FromBody] UndoRequest? request,
+            [FromHeader(Name = "X-User-Id")] Guid? userId,
+            IGrainFactory grainFactory) =>
+        {
+            var recipeGrain = grainFactory.GetGrain<IRecipeDocumentGrain>(GrainKeys.RecipeDocument(orgId, documentId));
+            if (!await recipeGrain.ExistsAsync())
+                return Results.NotFound();
+
+            var undoGrain = grainFactory.GetGrain<ICmsUndoGrain>(
+                GrainKeys.CmsUndo(orgId, "Recipe", documentId));
+            var count = request?.Count ?? 1;
+            var result = await undoGrain.UndoAsync(count, userId);
+
+            if (!result.Success)
+                return Results.BadRequest(new { message = result.ErrorMessage });
+
+            return Results.Ok(new UndoResultResponse(
+                Success: result.Success,
+                NewVersion: result.NewVersion,
+                ChangesApplied: result.ChangesApplied.Select(c => new FieldChangeResponse(
+                    FieldPath: c.FieldPath,
+                    OldValue: c.OldValue,
+                    NewValue: c.NewValue,
+                    Operation: c.Op.ToString())).ToList(),
+                Message: $"Undid {count} operation(s)"));
+        });
+
+        group.MapPost("/recipes/{documentId}/redo", async (
+            Guid orgId,
+            string documentId,
+            [FromBody] UndoRequest? request,
+            [FromHeader(Name = "X-User-Id")] Guid? userId,
+            IGrainFactory grainFactory) =>
+        {
+            var recipeGrain = grainFactory.GetGrain<IRecipeDocumentGrain>(GrainKeys.RecipeDocument(orgId, documentId));
+            if (!await recipeGrain.ExistsAsync())
+                return Results.NotFound();
+
+            var undoGrain = grainFactory.GetGrain<ICmsUndoGrain>(
+                GrainKeys.CmsUndo(orgId, "Recipe", documentId));
+            var count = request?.Count ?? 1;
+            var result = await undoGrain.RedoAsync(count, userId);
+
+            if (!result.Success)
+                return Results.BadRequest(new { message = result.ErrorMessage });
+
+            return Results.Ok(new UndoResultResponse(
+                Success: result.Success,
+                NewVersion: result.NewVersion,
+                ChangesApplied: result.ChangesApplied.Select(c => new FieldChangeResponse(
+                    FieldPath: c.FieldPath,
+                    OldValue: c.OldValue,
+                    NewValue: c.NewValue,
+                    Operation: c.Op.ToString())).ToList(),
+                Message: $"Redid {count} operation(s)"));
+        });
+
+        group.MapGet("/recipes/{documentId}/undo/preview", async (
+            Guid orgId,
+            string documentId,
+            [FromQuery] int count,
+            IGrainFactory grainFactory) =>
+        {
+            var recipeGrain = grainFactory.GetGrain<IRecipeDocumentGrain>(GrainKeys.RecipeDocument(orgId, documentId));
+            if (!await recipeGrain.ExistsAsync())
+                return Results.NotFound();
+
+            var undoGrain = grainFactory.GetGrain<ICmsUndoGrain>(
+                GrainKeys.CmsUndo(orgId, "Recipe", documentId));
+            count = count <= 0 ? 1 : count;
+            var changes = await undoGrain.PreviewUndoAsync(count);
+
+            return Results.Ok(new UndoPreviewResponse(
+                Changes: changes.Select(c => new FieldChangeResponse(
+                    FieldPath: c.FieldPath,
+                    OldValue: c.OldValue,
+                    NewValue: c.NewValue,
+                    Operation: c.Op.ToString())).ToList(),
+                OperationCount: count));
+        });
+
+        group.MapGet("/recipes/{documentId}/undo/status", async (
+            Guid orgId,
+            string documentId,
+            IGrainFactory grainFactory) =>
+        {
+            var recipeGrain = grainFactory.GetGrain<IRecipeDocumentGrain>(GrainKeys.RecipeDocument(orgId, documentId));
+            if (!await recipeGrain.ExistsAsync())
+                return Results.NotFound();
+
+            var undoGrain = grainFactory.GetGrain<ICmsUndoGrain>(
+                GrainKeys.CmsUndo(orgId, "Recipe", documentId));
+            var summary = await undoGrain.GetStackSummaryAsync();
+
+            return Results.Ok(new UndoStatusResponse(
+                UndoCount: summary.UndoCount,
+                RedoCount: summary.RedoCount,
+                HasDraft: summary.HasDraft,
+                LastPublishedVersion: summary.LastPublishedVersion));
         });
 
         // ========================================================================
