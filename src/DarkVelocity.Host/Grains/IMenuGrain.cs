@@ -177,6 +177,80 @@ public interface IMenuItemGrain : IGrainWithStringKey
     /// Update contextual tax rates for delivery/takeaway/dine-in.
     /// </summary>
     Task UpdateTaxRatesAsync(ContextualTaxRates rates);
+
+    // Variations (like Square's ITEM_VARIATION)
+    Task<MenuItemVariationSnapshot> AddVariationAsync(CreateMenuItemVariationCommand command);
+    Task<MenuItemVariationSnapshot> UpdateVariationAsync(Guid variationId, UpdateMenuItemVariationCommand command);
+    Task RemoveVariationAsync(Guid variationId);
+    Task<IReadOnlyList<MenuItemVariationSnapshot>> GetVariationsAsync();
+}
+
+// ============================================================================
+// Menu Item Variation - First-class variations like Square's ITEM_VARIATION
+// ============================================================================
+
+public enum PricingType
+{
+    Fixed,          // Fixed price
+    Variable,       // Price entered at time of sale
+    RelativeToBase  // Adjustment from base item price
+}
+
+[GenerateSerializer]
+public record CreateMenuItemVariationCommand(
+    [property: Id(0)] string Name,
+    [property: Id(1)] PricingType PricingType,
+    [property: Id(2)] decimal? Price,
+    [property: Id(3)] string? Sku,
+    [property: Id(4)] int DisplayOrder = 0,
+    [property: Id(5)] bool TrackInventory = false,
+    [property: Id(6)] Guid? InventoryItemId = null,
+    [property: Id(7)] decimal? InventoryQuantityPerSale = null);
+
+[GenerateSerializer]
+public record UpdateMenuItemVariationCommand(
+    [property: Id(0)] string? Name = null,
+    [property: Id(1)] PricingType? PricingType = null,
+    [property: Id(2)] decimal? Price = null,
+    [property: Id(3)] string? Sku = null,
+    [property: Id(4)] int? DisplayOrder = null,
+    [property: Id(5)] bool? IsActive = null,
+    [property: Id(6)] bool? TrackInventory = null,
+    [property: Id(7)] Guid? InventoryItemId = null,
+    [property: Id(8)] decimal? InventoryQuantityPerSale = null);
+
+[GenerateSerializer]
+public record MenuItemVariationSnapshot(
+    [property: Id(0)] Guid VariationId,
+    [property: Id(1)] Guid MenuItemId,
+    [property: Id(2)] string Name,
+    [property: Id(3)] PricingType PricingType,
+    [property: Id(4)] decimal? Price,
+    [property: Id(5)] string? Sku,
+    [property: Id(6)] int DisplayOrder,
+    [property: Id(7)] bool IsActive,
+    [property: Id(8)] bool TrackInventory,
+    [property: Id(9)] Guid? InventoryItemId,
+    [property: Id(10)] decimal? InventoryQuantityPerSale,
+    [property: Id(11)] decimal? TheoreticalCost);
+
+/// <summary>
+/// Grain for individual menu item variation management.
+/// Key: "{orgId}:menuvariation:{variationId}"
+/// Provides Square-like first-class variations (e.g., Small, Medium, Large)
+/// </summary>
+public interface IMenuItemVariationGrain : IGrainWithStringKey
+{
+    Task<MenuItemVariationSnapshot> CreateAsync(Guid menuItemId, CreateMenuItemVariationCommand command);
+    Task<MenuItemVariationSnapshot> UpdateAsync(UpdateMenuItemVariationCommand command);
+    Task DeactivateAsync();
+    Task ReactivateAsync();
+    Task<MenuItemVariationSnapshot> GetSnapshotAsync();
+    Task<decimal> GetPriceAsync();
+    Task UpdateCostAsync(decimal theoreticalCost);
+    Task LinkInventoryAsync(Guid inventoryItemId, decimal quantityPerSale);
+    Task UnlinkInventoryAsync();
+    Task<bool> ExistsAsync();
 }
 
 // ============================================================================

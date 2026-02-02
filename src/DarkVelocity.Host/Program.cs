@@ -66,7 +66,8 @@ app.MapOAuthEndpoints()
    .MapAvailabilityEndpoints()
    .MapWebhookEndpoints()
    .MapPaymentGatewayEndpoints()
-   .MapChannelEndpoints();
+   .MapChannelEndpoints()
+   .MapBatchEndpoints();
 
 app.Run();
 
