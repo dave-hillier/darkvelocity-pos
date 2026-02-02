@@ -9,6 +9,10 @@ public enum PaymentMethod
     LoyaltyPoints,
     HouseAccount,
     Check,
+    BankTransfer,
+    ACH,
+    Wire,
+    PettyCash,
     Other
 }
 

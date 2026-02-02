@@ -201,7 +201,7 @@ public class IndexGrainTests
 
         // Assert
         highValueOrders.Should().HaveCount(2);
-        highValueOrders.Should().AllSatisfy(o => o.Total.Should().BeGreaterOrEqualTo(100m));
+        highValueOrders.Should().AllSatisfy(o => o.Total.Should().BeGreaterThanOrEqualTo(100m));
     }
 
     [Fact]

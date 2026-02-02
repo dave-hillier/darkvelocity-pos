@@ -12,6 +12,7 @@ public sealed class DeliveryPlatformState
     [Id(0)] public Guid OrgId { get; set; }
     [Id(1)] public Guid DeliveryPlatformId { get; set; }
     [Id(2)] public DeliveryPlatformType PlatformType { get; set; }
+    [Id(17)] public IntegrationType IntegrationType { get; set; }
     [Id(3)] public string Name { get; set; } = string.Empty;
     [Id(4)] public DeliveryPlatformStatus Status { get; set; }
     [Id(5)] public string? ApiCredentialsEncrypted { get; set; }

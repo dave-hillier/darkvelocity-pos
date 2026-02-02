@@ -98,7 +98,7 @@ public class ConcurrentOperationTests
         var state = await grain.GetStateAsync();
         state.Payments.Should().HaveCount(4);
         state.BalanceDue.Should().Be(0m);
-        state.TotalPaid.Should().Be(100m);
+        state.PaidAmount.Should().Be(100m);
     }
 
     [Fact]
@@ -167,36 +167,36 @@ public class ConcurrentOperationTests
             GrainKeys.Inventory(orgId, siteId, inventoryId));
 
         await grain.InitializeAsync(new InitializeInventoryCommand(
-            OrgId: orgId,
+            OrganizationId: orgId,
             SiteId: siteId,
-            ProductName: "Burger Patties",
+            IngredientId: Guid.NewGuid(),
+            IngredientName: "Burger Patties",
+            Sku: "PATTY-001",
             Unit: "ea",
+            Category: "Protein",
             ReorderPoint: 10,
-            ReorderQty: 50,
-            TrackingMethod: InventoryTrackingMethod.Batch,
-            CostingMethod: CostingMethod.FIFO));
+            ParLevel: 100));
 
         // Receive 100 units
         await grain.ReceiveBatchAsync(new ReceiveBatchCommand(
             BatchNumber: "BATCH-001",
             Quantity: 100,
             UnitCost: 2.00m,
-            ReceivedAt: DateTime.UtcNow,
-            ExpiresAt: DateTime.UtcNow.AddDays(7),
+            ExpiryDate: DateTime.UtcNow.AddDays(7),
             SupplierId: Guid.NewGuid()));
 
         // Act - 10 concurrent consumptions of 5 units each
         var tasks = Enumerable.Range(1, 10).Select(i =>
-            grain.ConsumeAsync(new ConsumeInventoryCommand(
+            grain.ConsumeAsync(new ConsumeStockCommand(
                 Quantity: 5,
-                OrderId: Guid.NewGuid(),
-                Reason: $"Order {i}")));
+                Reason: $"Order {i}",
+                OrderId: Guid.NewGuid())));
 
         await Task.WhenAll(tasks);
 
         // Assert - Should have consumed 50 units, 50 remaining
         var levelInfo = await grain.GetLevelInfoAsync();
-        levelInfo.OnHand.Should().Be(50);
+        levelInfo.QuantityOnHand.Should().Be(50);
     }
 
     [Fact]
@@ -210,22 +210,22 @@ public class ConcurrentOperationTests
             GrainKeys.Inventory(orgId, siteId, inventoryId));
 
         await grain.InitializeAsync(new InitializeInventoryCommand(
-            OrgId: orgId,
+            OrganizationId: orgId,
             SiteId: siteId,
-            ProductName: "Wine Bottles",
+            IngredientId: Guid.NewGuid(),
+            IngredientName: "Wine Bottles",
+            Sku: "WINE-001",
             Unit: "btl",
+            Category: "Beverage",
             ReorderPoint: 5,
-            ReorderQty: 24,
-            TrackingMethod: InventoryTrackingMethod.Batch,
-            CostingMethod: CostingMethod.FIFO));
+            ParLevel: 50));
 
         // Start with initial batch
         await grain.ReceiveBatchAsync(new ReceiveBatchCommand(
             BatchNumber: "BATCH-INITIAL",
             Quantity: 20,
             UnitCost: 15.00m,
-            ReceivedAt: DateTime.UtcNow,
-            ExpiresAt: DateTime.UtcNow.AddYears(2)));
+            ExpiryDate: DateTime.UtcNow.AddYears(2)));
 
         // Act - Mix of receives and consumes concurrently
         var receiveTasks = Enumerable.Range(1, 3).Select(i =>
@@ -233,21 +233,20 @@ public class ConcurrentOperationTests
                 BatchNumber: $"BATCH-{i}",
                 Quantity: 12,
                 UnitCost: 15.00m + i,
-                ReceivedAt: DateTime.UtcNow,
-                ExpiresAt: DateTime.UtcNow.AddYears(2))));
+                ExpiryDate: DateTime.UtcNow.AddYears(2))));
 
         var consumeTasks = Enumerable.Range(1, 5).Select(i =>
-            grain.ConsumeAsync(new ConsumeInventoryCommand(
+            grain.ConsumeAsync(new ConsumeStockCommand(
                 Quantity: 3,
-                OrderId: Guid.NewGuid(),
-                Reason: $"Order {i}")));
+                Reason: $"Order {i}",
+                OrderId: Guid.NewGuid())));
 
-        await Task.WhenAll(receiveTasks.Concat(consumeTasks));
+        await Task.WhenAll(receiveTasks.Cast<Task>().Concat(consumeTasks.Cast<Task>()));
 
         // Assert - Should have correct total
         // Initial 20 + (3 receives * 12) - (5 consumes * 3) = 20 + 36 - 15 = 41
         var levelInfo = await grain.GetLevelInfoAsync();
-        levelInfo.OnHand.Should().Be(41);
+        levelInfo.QuantityOnHand.Should().Be(41);
     }
 
     #endregion
@@ -273,6 +272,7 @@ public class ConcurrentOperationTests
                 NetSpend: 50m,
                 GrossSpend: 54m,
                 DiscountAmount: 0m,
+                TaxAmount: 4m,
                 ItemCount: 2,
                 TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow))));
 
@@ -280,7 +280,7 @@ public class ConcurrentOperationTests
 
         // Assert - Should have 500 cumulative spend, 500 points (1 point per $1)
         var snapshot = await grain.GetSnapshotAsync();
-        snapshot.CumulativeSpend.Should().Be(500m);
+        snapshot.LifetimeSpend.Should().Be(500m);
         snapshot.AvailablePoints.Should().Be(500);
     }
 
@@ -327,24 +327,22 @@ public class ConcurrentOperationTests
         await grain.RequestAsync(new RequestBookingCommand(
             OrganizationId: orgId,
             SiteId: siteId,
-            CustomerId: Guid.NewGuid(),
+            Guest: new GuestInfo
+            {
+                Name = "John Doe",
+                Phone = "555-1234",
+                Email = "john@example.com"
+            },
+            RequestedTime: DateTime.UtcNow.AddDays(1).Date.AddHours(19),
             PartySize: 4,
-            RequestedDate: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
-            RequestedTime: new TimeOnly(19, 0),
-            CustomerName: "John Doe",
-            CustomerPhone: "555-1234",
-            CustomerEmail: "john@example.com"));
+            Duration: TimeSpan.FromHours(2),
+            CustomerId: Guid.NewGuid()));
 
-        await grain.ConfirmAsync(new ConfirmBookingCommand(
-            ConfirmedBy: Guid.NewGuid(),
-            ConfirmedDate: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
-            ConfirmedTime: new TimeOnly(19, 0),
-            Duration: TimeSpan.FromHours(2)));
+        await grain.ConfirmAsync(DateTime.UtcNow.AddDays(1).Date.AddHours(19));
 
         // Act - Concurrent modifications
         var tasks = Enumerable.Range(2, 5).Select(i =>
             grain.ModifyAsync(new ModifyBookingCommand(
-                ModifiedBy: Guid.NewGuid(),
                 NewPartySize: i)));
 
         await Task.WhenAll(tasks);
@@ -526,15 +524,18 @@ public class ConcurrentOperationTests
 
         // Act - Create multiple payments concurrently
         var paymentIds = Enumerable.Range(1, 4).Select(_ => Guid.NewGuid()).ToList();
+        var cashierId = Guid.NewGuid();
         var tasks = paymentIds.Select(paymentId =>
         {
             var paymentGrain = _fixture.Cluster.GrainFactory.GetGrain<IPaymentGrain>(
                 GrainKeys.Payment(orgId, siteId, paymentId));
             return paymentGrain.InitiateAsync(new InitiatePaymentCommand(
+                OrganizationId: orgId,
+                SiteId: siteId,
                 OrderId: orderId,
-                Method: "Cash",
+                Method: PaymentMethod.Cash,
                 Amount: 25.00m,
-                Currency: "USD"));
+                CashierId: cashierId));
         });
 
         await Task.WhenAll(tasks);

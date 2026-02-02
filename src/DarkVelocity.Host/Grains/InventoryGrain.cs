@@ -5,6 +5,7 @@ using DarkVelocity.Host.State;
 using DarkVelocity.Host.Streams;
 using Microsoft.Extensions.Logging;
 using Orleans.EventSourcing;
+using Orleans.Providers;
 using Orleans.Runtime;
 using Orleans.Streams;
 
@@ -434,7 +435,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryJournaled
             State.Unit,
             State.QuantityAvailable);
 
-        return new ConsumptionResult(command.Quantity, totalCost, breakdown);
+        return new ConsumptionResult(command.Quantity, totalCost, breakdown, totalCost, State.QuantityAvailable);
     }
 
     private List<BatchConsumptionDetail> CalculateFifoBreakdown(decimal quantity)

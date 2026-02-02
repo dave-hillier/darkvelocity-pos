@@ -445,7 +445,7 @@ public class KitchenTicketRoutingTests
         var stationId = Guid.NewGuid();
         var category = Guid.NewGuid();
         var item = Guid.NewGuid();
-        var station = await CreateStationAsync(orgId, siteId, stationId, "Mixed", StationType.Cold);
+        var station = await CreateStationAsync(orgId, siteId, stationId, "Mixed", StationType.Salad);
 
         // Act
         await station.AssignItemsAsync(new AssignItemsToStationCommand(
@@ -726,13 +726,13 @@ public class KitchenTicketRoutingTests
 
         // Act
         var grillStation = await CreateStationAsync(orgId, siteId, Guid.NewGuid(), "Grill", StationType.Grill);
-        var coldStation = await CreateStationAsync(orgId, siteId, Guid.NewGuid(), "Cold", StationType.Cold);
+        var coldStation = await CreateStationAsync(orgId, siteId, Guid.NewGuid(), "Salad", StationType.Salad);
         var prepStation = await CreateStationAsync(orgId, siteId, Guid.NewGuid(), "Prep", StationType.Prep);
         var expoStation = await CreateStationAsync(orgId, siteId, Guid.NewGuid(), "Expo", StationType.Expo);
 
         // Assert
         (await grillStation.GetStateAsync()).Type.Should().Be(StationType.Grill);
-        (await coldStation.GetStateAsync()).Type.Should().Be(StationType.Cold);
+        (await coldStation.GetStateAsync()).Type.Should().Be(StationType.Salad);
         (await prepStation.GetStateAsync()).Type.Should().Be(StationType.Prep);
         (await expoStation.GetStateAsync()).Type.Should().Be(StationType.Expo);
     }

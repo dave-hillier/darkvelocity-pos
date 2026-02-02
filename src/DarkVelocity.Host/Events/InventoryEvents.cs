@@ -58,7 +58,7 @@ public sealed record BatchConsumption(
     decimal RemainingQuantity
 );
 
-public sealed record RecipeCostRecalculated(
+public sealed record InventoryRecipeCostRecalculated(
     Guid RecipeId,
     Guid MenuItemId,
     decimal NewCost,

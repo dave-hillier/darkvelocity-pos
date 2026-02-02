@@ -82,7 +82,12 @@ public enum DiscountType
     Percentage,
     FixedAmount,
     Voucher,
-    Loyalty
+    Loyalty,
+    PriceOverride,
+    QuantityBreak,
+    Comp,
+    Employee,
+    Promotion
 }
 
 [GenerateSerializer]

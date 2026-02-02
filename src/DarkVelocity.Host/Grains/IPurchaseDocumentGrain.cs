@@ -65,7 +65,7 @@ public record UnmapLineCommand(
 /// Command to update extracted line item data.
 /// </summary>
 [GenerateSerializer]
-public record UpdateLineCommand(
+public record UpdatePurchaseLineCommand(
     [property: Id(0)] int LineIndex,
     [property: Id(1)] string? Description = null,
     [property: Id(2)] decimal? Quantity = null,
@@ -182,7 +182,7 @@ public interface IPurchaseDocumentGrain : IGrainWithStringKey
     /// <summary>
     /// Update extracted line item data (corrections).
     /// </summary>
-    Task UpdateLineAsync(UpdateLineCommand command);
+    Task UpdateLineAsync(UpdatePurchaseLineCommand command);
 
     /// <summary>
     /// Set suggestions for an unmapped line item.

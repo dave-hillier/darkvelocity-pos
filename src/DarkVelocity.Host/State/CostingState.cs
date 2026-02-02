@@ -20,12 +20,12 @@ public class RecipeState
     [Id(12)] public bool IsActive { get; set; } = true;
     [Id(13)] public DateTime CreatedAt { get; set; }
     [Id(14)] public DateTime? UpdatedAt { get; set; }
-    [Id(15)] public List<RecipeIngredientState> Ingredients { get; set; } = new();
+    [Id(15)] public List<CostingRecipeIngredientState> Ingredients { get; set; } = new();
     [Id(16)] public List<RecipeCostSnapshotState> CostSnapshots { get; set; } = new();
 }
 
 [GenerateSerializer]
-public class RecipeIngredientState
+public class CostingRecipeIngredientState
 {
     [Id(0)] public Guid Id { get; set; }
     [Id(1)] public Guid IngredientId { get; set; }

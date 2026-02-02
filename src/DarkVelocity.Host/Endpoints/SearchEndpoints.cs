@@ -12,18 +12,18 @@ public static class SearchEndpoints
 
         group.MapGet("/orders", async (
             Guid orgId,
-            [FromQuery] string? q,
-            [FromQuery] Guid? siteId,
-            [FromQuery] string? status,
-            [FromQuery] DateOnly? fromDate,
-            [FromQuery] DateOnly? toDate,
-            [FromQuery] decimal? minTotal,
-            [FromQuery] decimal? maxTotal,
+            [FromServices] ISearchService searchService,
+            [FromQuery] string? q = null,
+            [FromQuery] Guid? siteId = null,
+            [FromQuery] string? status = null,
+            [FromQuery] DateOnly? fromDate = null,
+            [FromQuery] DateOnly? toDate = null,
+            [FromQuery] decimal? minTotal = null,
+            [FromQuery] decimal? maxTotal = null,
             [FromQuery] int skip = 0,
             [FromQuery] int take = 20,
             [FromQuery] string sortBy = "CreatedAt",
-            [FromQuery] bool descending = true,
-            ISearchService searchService) =>
+            [FromQuery] bool descending = true) =>
         {
             var query = new OrderSearchQuery
             {
@@ -59,17 +59,17 @@ public static class SearchEndpoints
 
         group.MapGet("/customers", async (
             Guid orgId,
-            [FromQuery] string? q,
-            [FromQuery] string? status,
-            [FromQuery] string? loyaltyTier,
-            [FromQuery] string? segment,
-            [FromQuery] decimal? minSpend,
-            [FromQuery] decimal? maxSpend,
+            [FromServices] ISearchService searchService,
+            [FromQuery] string? q = null,
+            [FromQuery] string? status = null,
+            [FromQuery] string? loyaltyTier = null,
+            [FromQuery] string? segment = null,
+            [FromQuery] decimal? minSpend = null,
+            [FromQuery] decimal? maxSpend = null,
             [FromQuery] int skip = 0,
             [FromQuery] int take = 20,
             [FromQuery] string sortBy = "DisplayName",
-            [FromQuery] bool descending = false,
-            ISearchService searchService) =>
+            [FromQuery] bool descending = false) =>
         {
             var query = new CustomerSearchQuery
             {
@@ -104,20 +104,20 @@ public static class SearchEndpoints
 
         group.MapGet("/payments", async (
             Guid orgId,
-            [FromQuery] string? q,
-            [FromQuery] Guid? siteId,
-            [FromQuery] Guid? orderId,
-            [FromQuery] string? method,
-            [FromQuery] string? status,
-            [FromQuery] DateOnly? fromDate,
-            [FromQuery] DateOnly? toDate,
-            [FromQuery] decimal? minAmount,
-            [FromQuery] decimal? maxAmount,
+            [FromServices] ISearchService searchService,
+            [FromQuery] string? q = null,
+            [FromQuery] Guid? siteId = null,
+            [FromQuery] Guid? orderId = null,
+            [FromQuery] string? method = null,
+            [FromQuery] string? status = null,
+            [FromQuery] DateOnly? fromDate = null,
+            [FromQuery] DateOnly? toDate = null,
+            [FromQuery] decimal? minAmount = null,
+            [FromQuery] decimal? maxAmount = null,
             [FromQuery] int skip = 0,
             [FromQuery] int take = 20,
             [FromQuery] string sortBy = "CreatedAt",
-            [FromQuery] bool descending = true,
-            ISearchService searchService) =>
+            [FromQuery] bool descending = true) =>
         {
             var query = new PaymentSearchQuery
             {

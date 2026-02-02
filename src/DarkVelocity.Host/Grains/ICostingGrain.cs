@@ -36,7 +36,7 @@ public record RecipeIngredientCommand(
     [property: Id(5)] decimal CurrentUnitCost);
 
 [GenerateSerializer]
-public record RecipeIngredientSnapshot(
+public record CostingRecipeIngredientSnapshot(
     [property: Id(0)] Guid Id,
     [property: Id(1)] Guid IngredientId,
     [property: Id(2)] string IngredientName,
@@ -58,7 +58,7 @@ public record RecipeCostCalculation(
     [property: Id(5)] decimal? MenuPrice,
     [property: Id(6)] decimal? CostPercentage,
     [property: Id(7)] decimal? GrossMarginPercent,
-    [property: Id(8)] IReadOnlyList<RecipeIngredientSnapshot> IngredientCosts);
+    [property: Id(8)] IReadOnlyList<CostingRecipeIngredientSnapshot> IngredientCosts);
 
 [GenerateSerializer]
 public record RecipeSnapshot(
@@ -74,7 +74,7 @@ public record RecipeSnapshot(
     [property: Id(9)] decimal CurrentCostPerPortion,
     [property: Id(10)] DateTime? CostCalculatedAt,
     [property: Id(11)] bool IsActive,
-    [property: Id(12)] IReadOnlyList<RecipeIngredientSnapshot> Ingredients);
+    [property: Id(12)] IReadOnlyList<CostingRecipeIngredientSnapshot> Ingredients);
 
 [GenerateSerializer]
 public record RecipeCostSnapshotEntry(
@@ -101,7 +101,7 @@ public interface IRecipeGrain : IGrainWithStringKey
     Task AddIngredientAsync(RecipeIngredientCommand command);
     Task UpdateIngredientAsync(Guid ingredientId, RecipeIngredientCommand command);
     Task RemoveIngredientAsync(Guid ingredientId);
-    Task<IReadOnlyList<RecipeIngredientSnapshot>> GetIngredientsAsync();
+    Task<IReadOnlyList<CostingRecipeIngredientSnapshot>> GetIngredientsAsync();
 
     // Cost calculation
     Task<RecipeCostCalculation> CalculateCostAsync(decimal? menuPrice = null);

@@ -353,7 +353,7 @@ public class PurchaseDocumentGrainTests
         await grain.ApplyExtractionResultAsync(new ApplyExtractionResultCommand(extractedData, 0.7m, "v1"));
 
         // Act - correct the typo and quantity
-        await grain.UpdateLineAsync(new UpdateLineCommand(0, "Chicken Breast", 2, "case", 45m));
+        await grain.UpdateLineAsync(new UpdatePurchaseLineCommand(0, "Chicken Breast", 2, "case", 45m));
 
         // Assert
         var snapshot = await grain.GetSnapshotAsync();

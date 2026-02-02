@@ -171,6 +171,7 @@ public class DeliveryPlatformGrain : Grain, IDeliveryPlatformGrain
         return new DeliveryPlatformSnapshot(
             DeliveryPlatformId: _state.State.DeliveryPlatformId,
             PlatformType: _state.State.PlatformType,
+            IntegrationType: _state.State.IntegrationType,
             Name: _state.State.Name,
             Status: _state.State.Status,
             MerchantId: _state.State.MerchantId,

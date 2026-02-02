@@ -66,12 +66,9 @@ public static class VendorMappingEndpoints
 
             var mappings = await grain.GetAllMappingsAsync();
             return Results.Ok(Hal.Collection(
-                mappings,
                 $"/api/orgs/{orgId}/vendors/{vendorId}/mappings/items",
-                m => new Dictionary<string, object>
-                {
-                    ["self"] = new { href = $"/api/orgs/{orgId}/vendors/{vendorId}/mappings/items/{Uri.EscapeDataString(m.VendorDescription)}" }
-                }));
+                mappings.Cast<object>(),
+                mappings.Count));
         });
 
         // Get mapping for a specific vendor description

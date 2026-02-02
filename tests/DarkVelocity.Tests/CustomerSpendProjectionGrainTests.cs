@@ -55,6 +55,7 @@ public class CustomerSpendProjectionGrainTests
             NetSpend: 100m,
             GrossSpend: 108m,
             DiscountAmount: 0m,
+            TaxAmount: 0m,
             ItemCount: 3,
             TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -88,6 +89,7 @@ public class CustomerSpendProjectionGrainTests
             NetSpend: 400m,
             GrossSpend: 432m,
             DiscountAmount: 0m,
+            TaxAmount: 0m,
             ItemCount: 10,
             TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -101,6 +103,7 @@ public class CustomerSpendProjectionGrainTests
             NetSpend: 150m,
             GrossSpend: 162m,
             DiscountAmount: 0m,
+            TaxAmount: 0m,
             ItemCount: 5,
             TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -132,6 +135,7 @@ public class CustomerSpendProjectionGrainTests
             NetSpend: 600m,
             GrossSpend: 648m,
             DiscountAmount: 0m,
+            TaxAmount: 0m,
             ItemCount: 15,
             TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -145,6 +149,7 @@ public class CustomerSpendProjectionGrainTests
             NetSpend: 100m,
             GrossSpend: 108m,
             DiscountAmount: 0m,
+            TaxAmount: 0m,
             ItemCount: 3,
             TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -172,6 +177,7 @@ public class CustomerSpendProjectionGrainTests
             NetSpend: 500m,
             GrossSpend: 540m,
             DiscountAmount: 0m,
+            TaxAmount: 0m,
             ItemCount: 10,
             TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -231,6 +237,7 @@ public class CustomerSpendProjectionGrainTests
             NetSpend: 200m,
             GrossSpend: 216m,
             DiscountAmount: 0m,
+            TaxAmount: 0m,
             ItemCount: 5,
             TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -269,6 +276,7 @@ public class CustomerSpendProjectionGrainTests
             NetSpend: 600m,
             GrossSpend: 648m,
             DiscountAmount: 0m,
+            TaxAmount: 0m,
             ItemCount: 15,
             TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -304,6 +312,7 @@ public class CustomerSpendProjectionGrainTests
             NetSpend: 750m,
             GrossSpend: 810m,
             DiscountAmount: 0m,
+            TaxAmount: 0m,
             ItemCount: 20,
             TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -341,6 +350,7 @@ public class CustomerSpendProjectionGrainTests
             NetSpend: 200m,
             GrossSpend: 216m,
             DiscountAmount: 0m,
+            TaxAmount: 0m,
             ItemCount: 5,
             TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -368,6 +378,7 @@ public class CustomerSpendProjectionGrainTests
             NetSpend: 100m,
             GrossSpend: 108m,
             DiscountAmount: 0m,
+            TaxAmount: 0m,
             ItemCount: 3,
             TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 

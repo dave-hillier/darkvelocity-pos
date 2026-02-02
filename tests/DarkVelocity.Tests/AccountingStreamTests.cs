@@ -224,6 +224,7 @@ public class AccountingStreamTests
                 NetSpend: 150m,
                 GrossSpend: 162m,
                 DiscountAmount: 10m,
+                TaxAmount: 12m,
                 ItemCount: 5,
                 TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -280,6 +281,7 @@ public class AccountingStreamTests
                 NetSpend: 600m,
                 GrossSpend: 648m,
                 DiscountAmount: 0m,
+                TaxAmount: 48m,
                 ItemCount: 15,
                 TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -331,6 +333,7 @@ public class AccountingStreamTests
                 NetSpend: 300m,
                 GrossSpend: 324m,
                 DiscountAmount: 0m,
+                TaxAmount: 24m,
                 ItemCount: 8,
                 TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -390,6 +393,7 @@ public class AccountingStreamTests
                 NetSpend: 200m,
                 GrossSpend: 216m,
                 DiscountAmount: 0m,
+                TaxAmount: 16m,
                 ItemCount: 5,
                 TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 

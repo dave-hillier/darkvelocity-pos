@@ -1,3 +1,5 @@
+using DarkVelocity.Host.State;
+
 namespace DarkVelocity.Host.Events;
 
 // ============================================================================
@@ -55,17 +57,6 @@ public sealed record SaleDiscount
     public Guid? ApprovedBy { get; init; }
 }
 
-public enum DiscountType
-{
-    Percentage,
-    FixedAmount,
-    PriceOverride,
-    QuantityBreak,
-    Comp,
-    Employee,
-    Loyalty,
-    Promotion
-}
 
 public enum SaleChannel
 {

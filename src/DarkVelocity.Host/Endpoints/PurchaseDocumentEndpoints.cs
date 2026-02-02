@@ -157,7 +157,7 @@ public static class PurchaseDocumentEndpoints
             if (!await grain.ExistsAsync())
                 return Results.NotFound(Hal.Error("not_found", "Purchase document not found"));
 
-            await grain.UpdateLineAsync(new UpdateLineCommand(
+            await grain.UpdateLineAsync(new UpdatePurchaseLineCommand(
                 lineIndex,
                 request.Description,
                 request.Quantity,

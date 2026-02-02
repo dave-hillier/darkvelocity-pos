@@ -4,6 +4,7 @@ using DarkVelocity.Host.State;
 using DarkVelocity.Host.Streams;
 using Microsoft.Extensions.Logging;
 using Orleans.EventSourcing;
+using Orleans.Providers;
 using Orleans.Runtime;
 using Orleans.Streams;
 
@@ -314,7 +315,9 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseJournaledEvent>
         {
             ExpenseId = State.ExpenseId,
             PaidBy = command.PaidBy,
-            PaymentDate = command.PaymentDate,
+            PaymentDate = command.PaymentDate.HasValue
+                ? command.PaymentDate.Value.ToDateTime(TimeOnly.MinValue)
+                : DateTime.UtcNow,
             ReferenceNumber = command.ReferenceNumber,
             PaymentMethod = command.PaymentMethod?.ToString(),
             OccurredAt = DateTime.UtcNow

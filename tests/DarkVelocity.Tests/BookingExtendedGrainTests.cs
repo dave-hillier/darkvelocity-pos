@@ -1,5 +1,6 @@
 using DarkVelocity.Host;
 using DarkVelocity.Host.Grains;
+using DarkVelocity.Host.State;
 using FluentAssertions;
 using Orleans.TestingHost;
 using Xunit;
@@ -31,31 +32,26 @@ public class BookingExtendedGrainTests
             GrainKeys.Table(orgId, siteId, tableId));
 
         var command = new CreateTableCommand(
-            FloorPlanId: Guid.NewGuid(),
-            TableNumber: "T1",
-            Name: "Table 1",
+            OrganizationId: orgId,
+            SiteId: siteId,
+            Number: "T1",
             MinCapacity: 2,
             MaxCapacity: 4,
-            Shape: "rectangle",
-            PositionX: 100,
-            PositionY: 200,
-            Width: 100,
-            Height: 80,
-            Rotation: 0,
-            IsCombinationAllowed: true,
-            AssignmentPriority: 1,
-            Notes: "Near window");
+            Name: "Table 1",
+            Shape: TableShape.Rectangle,
+            FloorPlanId: Guid.NewGuid());
 
         // Act
-        var snapshot = await grain.CreateAsync(command);
+        var result = await grain.CreateAsync(command);
 
         // Assert
-        snapshot.TableId.Should().Be(tableId);
-        snapshot.TableNumber.Should().Be("T1");
-        snapshot.MinCapacity.Should().Be(2);
-        snapshot.MaxCapacity.Should().Be(4);
-        snapshot.Status.Should().Be(TableStatus.Available);
-        snapshot.IsActive.Should().BeTrue();
+        result.Id.Should().Be(tableId);
+        result.Number.Should().Be("T1");
+
+        var state = await grain.GetStateAsync();
+        state.MinCapacity.Should().Be(2);
+        state.MaxCapacity.Should().Be(4);
+        state.Status.Should().Be(TableStatus.Available);
     }
 
     [Fact]
@@ -69,27 +65,21 @@ public class BookingExtendedGrainTests
             GrainKeys.Table(orgId, siteId, tableId));
 
         await grain.CreateAsync(new CreateTableCommand(
-            FloorPlanId: Guid.NewGuid(),
-            TableNumber: "T2",
-            Name: null,
+            OrganizationId: orgId,
+            SiteId: siteId,
+            Number: "T2",
             MinCapacity: 2,
             MaxCapacity: 2,
-            Shape: "circle",
-            PositionX: 0,
-            PositionY: 0,
-            Width: 60,
-            Height: 60,
-            Rotation: 0,
-            IsCombinationAllowed: false,
-            AssignmentPriority: 2,
-            Notes: null));
+            Name: null,
+            Shape: TableShape.Round,
+            FloorPlanId: Guid.NewGuid()));
 
         // Act
         await grain.SetStatusAsync(TableStatus.Occupied);
-        var snapshot = await grain.GetSnapshotAsync();
+        var state = await grain.GetStateAsync();
 
         // Assert
-        snapshot.Status.Should().Be(TableStatus.Occupied);
+        state.Status.Should().Be(TableStatus.Occupied);
     }
 
     [Fact]
@@ -103,20 +93,14 @@ public class BookingExtendedGrainTests
             GrainKeys.Table(orgId, siteId, tableId));
 
         await grain.CreateAsync(new CreateTableCommand(
-            FloorPlanId: Guid.NewGuid(),
-            TableNumber: "T3",
-            Name: null,
+            OrganizationId: orgId,
+            SiteId: siteId,
+            Number: "T3",
             MinCapacity: 2,
             MaxCapacity: 4,
-            Shape: null,
-            PositionX: 0,
-            PositionY: 0,
-            Width: 100,
-            Height: 100,
-            Rotation: 0,
-            IsCombinationAllowed: true,
-            AssignmentPriority: 3,
-            Notes: null));
+            Name: null,
+            Shape: TableShape.Square,
+            FloorPlanId: Guid.NewGuid()));
 
         // Act
         var availableInitially = await grain.IsAvailableAsync();
@@ -139,29 +123,23 @@ public class BookingExtendedGrainTests
             GrainKeys.Table(orgId, siteId, tableId));
 
         await grain.CreateAsync(new CreateTableCommand(
-            FloorPlanId: Guid.NewGuid(),
-            TableNumber: "T4",
-            Name: null,
+            OrganizationId: orgId,
+            SiteId: siteId,
+            Number: "T4",
             MinCapacity: 2,
             MaxCapacity: 6,
-            Shape: null,
-            PositionX: 50,
-            PositionY: 50,
-            Width: 100,
-            Height: 100,
-            Rotation: 0,
-            IsCombinationAllowed: true,
-            AssignmentPriority: 1,
-            Notes: null));
+            Name: null,
+            Shape: TableShape.Square,
+            FloorPlanId: Guid.NewGuid()));
 
         // Act
-        await grain.UpdatePositionAsync(200, 300, 45);
-        var snapshot = await grain.GetSnapshotAsync();
+        await grain.SetPositionAsync(new TablePosition { X = 200, Y = 300, Width = 100, Height = 100, Rotation = 45 });
+        var state = await grain.GetStateAsync();
 
         // Assert
-        snapshot.PositionX.Should().Be(200);
-        snapshot.PositionY.Should().Be(300);
-        snapshot.Rotation.Should().Be(45);
+        state.Position!.X.Should().Be(200);
+        state.Position.Y.Should().Be(300);
+        state.Position.Rotation.Should().Be(45);
     }
 
     // ============================================================================
@@ -179,28 +157,29 @@ public class BookingExtendedGrainTests
             GrainKeys.FloorPlan(orgId, siteId, floorPlanId));
 
         var command = new CreateFloorPlanCommand(
+            OrganizationId: orgId,
+            SiteId: siteId,
             Name: "Main Dining Room",
-            Description: "First floor dining area",
-            GridWidth: 1200,
-            GridHeight: 800,
-            BackgroundImageUrl: null,
-            SortOrder: 1,
-            DefaultTurnTimeMinutes: 90);
+            IsDefault: false,
+            Width: 1200,
+            Height: 800);
 
         // Act
-        var snapshot = await grain.CreateAsync(command);
+        var result = await grain.CreateAsync(command);
 
         // Assert
-        snapshot.FloorPlanId.Should().Be(floorPlanId);
-        snapshot.Name.Should().Be("Main Dining Room");
-        snapshot.GridWidth.Should().Be(1200);
-        snapshot.GridHeight.Should().Be(800);
-        snapshot.IsActive.Should().BeTrue();
-        snapshot.TableCount.Should().Be(0);
+        result.Id.Should().Be(floorPlanId);
+        result.Name.Should().Be("Main Dining Room");
+
+        var state = await grain.GetStateAsync();
+        state.Width.Should().Be(1200);
+        state.Height.Should().Be(800);
+        state.IsActive.Should().BeTrue();
+        state.TableIds.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task FloorPlanGrain_IncrementTableCount_TracksTableCount()
+    public async Task FloorPlanGrain_AddTable_TracksTableIds()
     {
         // Arrange
         var orgId = Guid.NewGuid();
@@ -210,27 +189,33 @@ public class BookingExtendedGrainTests
             GrainKeys.FloorPlan(orgId, siteId, floorPlanId));
 
         await grain.CreateAsync(new CreateFloorPlanCommand(
+            OrganizationId: orgId,
+            SiteId: siteId,
             Name: "Test Floor",
-            Description: null,
-            GridWidth: 1000,
-            GridHeight: 600,
-            BackgroundImageUrl: null,
-            SortOrder: 1,
-            DefaultTurnTimeMinutes: 60));
+            IsDefault: false,
+            Width: 1000,
+            Height: 600));
+
+        var tableId1 = Guid.NewGuid();
+        var tableId2 = Guid.NewGuid();
+        var tableId3 = Guid.NewGuid();
 
         // Act
-        await grain.IncrementTableCountAsync();
-        await grain.IncrementTableCountAsync();
-        await grain.IncrementTableCountAsync();
+        await grain.AddTableAsync(tableId1);
+        await grain.AddTableAsync(tableId2);
+        await grain.AddTableAsync(tableId3);
 
-        var count = await grain.GetTableCountAsync();
+        var tableIds = await grain.GetTableIdsAsync();
 
         // Assert
-        count.Should().Be(3);
+        tableIds.Should().HaveCount(3);
+        tableIds.Should().Contain(tableId1);
+        tableIds.Should().Contain(tableId2);
+        tableIds.Should().Contain(tableId3);
     }
 
     [Fact]
-    public async Task FloorPlanGrain_DecrementTableCount_DecreasesCount()
+    public async Task FloorPlanGrain_RemoveTable_DecreasesCount()
     {
         // Arrange
         var orgId = Guid.NewGuid();
@@ -240,23 +225,27 @@ public class BookingExtendedGrainTests
             GrainKeys.FloorPlan(orgId, siteId, floorPlanId));
 
         await grain.CreateAsync(new CreateFloorPlanCommand(
+            OrganizationId: orgId,
+            SiteId: siteId,
             Name: "Test Floor",
-            Description: null,
-            GridWidth: 1000,
-            GridHeight: 600,
-            BackgroundImageUrl: null,
-            SortOrder: 1,
-            DefaultTurnTimeMinutes: 60));
+            IsDefault: false,
+            Width: 1000,
+            Height: 600));
 
-        await grain.IncrementTableCountAsync();
-        await grain.IncrementTableCountAsync();
+        var tableId1 = Guid.NewGuid();
+        var tableId2 = Guid.NewGuid();
+
+        await grain.AddTableAsync(tableId1);
+        await grain.AddTableAsync(tableId2);
 
         // Act
-        await grain.DecrementTableCountAsync();
-        var count = await grain.GetTableCountAsync();
+        await grain.RemoveTableAsync(tableId1);
+        var tableIds = await grain.GetTableIdsAsync();
 
         // Assert
-        count.Should().Be(1);
+        tableIds.Should().HaveCount(1);
+        tableIds.Should().NotContain(tableId1);
+        tableIds.Should().Contain(tableId2);
     }
 
     [Fact]
@@ -270,31 +259,28 @@ public class BookingExtendedGrainTests
             GrainKeys.FloorPlan(orgId, siteId, floorPlanId));
 
         await grain.CreateAsync(new CreateFloorPlanCommand(
+            OrganizationId: orgId,
+            SiteId: siteId,
             Name: "Original Name",
-            Description: null,
-            GridWidth: 1000,
-            GridHeight: 600,
-            BackgroundImageUrl: null,
-            SortOrder: 1,
-            DefaultTurnTimeMinutes: 60));
+            IsDefault: false,
+            Width: 1000,
+            Height: 600));
 
         // Act
-        var snapshot = await grain.UpdateAsync(new UpdateFloorPlanCommand(
+        await grain.UpdateAsync(new UpdateFloorPlanCommand(
             Name: "Updated Name",
-            Description: "Now with description",
-            GridWidth: 1200,
-            GridHeight: null,
+            Width: 1200,
+            Height: null,
             BackgroundImageUrl: "https://example.com/image.png",
-            SortOrder: 2,
-            IsActive: null,
-            DefaultTurnTimeMinutes: 90));
+            IsActive: null));
+
+        var state = await grain.GetStateAsync();
 
         // Assert
-        snapshot.Name.Should().Be("Updated Name");
-        snapshot.Description.Should().Be("Now with description");
-        snapshot.GridWidth.Should().Be(1200);
-        snapshot.GridHeight.Should().Be(600); // Unchanged
-        snapshot.DefaultTurnTimeMinutes.Should().Be(90);
+        state.Name.Should().Be("Updated Name");
+        state.BackgroundImageUrl.Should().Be("https://example.com/image.png");
+        state.Width.Should().Be(1200);
+        state.Height.Should().Be(600); // Unchanged
     }
 
     // ============================================================================
@@ -311,16 +297,15 @@ public class BookingExtendedGrainTests
             GrainKeys.BookingSettings(orgId, siteId));
 
         // Act
-        await grain.InitializeAsync(siteId);
-        var settings = await grain.GetSettingsAsync();
+        await grain.InitializeAsync(orgId, siteId);
+        var settings = await grain.GetStateAsync();
 
         // Assert
-        settings.LocationId.Should().Be(siteId);
-        settings.DefaultBookingDurationMinutes.Should().Be(90);
-        settings.MinAdvanceBookingMinutes.Should().Be(30);
-        settings.MaxAdvanceBookingDays.Should().Be(60);
-        settings.AllowOnlineBookings.Should().BeTrue();
-        settings.AllowWaitlist.Should().BeTrue();
+        settings.SiteId.Should().Be(siteId);
+        settings.OrganizationId.Should().Be(orgId);
+        settings.DefaultDuration.Should().Be(TimeSpan.FromMinutes(90));
+        settings.AdvanceBookingDays.Should().Be(30);
+        settings.MaxPartySizeOnline.Should().Be(8);
     }
 
     [Fact]
@@ -332,40 +317,32 @@ public class BookingExtendedGrainTests
         var grain = _cluster.GrainFactory.GetGrain<IBookingSettingsGrain>(
             GrainKeys.BookingSettings(orgId, siteId));
 
-        await grain.InitializeAsync(siteId);
+        await grain.InitializeAsync(orgId, siteId);
 
         // Act
-        var settings = await grain.UpdateAsync(new UpdateBookingSettingsCommand(
-            DefaultBookingDurationMinutes: 120,
-            MinAdvanceBookingMinutes: 60,
-            MaxAdvanceBookingDays: 90,
-            AllowOnlineBookings: null,
+        await grain.UpdateAsync(new UpdateBookingSettingsCommand(
+            DefaultOpenTime: null,
+            DefaultCloseTime: null,
+            DefaultDuration: TimeSpan.FromMinutes(120),
+            SlotInterval: null,
+            MaxPartySizeOnline: 10,
+            MaxBookingsPerSlot: null,
+            AdvanceBookingDays: 45,
             RequireDeposit: true,
-            DepositAmount: 25.00m,
-            DepositPercentage: null,
-            CancellationDeadlineMinutes: null,
-            CancellationFeeAmount: null,
-            CancellationFeePercentage: null,
-            AllowWaitlist: false,
-            MaxWaitlistSize: null,
-            FirstServiceStart: null,
-            FirstServiceEnd: null,
-            SecondServiceStart: null,
-            SecondServiceEnd: null,
-            TurnTimeMinutes: null,
-            BufferTimeMinutes: null,
-            ConfirmationMessageTemplate: null,
-            ReminderMessageTemplate: null));
+            DepositAmount: 25.00m));
+
+        var settings = await grain.GetStateAsync();
 
         // Assert
-        settings.DefaultBookingDurationMinutes.Should().Be(120);
+        settings.DefaultDuration.Should().Be(TimeSpan.FromMinutes(120));
         settings.RequireDeposit.Should().BeTrue();
         settings.DepositAmount.Should().Be(25.00m);
-        settings.AllowWaitlist.Should().BeFalse();
+        settings.MaxPartySizeOnline.Should().Be(10);
+        settings.AdvanceBookingDays.Should().Be(45);
     }
 
     [Fact]
-    public async Task BookingSettingsGrain_CalculateDeposit_ReturnsFixedAmount()
+    public async Task BookingSettingsGrain_Update_SetsDepositAmount()
     {
         // Arrange
         var orgId = Guid.NewGuid();
@@ -373,38 +350,28 @@ public class BookingExtendedGrainTests
         var grain = _cluster.GrainFactory.GetGrain<IBookingSettingsGrain>(
             GrainKeys.BookingSettings(orgId, siteId));
 
-        await grain.InitializeAsync(siteId);
+        await grain.InitializeAsync(orgId, siteId);
         await grain.UpdateAsync(new UpdateBookingSettingsCommand(
-            DefaultBookingDurationMinutes: null,
-            MinAdvanceBookingMinutes: null,
-            MaxAdvanceBookingDays: null,
-            AllowOnlineBookings: null,
+            DefaultOpenTime: null,
+            DefaultCloseTime: null,
+            DefaultDuration: null,
+            SlotInterval: null,
+            MaxPartySizeOnline: null,
+            MaxBookingsPerSlot: null,
+            AdvanceBookingDays: null,
             RequireDeposit: true,
-            DepositAmount: 50.00m,
-            DepositPercentage: null,
-            CancellationDeadlineMinutes: null,
-            CancellationFeeAmount: null,
-            CancellationFeePercentage: null,
-            AllowWaitlist: null,
-            MaxWaitlistSize: null,
-            FirstServiceStart: null,
-            FirstServiceEnd: null,
-            SecondServiceStart: null,
-            SecondServiceEnd: null,
-            TurnTimeMinutes: null,
-            BufferTimeMinutes: null,
-            ConfirmationMessageTemplate: null,
-            ReminderMessageTemplate: null));
+            DepositAmount: 50.00m));
 
         // Act
-        var deposit = await grain.CalculateDepositAsync(200.00m);
+        var settings = await grain.GetStateAsync();
 
         // Assert
-        deposit.Should().Be(50.00m);
+        settings.RequireDeposit.Should().BeTrue();
+        settings.DepositAmount.Should().Be(50.00m);
     }
 
     [Fact]
-    public async Task BookingSettingsGrain_CalculateDeposit_ReturnsPercentage()
+    public async Task BookingSettingsGrain_BlockDate_BlocksDate()
     {
         // Arrange
         var orgId = Guid.NewGuid();
@@ -412,38 +379,21 @@ public class BookingExtendedGrainTests
         var grain = _cluster.GrainFactory.GetGrain<IBookingSettingsGrain>(
             GrainKeys.BookingSettings(orgId, siteId));
 
-        await grain.InitializeAsync(siteId);
-        await grain.UpdateAsync(new UpdateBookingSettingsCommand(
-            DefaultBookingDurationMinutes: null,
-            MinAdvanceBookingMinutes: null,
-            MaxAdvanceBookingDays: null,
-            AllowOnlineBookings: null,
-            RequireDeposit: true,
-            DepositAmount: 0,
-            DepositPercentage: 25m,
-            CancellationDeadlineMinutes: null,
-            CancellationFeeAmount: null,
-            CancellationFeePercentage: null,
-            AllowWaitlist: null,
-            MaxWaitlistSize: null,
-            FirstServiceStart: null,
-            FirstServiceEnd: null,
-            SecondServiceStart: null,
-            SecondServiceEnd: null,
-            TurnTimeMinutes: null,
-            BufferTimeMinutes: null,
-            ConfirmationMessageTemplate: null,
-            ReminderMessageTemplate: null));
+        await grain.InitializeAsync(orgId, siteId);
+        var dateToBlock = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7));
 
         // Act
-        var deposit = await grain.CalculateDepositAsync(200.00m);
+        await grain.BlockDateAsync(dateToBlock);
+        var isBlocked = await grain.IsDateBlockedAsync(dateToBlock);
+        var isNotBlocked = await grain.IsDateBlockedAsync(dateToBlock.AddDays(1));
 
         // Assert
-        deposit.Should().Be(50.00m); // 25% of 200
+        isBlocked.Should().BeTrue();
+        isNotBlocked.Should().BeFalse();
     }
 
     [Fact]
-    public async Task BookingSettingsGrain_IsWithinBookingWindow_ValidatesCorrectly()
+    public async Task BookingSettingsGrain_IsSlotAvailable_ValidatesCorrectly()
     {
         // Arrange
         var orgId = Guid.NewGuid();
@@ -451,16 +401,15 @@ public class BookingExtendedGrainTests
         var grain = _cluster.GrainFactory.GetGrain<IBookingSettingsGrain>(
             GrainKeys.BookingSettings(orgId, siteId));
 
-        await grain.InitializeAsync(siteId);
+        await grain.InitializeAsync(orgId, siteId);
+
+        var validDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7));
+        var validTime = new TimeOnly(18, 0); // 6 PM, within default operating hours (11am-10pm)
 
         // Act
-        var tooSoon = await grain.IsWithinBookingWindowAsync(DateTime.UtcNow.AddMinutes(15));
-        var validTime = await grain.IsWithinBookingWindowAsync(DateTime.UtcNow.AddDays(7));
-        var tooFar = await grain.IsWithinBookingWindowAsync(DateTime.UtcNow.AddDays(90));
+        var isAvailable = await grain.IsSlotAvailableAsync(validDate, validTime, partySize: 4);
 
-        // Assert (default: min 30 min, max 60 days)
-        tooSoon.Should().BeFalse();
-        validTime.Should().BeTrue();
-        tooFar.Should().BeFalse();
+        // Assert
+        isAvailable.Should().BeTrue();
     }
 }

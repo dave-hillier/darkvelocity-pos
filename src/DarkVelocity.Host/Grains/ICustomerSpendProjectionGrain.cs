@@ -12,8 +12,9 @@ public record RecordSpendCommand(
     [property: Id(2)] decimal NetSpend,
     [property: Id(3)] decimal GrossSpend,
     [property: Id(4)] decimal DiscountAmount,
-    [property: Id(5)] int ItemCount,
-    [property: Id(6)] DateOnly TransactionDate);
+    [property: Id(5)] decimal TaxAmount,
+    [property: Id(6)] int ItemCount,
+    [property: Id(7)] DateOnly TransactionDate);
 
 /// <summary>
 /// Command to reverse spend (for voids/refunds).

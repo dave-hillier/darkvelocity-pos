@@ -69,7 +69,9 @@ public record BatchReceivedResult([property: Id(0)] Guid BatchId, [property: Id(
 public record ConsumptionResult(
     [property: Id(0)] decimal QuantityConsumed,
     [property: Id(1)] decimal TotalCost,
-    [property: Id(2)] IReadOnlyList<BatchConsumptionDetail> BatchBreakdown);
+    [property: Id(2)] IReadOnlyList<BatchConsumptionDetail> BatchBreakdown,
+    [property: Id(3)] decimal CostOfGoodsConsumed,
+    [property: Id(4)] decimal QuantityRemaining);
 
 [GenerateSerializer]
 public record BatchConsumptionDetail(

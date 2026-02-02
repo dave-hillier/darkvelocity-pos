@@ -123,22 +123,6 @@ public enum ExpenseCategory
 }
 
 /// <summary>
-/// Payment methods for expenses.
-/// </summary>
-public enum PaymentMethod
-{
-    Cash,
-    Check,
-    CreditCard,
-    DebitCard,
-    BankTransfer,
-    ACH,
-    Wire,
-    PettyCash,
-    Other
-}
-
-/// <summary>
 /// Status of an expense record.
 /// </summary>
 public enum ExpenseStatus

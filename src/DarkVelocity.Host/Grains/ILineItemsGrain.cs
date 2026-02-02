@@ -1,3 +1,5 @@
+using DarkVelocity.Host.State;
+
 namespace DarkVelocity.Host.Grains;
 
 /// <summary>
@@ -59,11 +61,12 @@ public interface ILineItemsGrain : IGrainWithStringKey
 /// <summary>
 /// Result of adding a line item.
 /// </summary>
+[GenerateSerializer]
 public record LineItemResult(
-    Guid LineId,
-    int Index,
-    decimal ExtendedPrice,
-    LineItemTotals Totals);
+    [property: Id(0)] Guid LineId,
+    [property: Id(1)] int Index,
+    [property: Id(2)] decimal ExtendedPrice,
+    [property: Id(3)] LineItemTotals Totals);
 
 /// <summary>
 /// Totals for a line items collection.

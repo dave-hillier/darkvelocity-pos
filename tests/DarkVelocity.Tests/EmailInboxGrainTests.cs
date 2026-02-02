@@ -104,7 +104,7 @@ public class EmailInboxGrainTests
 
         await grain.InitializeAsync(new InitializeEmailInboxCommand(
             orgId, siteId, $"invoices-{siteId}@test.io",
-            autoProcess: false)); // Disable auto-process for simpler testing
+            AutoProcess: false)); // Disable auto-process for simpler testing
 
         var email = CreateTestEmail();
 
@@ -128,7 +128,7 @@ public class EmailInboxGrainTests
 
         await grain.InitializeAsync(new InitializeEmailInboxCommand(
             orgId, siteId, $"invoices-{siteId}@test.io",
-            autoProcess: false));
+            AutoProcess: false));
 
         var email = CreateTestEmail(messageId: "duplicate-message-123@test.local");
 
@@ -153,7 +153,7 @@ public class EmailInboxGrainTests
 
         await grain.InitializeAsync(new InitializeEmailInboxCommand(
             orgId, siteId, $"invoices-{siteId}@test.io",
-            autoProcess: false));
+            AutoProcess: false));
 
         // Restrict to specific domain
         await grain.UpdateSettingsAsync(new UpdateInboxSettingsCommand(
@@ -179,7 +179,7 @@ public class EmailInboxGrainTests
 
         await grain.InitializeAsync(new InitializeEmailInboxCommand(
             orgId, siteId, $"invoices-{siteId}@test.io",
-            autoProcess: false));
+            AutoProcess: false));
 
         var email = CreateTestEmail(attachments: new List<EmailAttachment>());
 
@@ -201,7 +201,7 @@ public class EmailInboxGrainTests
 
         await grain.InitializeAsync(new InitializeEmailInboxCommand(
             orgId, siteId, $"invoices-{siteId}@test.io",
-            autoProcess: false));
+            AutoProcess: false));
 
         await grain.DeactivateInboxAsync();
 
@@ -276,7 +276,7 @@ public class EmailInboxGrainTests
 
         await grain.InitializeAsync(new InitializeEmailInboxCommand(
             orgId, siteId, $"invoices-{siteId}@test.io",
-            autoProcess: false));
+            AutoProcess: false));
 
         var messageId = $"track-test-{Guid.NewGuid():N}@test.local";
         var email = CreateTestEmail(messageId: messageId);
@@ -320,7 +320,7 @@ public class EmailInboxGrainTests
 
         await grain.InitializeAsync(new InitializeEmailInboxCommand(
             orgId, siteId, $"invoices-{siteId}@test.io",
-            autoProcess: false));
+            AutoProcess: false));
 
         var attachments = new List<EmailAttachment>
         {
@@ -364,7 +364,7 @@ public class EmailInboxGrainTests
 
         await grain.InitializeAsync(new InitializeEmailInboxCommand(
             orgId, siteId, $"invoices-{siteId}@test.io",
-            autoProcess: false));
+            AutoProcess: false));
 
         var email = CreateTestEmail(subject: "Your Costco Receipt #12345");
 
@@ -391,7 +391,7 @@ public class EmailInboxGrainTests
 
         await grain.InitializeAsync(new InitializeEmailInboxCommand(
             orgId, siteId, $"invoices-{siteId}@test.io",
-            autoProcess: false));
+            AutoProcess: false));
 
         // Restrict to specific domain
         await grain.UpdateSettingsAsync(new UpdateInboxSettingsCommand(
@@ -416,7 +416,7 @@ public class EmailInboxGrainTests
 
         await grain.InitializeAsync(new InitializeEmailInboxCommand(
             orgId, siteId, $"invoices-{siteId}@test.io",
-            autoProcess: false));
+            AutoProcess: false));
 
         // Set a very small max size
         await grain.UpdateSettingsAsync(new UpdateInboxSettingsCommand(

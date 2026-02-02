@@ -86,7 +86,7 @@ public class OrderInventoryIntegrationTests
 
         // Assert
         var state = await inventory.GetStateAsync();
-        state.Movements.Should().Contain(m => m.OrderId == orderId);
+        state.RecentMovements.Should().Contain(m => m.ReferenceId == orderId);
     }
 
     [Fact]
@@ -213,7 +213,7 @@ public class OrderInventoryIntegrationTests
         // Assert - only second batch should remain
         activeBatches.Should().HaveCount(1);
         activeBatches[0].BatchNumber.Should().Be("BATCH-B");
-        activeBatches[0].RemainingQuantity.Should().Be(10m);
+        activeBatches[0].Quantity.Should().Be(10m);
     }
 
     // ============================================================================
@@ -235,10 +235,10 @@ public class OrderInventoryIntegrationTests
 
         // Get the movement ID
         var state = await inventory.GetStateAsync();
-        var consumptionMovement = state.Movements.First(m => m.OrderId == orderId);
+        var consumptionMovement = state.RecentMovements.First(m => m.ReferenceId == orderId);
 
         // Act
-        await inventory.ReverseConsumptionAsync(consumptionMovement.MovementId, "Order voided", performedBy);
+        await inventory.ReverseConsumptionAsync(consumptionMovement.Id, "Order voided", performedBy);
 
         // Assert
         var levelAfterReversal = await inventory.GetLevelInfoAsync();
@@ -268,14 +268,15 @@ public class OrderInventoryIntegrationTests
 
         // Create recipe that uses 0.5 lb of ground beef
         var recipeId = Guid.NewGuid();
+        var menuItemId = Guid.NewGuid();
         var recipe = _fixture.Cluster.GrainFactory.GetGrain<IRecipeGrain>(
             $"{orgId}:recipe:{recipeId}");
 
         await recipe.CreateAsync(new CreateRecipeCommand(
-            orgId, "Hamburger", RecipeCategory.MainCourse, 1m, "serving"));
+            menuItemId, "Hamburger", "BURG-001", null, null, "Hamburger with ground beef", 1, null));
 
         await recipe.AddIngredientAsync(new RecipeIngredientCommand(
-            ingredientId, "Ground Beef", 0.5m, "lb", 2.50m, true, null));
+            ingredientId, "Ground Beef", 0.5m, "lb", 0m, 2.50m));
 
         // Create order
         var orderId = Guid.NewGuid();
@@ -284,9 +285,8 @@ public class OrderInventoryIntegrationTests
 
         await order.CreateAsync(new CreateOrderCommand(orgId, siteId, Guid.NewGuid(), OrderType.DineIn, GuestCount: 1));
 
-        var menuItemId = Guid.NewGuid();
         await order.AddLineAsync(new AddLineCommand(
-            menuItemId, "Hamburger", 2, 12.00m)); // 2 hamburgers
+            menuItemId, "Hamburger", 2, 12.00m)); // 2 hamburgers (uses menuItemId from recipe)
 
         // Act - Simulate inventory consumption for order
         // In real flow, this happens via OrderEventSubscriber when order is sent
@@ -332,10 +332,10 @@ public class OrderInventoryIntegrationTests
 
         // Get movement for reversal
         var state = await inventory.GetStateAsync();
-        var movement = state.Movements.First(m => m.OrderId == orderId);
+        var movement = state.RecentMovements.First(m => m.ReferenceId == orderId);
 
         // Reverse the inventory consumption (in real flow, this happens via event handler)
-        await inventory.ReverseConsumptionAsync(movement.MovementId, "Order voided", Guid.NewGuid());
+        await inventory.ReverseConsumptionAsync(movement.Id, "Order voided", Guid.NewGuid());
 
         // Assert
         var levelAfterVoid = await inventory.GetLevelInfoAsync();

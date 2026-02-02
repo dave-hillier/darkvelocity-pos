@@ -402,7 +402,7 @@ public class StateTransitionValidationTests
         var grain = await CreateRequestedBookingAsync(orgId, siteId, bookingId);
 
         // Act
-        var act = () => grain.RecordDepositPaymentAsync(new RecordDepositPaymentCommand(Guid.NewGuid(), "ref123"));
+        var act = () => grain.RecordDepositPaymentAsync(new RecordDepositPaymentCommand(PaymentMethod.CreditCard, "ref123"));
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
@@ -550,7 +550,7 @@ public class StateTransitionValidationTests
         var grain = await CreateVoidedOrderAsync();
 
         // Act
-        var act = () => grain.VoidAsync(Guid.NewGuid(), "Test");
+        var act = () => grain.VoidAsync(new VoidOrderCommand(Guid.NewGuid(), "Test"));
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
@@ -564,7 +564,7 @@ public class StateTransitionValidationTests
         var grain = await CreateClosedOrderAsync();
 
         // Act
-        var act = () => grain.VoidAsync(Guid.NewGuid(), "Test");
+        var act = () => grain.VoidAsync(new VoidOrderCommand(Guid.NewGuid(), "Test"));
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
@@ -615,7 +615,7 @@ public class StateTransitionValidationTests
 
         // Act
         var act = () => grain.ApplyDiscountAsync(new ApplyDiscountCommand(
-            DiscountType.Percentage, 10m, "Test discount", Guid.NewGuid()));
+            "Test discount", DiscountType.Percentage, 10m, Guid.NewGuid()));
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
@@ -637,8 +637,7 @@ public class StateTransitionValidationTests
         var grain = await CreateCompletedCashPaymentAsync();
 
         // Act
-        var act = () => grain.RequestAuthorizationAsync(new RequestAuthorizationCommand(
-            "4111111111111111", "12/25", "123"));
+        var act = () => grain.RequestAuthorizationAsync();
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
@@ -652,8 +651,8 @@ public class StateTransitionValidationTests
         var grain = await CreateInitiatedPaymentAsync();
 
         // Act
-        var act = () => grain.RecordAuthorizationAsync(new RecordAuthorizationCommand(
-            "auth123", "ref456", "fingerprint"));
+        var act = () => grain.RecordAuthorizationAsync(
+            "auth123", "ref456", new CardInfo { MaskedNumber = "****1234", Brand = "Visa" });
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
@@ -685,7 +684,7 @@ public class StateTransitionValidationTests
         var grain = await CreateCompletedCashPaymentAsync();
 
         // Act
-        var act = () => grain.CompleteCashAsync(new CompleteCashCommand(50m, 5m));
+        var act = () => grain.CompleteCashAsync(new CompleteCashPaymentCommand(50m, 5m));
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
@@ -699,8 +698,8 @@ public class StateTransitionValidationTests
         var grain = await CreateVoidedPaymentAsync();
 
         // Act
-        var act = () => grain.CompleteCardAsync(new CompleteCardCommand(
-            "ref123", "auth456", new CardInfo("1234", "Visa", 12, 2025), "Stripe", 0));
+        var act = () => grain.CompleteCardAsync(new ProcessCardPaymentCommand(
+            "ref123", "auth456", new CardInfo { MaskedNumber = "****1234", Brand = "Visa", ExpiryMonth = "12", ExpiryYear = "2025" }, "Stripe", 0));
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
@@ -718,7 +717,7 @@ public class StateTransitionValidationTests
         var grain = await CreateInitiatedPaymentAsync();
 
         // Act
-        var act = () => grain.RefundAsync(new RefundCommand(10m, "Test refund", Guid.NewGuid()));
+        var act = () => grain.RefundAsync(new RefundPaymentCommand(10m, "Test refund", Guid.NewGuid()));
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
@@ -733,7 +732,7 @@ public class StateTransitionValidationTests
         var state = await grain.GetStateAsync();
 
         // Act - try to refund more than payment amount
-        var act = () => grain.RefundAsync(new RefundCommand(
+        var act = () => grain.RefundAsync(new RefundPaymentCommand(
             state.Amount + 100m, "Test refund", Guid.NewGuid()));
 
         // Assert
@@ -749,10 +748,10 @@ public class StateTransitionValidationTests
         var state = await grain.GetStateAsync();
 
         // First refund - full amount
-        await grain.RefundAsync(new RefundCommand(state.Amount, "Full refund", Guid.NewGuid()));
+        await grain.RefundAsync(new RefundPaymentCommand(state.Amount, "Full refund", Guid.NewGuid()));
 
         // Act - try to refund again
-        var act = () => grain.RefundAsync(new RefundCommand(10m, "Another refund", Guid.NewGuid()));
+        var act = () => grain.RefundAsync(new RefundPaymentCommand(10m, "Another refund", Guid.NewGuid()));
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
@@ -770,7 +769,7 @@ public class StateTransitionValidationTests
         var grain = await CreateVoidedPaymentAsync();
 
         // Act
-        var act = () => grain.VoidAsync(Guid.NewGuid(), "Test");
+        var act = () => grain.VoidAsync(new VoidPaymentCommand(Guid.NewGuid(), "Test"));
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
@@ -783,10 +782,10 @@ public class StateTransitionValidationTests
         // Arrange
         var grain = await CreateCompletedCashPaymentAsync();
         var state = await grain.GetStateAsync();
-        await grain.RefundAsync(new RefundCommand(state.Amount, "Full refund", Guid.NewGuid()));
+        await grain.RefundAsync(new RefundPaymentCommand(state.Amount, "Full refund", Guid.NewGuid()));
 
         // Act
-        var act = () => grain.VoidAsync(Guid.NewGuid(), "Test");
+        var act = () => grain.VoidAsync(new VoidPaymentCommand(Guid.NewGuid(), "Test"));
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
@@ -804,7 +803,7 @@ public class StateTransitionValidationTests
         var grain = await CreateInitiatedPaymentAsync();
 
         // Act
-        var act = () => grain.AdjustTipAsync(5m);
+        var act = () => grain.AdjustTipAsync(new AdjustTipCommand(5m, Guid.NewGuid()));
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
@@ -966,7 +965,7 @@ public class StateTransitionValidationTests
             GrainKeys.Payment(orgId, siteId, paymentId));
 
         await grain.InitiateAsync(new InitiatePaymentCommand(
-            Guid.NewGuid(), PaymentMethod.Cash, 25.00m, Guid.NewGuid()));
+            orgId, siteId, Guid.NewGuid(), PaymentMethod.Cash, 25.00m, Guid.NewGuid()));
 
         return grain;
     }
@@ -974,14 +973,14 @@ public class StateTransitionValidationTests
     private async Task<IPaymentGrain> CreateCompletedCashPaymentAsync()
     {
         var grain = await CreateInitiatedPaymentAsync();
-        await grain.CompleteCashAsync(new CompleteCashCommand(30.00m, 0));
+        await grain.CompleteCashAsync(new CompleteCashPaymentCommand(30.00m, 0));
         return grain;
     }
 
     private async Task<IPaymentGrain> CreateVoidedPaymentAsync()
     {
         var grain = await CreateInitiatedPaymentAsync();
-        await grain.VoidAsync(Guid.NewGuid(), "Test void");
+        await grain.VoidAsync(new VoidPaymentCommand(Guid.NewGuid(), "Test void"));
         return grain;
     }
 }

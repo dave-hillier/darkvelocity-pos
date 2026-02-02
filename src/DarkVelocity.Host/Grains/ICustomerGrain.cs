@@ -39,7 +39,9 @@ public record EarnPointsCommand(
 public record RedeemPointsCommand(
     [property: Id(0)] int Points,
     [property: Id(1)] Guid OrderId,
-    [property: Id(2)] string Reason);
+    [property: Id(2)] string Reason,
+    [property: Id(3)] decimal? DiscountValue = null,
+    [property: Id(4)] string? RewardType = null);
 
 [GenerateSerializer]
 public record AdjustPointsCommand(
@@ -52,7 +54,7 @@ public record IssueRewardCommand(
     [property: Id(0)] Guid RewardDefinitionId,
     [property: Id(1)] string RewardName,
     [property: Id(2)] int PointsCost,
-    [property: Id(3)] DateTime ExpiresAt);
+    [property: Id(3)] DateTime? ExpiresAt = null);
 
 [GenerateSerializer]
 public record RedeemRewardCommand(
@@ -83,7 +85,7 @@ public record CustomerCreatedResult([property: Id(0)] Guid Id, [property: Id(1)]
 [GenerateSerializer]
 public record PointsResult([property: Id(0)] int NewBalance, [property: Id(1)] int LifetimePoints);
 [GenerateSerializer]
-public record RewardResult([property: Id(0)] Guid RewardId, [property: Id(1)] DateTime ExpiresAt);
+public record RewardResult([property: Id(0)] Guid RewardId, [property: Id(1)] DateTime? ExpiresAt = null);
 
 public interface ICustomerGrain : IGrainWithStringKey
 {

@@ -199,6 +199,7 @@ public class AuditTrailVerificationTests
                 NetSpend: 100m,
                 GrossSpend: 108m,
                 DiscountAmount: 5m,
+                TaxAmount: 0m,
                 ItemCount: 4,
                 TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -255,6 +256,7 @@ public class AuditTrailVerificationTests
                 NetSpend: 550m,
                 GrossSpend: 594m,
                 DiscountAmount: 0m,
+                TaxAmount: 0m,
                 ItemCount: 20,
                 TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -308,6 +310,7 @@ public class AuditTrailVerificationTests
                 NetSpend: 200m,
                 GrossSpend: 216m,
                 DiscountAmount: 0m,
+                TaxAmount: 0m,
                 ItemCount: 10,
                 TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -369,6 +372,7 @@ public class AuditTrailVerificationTests
                 NetSpend: 150m,
                 GrossSpend: 162m,
                 DiscountAmount: 0m,
+                TaxAmount: 0m,
                 ItemCount: 6,
                 TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -427,9 +431,10 @@ public class AuditTrailVerificationTests
             await grain.CreateAsync(new CreateUserCommand(
                 OrganizationId: orgId,
                 Email: "audit@test.com",
+                DisplayName: "Audit Test",
+                Type: UserType.Employee,
                 FirstName: "Audit",
-                LastName: "Test",
-                UserType: UserType.Staff));
+                LastName: "Test"));
 
             await Task.Delay(500);
 
@@ -472,14 +477,15 @@ public class AuditTrailVerificationTests
             await grain.CreateAsync(new CreateUserCommand(
                 OrganizationId: orgId,
                 Email: "status@test.com",
+                DisplayName: "Status Test",
+                Type: UserType.Employee,
                 FirstName: "Status",
-                LastName: "Test",
-                UserType: UserType.Staff));
+                LastName: "Test"));
 
             receivedEvents.Clear();
 
-            // Act
-            await grain.ChangeStatusAsync(UserStatus.Suspended);
+            // Act - Lock the user (equivalent to suspending)
+            await grain.LockAsync("Test lock reason");
 
             await Task.Delay(500);
 
@@ -487,7 +493,7 @@ public class AuditTrailVerificationTests
             var statusEvent = receivedEvents.OfType<UserStatusChangedEvent>().FirstOrDefault();
             statusEvent.Should().NotBeNull();
             statusEvent!.UserId.Should().Be(userId);
-            statusEvent.NewStatus.Should().Be(UserStatus.Suspended.ToString());
+            statusEvent.NewStatus.Should().Be(UserStatus.Locked);
         }
         finally
         {
@@ -532,6 +538,7 @@ public class AuditTrailVerificationTests
                 NetSpend: 50m,
                 GrossSpend: 54m,
                 DiscountAmount: 0m,
+                TaxAmount: 0m,
                 ItemCount: 2,
                 TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
@@ -638,6 +645,7 @@ public class AuditTrailVerificationTests
                     NetSpend: 20m,
                     GrossSpend: 21.60m,
                     DiscountAmount: 0m,
+                    TaxAmount: 0m,
                     ItemCount: 1,
                     TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
             }

@@ -59,12 +59,11 @@ public class PaymentGiftCardDecouplingTests
         var orderGrain = _cluster.GrainFactory.GetGrain<IOrderGrain>(
             GrainKeys.Order(orgId, siteId, orderId));
 
-        await orderGrain.OpenAsync(new OpenOrderCommand(
+        await orderGrain.CreateAsync(new CreateOrderCommand(
             OrganizationId: orgId,
             SiteId: siteId,
-            SalesPeriodId: Guid.NewGuid(),
-            ServerId: cashierId,
-            OrderType: "DineIn"));
+            CreatedBy: cashierId,
+            Type: OrderType.DineIn));
 
         // Act - Initiate and complete a gift card payment
         var paymentGrain = _cluster.GrainFactory.GetGrain<IPaymentGrain>(
@@ -133,12 +132,11 @@ public class PaymentGiftCardDecouplingTests
         var orderGrain = _cluster.GrainFactory.GetGrain<IOrderGrain>(
             GrainKeys.Order(orgId, siteId, orderId));
 
-        await orderGrain.OpenAsync(new OpenOrderCommand(
+        await orderGrain.CreateAsync(new CreateOrderCommand(
             OrganizationId: orgId,
             SiteId: siteId,
-            SalesPeriodId: Guid.NewGuid(),
-            ServerId: cashierId,
-            OrderType: "DineIn"));
+            CreatedBy: cashierId,
+            Type: OrderType.DineIn));
 
         // Initiate and complete a gift card payment
         var paymentGrain = _cluster.GrainFactory.GetGrain<IPaymentGrain>(
@@ -230,12 +228,11 @@ public class PaymentGiftCardDecouplingTests
             var orderGrain = _cluster.GrainFactory.GetGrain<IOrderGrain>(
                 GrainKeys.Order(orgId, siteId, orderId));
 
-            await orderGrain.OpenAsync(new OpenOrderCommand(
+            await orderGrain.CreateAsync(new CreateOrderCommand(
                 OrganizationId: orgId,
                 SiteId: siteId,
-                SalesPeriodId: Guid.NewGuid(),
-                ServerId: cashierId,
-                OrderType: "DineIn"));
+                CreatedBy: cashierId,
+                Type: OrderType.DineIn));
 
             // Act - Complete gift card payment
             var paymentGrain = _cluster.GrainFactory.GetGrain<IPaymentGrain>(
@@ -315,12 +312,11 @@ public class PaymentGiftCardDecouplingTests
             var orderGrain = _cluster.GrainFactory.GetGrain<IOrderGrain>(
                 GrainKeys.Order(orgId, siteId, orderId));
 
-            await orderGrain.OpenAsync(new OpenOrderCommand(
+            await orderGrain.CreateAsync(new CreateOrderCommand(
                 OrganizationId: orgId,
                 SiteId: siteId,
-                SalesPeriodId: Guid.NewGuid(),
-                ServerId: cashierId,
-                OrderType: "DineIn"));
+                CreatedBy: cashierId,
+                Type: OrderType.DineIn));
 
             var paymentGrain = _cluster.GrainFactory.GetGrain<IPaymentGrain>(
                 GrainKeys.Payment(orgId, siteId, paymentId));
@@ -395,12 +391,11 @@ public class PaymentGiftCardDecouplingTests
         var orderGrain = _cluster.GrainFactory.GetGrain<IOrderGrain>(
             GrainKeys.Order(orgId, siteId, orderId));
 
-        await orderGrain.OpenAsync(new OpenOrderCommand(
+        await orderGrain.CreateAsync(new CreateOrderCommand(
             OrganizationId: orgId,
             SiteId: siteId,
-            SalesPeriodId: Guid.NewGuid(),
-            ServerId: cashierId,
-            OrderType: "DineIn"));
+            CreatedBy: cashierId,
+            Type: OrderType.DineIn));
 
         // Act - Complete a CASH payment (not gift card)
         var paymentGrain = _cluster.GrainFactory.GetGrain<IPaymentGrain>(

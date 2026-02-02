@@ -10,6 +10,7 @@
     <PackageReference Include="Microsoft.Orleans.Sdk" Version="9.1.2" />
     <PackageReference Include="Microsoft.Orleans.Server" Version="9.1.2" />
     <PackageReference Include="Microsoft.Orleans.Streaming" Version="9.1.2" />
+    <PackageReference Include="Microsoft.Orleans.EventSourcing" Version="9.1.2" />
     <PackageReference Include="OrleansDashboard" Version="8.2.0" />
 
     <!-- Authentication -->

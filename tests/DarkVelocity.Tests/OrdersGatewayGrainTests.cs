@@ -32,6 +32,7 @@ public class DeliveryPlatformGrainTests
 
         var command = new ConnectDeliveryPlatformCommand(
             PlatformType: DeliveryPlatformType.UberEats,
+            IntegrationType: IntegrationType.Direct,
             Name: "UberEats Main",
             ApiCredentialsEncrypted: "encrypted-api-key",
             WebhookSecret: "webhook-secret",
@@ -57,6 +58,7 @@ public class DeliveryPlatformGrainTests
 
         var command = new ConnectDeliveryPlatformCommand(
             PlatformType: DeliveryPlatformType.DoorDash,
+            IntegrationType: IntegrationType.Direct,
             Name: "DoorDash Connection",
             ApiCredentialsEncrypted: "doordash-key",
             WebhookSecret: "doordash-secret",
@@ -78,6 +80,7 @@ public class DeliveryPlatformGrainTests
 
         await grain.ConnectAsync(new ConnectDeliveryPlatformCommand(
             PlatformType: DeliveryPlatformType.Deliveroo,
+            IntegrationType: IntegrationType.Direct,
             Name: "Deliveroo",
             ApiCredentialsEncrypted: "key",
             WebhookSecret: null,
@@ -105,6 +108,7 @@ public class DeliveryPlatformGrainTests
 
         await grain.ConnectAsync(new ConnectDeliveryPlatformCommand(
             PlatformType: DeliveryPlatformType.JustEat,
+            IntegrationType: IntegrationType.Direct,
             Name: "Just Eat",
             ApiCredentialsEncrypted: null,
             WebhookSecret: null,
@@ -126,6 +130,7 @@ public class DeliveryPlatformGrainTests
 
         await grain.ConnectAsync(new ConnectDeliveryPlatformCommand(
             PlatformType: DeliveryPlatformType.Wolt,
+            IntegrationType: IntegrationType.Direct,
             Name: "Wolt",
             ApiCredentialsEncrypted: null,
             WebhookSecret: null,
@@ -149,6 +154,7 @@ public class DeliveryPlatformGrainTests
 
         await grain.ConnectAsync(new ConnectDeliveryPlatformCommand(
             PlatformType: DeliveryPlatformType.GrubHub,
+            IntegrationType: IntegrationType.Direct,
             Name: "GrubHub",
             ApiCredentialsEncrypted: null,
             WebhookSecret: null,
@@ -178,6 +184,7 @@ public class DeliveryPlatformGrainTests
 
         await grain.ConnectAsync(new ConnectDeliveryPlatformCommand(
             PlatformType: DeliveryPlatformType.Custom,
+            IntegrationType: IntegrationType.Direct,
             Name: "Custom Platform",
             ApiCredentialsEncrypted: null,
             WebhookSecret: null,
@@ -205,6 +212,7 @@ public class DeliveryPlatformGrainTests
 
         await grain.ConnectAsync(new ConnectDeliveryPlatformCommand(
             PlatformType: DeliveryPlatformType.UberEats,
+            IntegrationType: IntegrationType.Direct,
             Name: "UberEats",
             ApiCredentialsEncrypted: null,
             WebhookSecret: null,
@@ -229,6 +237,7 @@ public class DeliveryPlatformGrainTests
 
         await grain.ConnectAsync(new ConnectDeliveryPlatformCommand(
             PlatformType: DeliveryPlatformType.DoorDash,
+            IntegrationType: IntegrationType.Direct,
             Name: "DoorDash",
             ApiCredentialsEncrypted: null,
             WebhookSecret: null,
@@ -251,6 +260,7 @@ public class DeliveryPlatformGrainTests
 
         await grain.ConnectAsync(new ConnectDeliveryPlatformCommand(
             PlatformType: DeliveryPlatformType.Postmates,
+            IntegrationType: IntegrationType.Direct,
             Name: "Postmates",
             ApiCredentialsEncrypted: null,
             WebhookSecret: null,
@@ -284,19 +294,25 @@ public class ExternalOrderGrainTests
         return _fixture.Cluster.GrainFactory.GetGrain<IExternalOrderGrain>(key);
     }
 
-    private CreateExternalOrderCommand CreateTestOrderCommand(Guid locationId, Guid platformId)
+    private ExternalOrderReceived CreateTestOrderReceived(Guid locationId, Guid platformId)
     {
-        return new CreateExternalOrderCommand(
+        return new ExternalOrderReceived(
             LocationId: locationId,
             DeliveryPlatformId: platformId,
             PlatformOrderId: "uber-order-12345",
             PlatformOrderNumber: "UE-12345",
+            ChannelDisplayId: null,
             OrderType: ExternalOrderType.Delivery,
             PlacedAt: DateTime.UtcNow,
+            ScheduledPickupAt: null,
+            ScheduledDeliveryAt: null,
+            IsAsapDelivery: true,
             Customer: new ExternalOrderCustomer(
                 Name: "John Doe",
                 Phone: "+1234567890",
-                DeliveryAddress: "123 Main St"),
+                Email: "john@example.com",
+                DeliveryAddress: new DeliveryAddress("123 Main St", "12345", "City", "US", null)),
+            Courier: null,
             Items: new[]
             {
                 new ExternalOrderItem(
@@ -316,6 +332,8 @@ public class ExternalOrderGrainTests
             Tip: 5.00m,
             Total: 41.07m,
             Currency: "USD",
+            Discounts: null,
+            Packaging: null,
             SpecialInstructions: null,
             PlatformRawPayload: null);
     }
@@ -329,8 +347,8 @@ public class ExternalOrderGrainTests
         var platformId = Guid.NewGuid();
         var grain = GetGrain(orgId, externalOrderId);
 
-        var command = CreateTestOrderCommand(locationId, platformId);
-        var snapshot = await grain.CreateAsync(command);
+        var order = CreateTestOrderReceived(locationId, platformId);
+        var snapshot = await grain.ReceiveAsync(order);
 
         snapshot.ExternalOrderId.Should().Be(externalOrderId);
         snapshot.LocationId.Should().Be(locationId);
@@ -349,14 +367,19 @@ public class ExternalOrderGrainTests
         var externalOrderId = Guid.NewGuid();
         var grain = GetGrain(orgId, externalOrderId);
 
-        var command = new CreateExternalOrderCommand(
+        var order = new ExternalOrderReceived(
             LocationId: Guid.NewGuid(),
             DeliveryPlatformId: Guid.NewGuid(),
             PlatformOrderId: "dd-pickup-001",
             PlatformOrderNumber: "DD-001",
+            ChannelDisplayId: null,
             OrderType: ExternalOrderType.Pickup,
             PlacedAt: DateTime.UtcNow,
-            Customer: new ExternalOrderCustomer(Name: "Jane Smith", Phone: null, DeliveryAddress: null),
+            ScheduledPickupAt: null,
+            ScheduledDeliveryAt: null,
+            IsAsapDelivery: true,
+            Customer: new ExternalOrderCustomer(Name: "Jane Smith", Phone: null, Email: null, DeliveryAddress: null),
+            Courier: null,
             Items: Array.Empty<ExternalOrderItem>(),
             Subtotal: 15.00m,
             DeliveryFee: 0m,
@@ -365,10 +388,12 @@ public class ExternalOrderGrainTests
             Tip: 0m,
             Total: 17.20m,
             Currency: "USD",
+            Discounts: null,
+            Packaging: null,
             SpecialInstructions: null,
             PlatformRawPayload: null);
 
-        var snapshot = await grain.CreateAsync(command);
+        var snapshot = await grain.ReceiveAsync(order);
 
         snapshot.OrderType.Should().Be(ExternalOrderType.Pickup);
         snapshot.DeliveryFee.Should().Be(0m);
@@ -381,7 +406,7 @@ public class ExternalOrderGrainTests
         var externalOrderId = Guid.NewGuid();
         var grain = GetGrain(orgId, externalOrderId);
 
-        await grain.CreateAsync(CreateTestOrderCommand(Guid.NewGuid(), Guid.NewGuid()));
+        await grain.ReceiveAsync(CreateTestOrderReceived(Guid.NewGuid(), Guid.NewGuid()));
 
         var estimatedPickup = DateTime.UtcNow.AddMinutes(30);
         var snapshot = await grain.AcceptAsync(estimatedPickup);
@@ -398,7 +423,7 @@ public class ExternalOrderGrainTests
         var externalOrderId = Guid.NewGuid();
         var grain = GetGrain(orgId, externalOrderId);
 
-        await grain.CreateAsync(CreateTestOrderCommand(Guid.NewGuid(), Guid.NewGuid()));
+        await grain.ReceiveAsync(CreateTestOrderReceived(Guid.NewGuid(), Guid.NewGuid()));
 
         var snapshot = await grain.RejectAsync("Store too busy");
 
@@ -413,7 +438,7 @@ public class ExternalOrderGrainTests
         var externalOrderId = Guid.NewGuid();
         var grain = GetGrain(orgId, externalOrderId);
 
-        await grain.CreateAsync(CreateTestOrderCommand(Guid.NewGuid(), Guid.NewGuid()));
+        await grain.ReceiveAsync(CreateTestOrderReceived(Guid.NewGuid(), Guid.NewGuid()));
         await grain.AcceptAsync(null);
 
         await grain.SetPreparingAsync();
@@ -429,7 +454,7 @@ public class ExternalOrderGrainTests
         var externalOrderId = Guid.NewGuid();
         var grain = GetGrain(orgId, externalOrderId);
 
-        await grain.CreateAsync(CreateTestOrderCommand(Guid.NewGuid(), Guid.NewGuid()));
+        await grain.ReceiveAsync(CreateTestOrderReceived(Guid.NewGuid(), Guid.NewGuid()));
         await grain.AcceptAsync(null);
         await grain.SetPreparingAsync();
 
@@ -446,7 +471,7 @@ public class ExternalOrderGrainTests
         var externalOrderId = Guid.NewGuid();
         var grain = GetGrain(orgId, externalOrderId);
 
-        await grain.CreateAsync(CreateTestOrderCommand(Guid.NewGuid(), Guid.NewGuid()));
+        await grain.ReceiveAsync(CreateTestOrderReceived(Guid.NewGuid(), Guid.NewGuid()));
         await grain.AcceptAsync(null);
         await grain.SetPreparingAsync();
         await grain.SetReadyAsync();
@@ -465,7 +490,7 @@ public class ExternalOrderGrainTests
         var externalOrderId = Guid.NewGuid();
         var grain = GetGrain(orgId, externalOrderId);
 
-        await grain.CreateAsync(CreateTestOrderCommand(Guid.NewGuid(), Guid.NewGuid()));
+        await grain.ReceiveAsync(CreateTestOrderReceived(Guid.NewGuid(), Guid.NewGuid()));
         await grain.AcceptAsync(null);
         await grain.SetPickedUpAsync();
 
@@ -482,7 +507,7 @@ public class ExternalOrderGrainTests
         var externalOrderId = Guid.NewGuid();
         var grain = GetGrain(orgId, externalOrderId);
 
-        await grain.CreateAsync(CreateTestOrderCommand(Guid.NewGuid(), Guid.NewGuid()));
+        await grain.ReceiveAsync(CreateTestOrderReceived(Guid.NewGuid(), Guid.NewGuid()));
 
         await grain.CancelAsync("Customer requested cancellation");
 
@@ -499,7 +524,7 @@ public class ExternalOrderGrainTests
         var internalOrderId = Guid.NewGuid();
         var grain = GetGrain(orgId, externalOrderId);
 
-        await grain.CreateAsync(CreateTestOrderCommand(Guid.NewGuid(), Guid.NewGuid()));
+        await grain.ReceiveAsync(CreateTestOrderReceived(Guid.NewGuid(), Guid.NewGuid()));
 
         await grain.LinkInternalOrderAsync(internalOrderId);
 
@@ -514,7 +539,7 @@ public class ExternalOrderGrainTests
         var externalOrderId = Guid.NewGuid();
         var grain = GetGrain(orgId, externalOrderId);
 
-        await grain.CreateAsync(CreateTestOrderCommand(Guid.NewGuid(), Guid.NewGuid()));
+        await grain.ReceiveAsync(CreateTestOrderReceived(Guid.NewGuid(), Guid.NewGuid()));
 
         await grain.MarkFailedAsync("API timeout");
 
@@ -530,7 +555,7 @@ public class ExternalOrderGrainTests
         var externalOrderId = Guid.NewGuid();
         var grain = GetGrain(orgId, externalOrderId);
 
-        await grain.CreateAsync(CreateTestOrderCommand(Guid.NewGuid(), Guid.NewGuid()));
+        await grain.ReceiveAsync(CreateTestOrderReceived(Guid.NewGuid(), Guid.NewGuid()));
 
         await grain.IncrementRetryAsync();
         await grain.IncrementRetryAsync();
@@ -701,7 +726,7 @@ public class PlatformPayoutGrainTests
     }
 
     [Fact]
-    public async Task CreateAsync_CreatesPayoutRecord()
+    public async Task ReceiveAsync_CreatesPayoutRecord()
     {
         var orgId = Guid.NewGuid();
         var payoutId = Guid.NewGuid();
@@ -709,7 +734,7 @@ public class PlatformPayoutGrainTests
         var locationId = Guid.NewGuid();
         var grain = GetGrain(orgId, payoutId);
 
-        var command = new CreatePayoutCommand(
+        var payout = new PayoutReceived(
             DeliveryPlatformId: platformId,
             LocationId: locationId,
             PeriodStart: DateTime.UtcNow.AddDays(-7),
@@ -720,7 +745,7 @@ public class PlatformPayoutGrainTests
             Currency: "USD",
             PayoutReference: "PAYOUT-2024-001");
 
-        var snapshot = await grain.CreateAsync(command);
+        var snapshot = await grain.ReceiveAsync(payout);
 
         snapshot.PayoutId.Should().Be(payoutId);
         snapshot.DeliveryPlatformId.Should().Be(platformId);
@@ -737,7 +762,7 @@ public class PlatformPayoutGrainTests
         var payoutId = Guid.NewGuid();
         var grain = GetGrain(orgId, payoutId);
 
-        await grain.CreateAsync(new CreatePayoutCommand(
+        await grain.ReceiveAsync(new PayoutReceived(
             Guid.NewGuid(), Guid.NewGuid(),
             DateTime.UtcNow.AddDays(-7), DateTime.UtcNow,
             1000m, 150m, 850m, "USD", null));
@@ -755,7 +780,7 @@ public class PlatformPayoutGrainTests
         var payoutId = Guid.NewGuid();
         var grain = GetGrain(orgId, payoutId);
 
-        await grain.CreateAsync(new CreatePayoutCommand(
+        await grain.ReceiveAsync(new PayoutReceived(
             Guid.NewGuid(), Guid.NewGuid(),
             DateTime.UtcNow.AddDays(-7), DateTime.UtcNow,
             2000m, 300m, 1700m, "EUR", "REF-123"));
@@ -776,7 +801,7 @@ public class PlatformPayoutGrainTests
         var payoutId = Guid.NewGuid();
         var grain = GetGrain(orgId, payoutId);
 
-        await grain.CreateAsync(new CreatePayoutCommand(
+        await grain.ReceiveAsync(new PayoutReceived(
             Guid.NewGuid(), Guid.NewGuid(),
             DateTime.UtcNow.AddDays(-7), DateTime.UtcNow,
             500m, 75m, 425m, "GBP", null));

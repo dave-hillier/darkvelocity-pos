@@ -429,16 +429,16 @@ public sealed class SiteMenuOverridesState
 /// Context for resolving the effective menu.
 /// </summary>
 [GenerateSerializer]
-public sealed class MenuResolveContext
+public sealed record MenuResolveContext
 {
-    [Id(0)] public Guid OrgId { get; set; }
-    [Id(1)] public Guid SiteId { get; set; }
-    [Id(2)] public DateTimeOffset AsOf { get; set; } = DateTimeOffset.UtcNow;
-    [Id(3)] public string Channel { get; set; } = "pos";
-    [Id(4)] public string Locale { get; set; } = "en-US";
-    [Id(5)] public bool IncludeDraft { get; set; }
-    [Id(6)] public bool IncludeHidden { get; set; }
-    [Id(7)] public bool IncludeSnoozed { get; set; }
+    [Id(0)] public Guid OrgId { get; init; }
+    [Id(1)] public Guid SiteId { get; init; }
+    [Id(2)] public DateTimeOffset AsOf { get; init; } = DateTimeOffset.UtcNow;
+    [Id(3)] public string Channel { get; init; } = "pos";
+    [Id(4)] public string Locale { get; init; } = "en-US";
+    [Id(5)] public bool IncludeDraft { get; init; }
+    [Id(6)] public bool IncludeHidden { get; init; }
+    [Id(7)] public bool IncludeSnoozed { get; init; }
 }
 
 /// <summary>

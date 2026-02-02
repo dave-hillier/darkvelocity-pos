@@ -175,7 +175,17 @@ public class MenuItemAvailabilityTests
         await grain.DeactivateAsync();
 
         // Act
-        await grain.UpdateAsync(new UpdateMenuItemCommand(IsActive: true));
+        await grain.UpdateAsync(new UpdateMenuItemCommand(
+            CategoryId: null,
+            AccountingGroupId: null,
+            RecipeId: null,
+            Name: null,
+            Description: null,
+            Price: null,
+            ImageUrl: null,
+            Sku: null,
+            IsActive: true,
+            TrackInventory: null));
 
         // Assert
         var snapshot = await grain.GetSnapshotAsync();
@@ -243,7 +253,12 @@ public class MenuItemAvailabilityTests
         await categoryGrain.DeactivateAsync();
 
         // Act
-        await categoryGrain.UpdateAsync(new UpdateMenuCategoryCommand(IsActive: true));
+        await categoryGrain.UpdateAsync(new UpdateMenuCategoryCommand(
+            Name: null,
+            Description: null,
+            DisplayOrder: null,
+            Color: null,
+            IsActive: true));
 
         // Assert
         var snapshot = await categoryGrain.GetSnapshotAsync();
@@ -483,7 +498,8 @@ public class MenuItemAvailabilityTests
         var variation = await grain.AddVariationAsync(new CreateMenuItemVariationCommand(
             Name: "Pint",
             PricingType: PricingType.Fixed,
-            Price: 6.00m));
+            Price: 6.00m,
+            Sku: null));
 
         // Act
         await grain.RemoveVariationAsync(variation.VariationId);
@@ -505,7 +521,8 @@ public class MenuItemAvailabilityTests
         var variation = await grain.AddVariationAsync(new CreateMenuItemVariationCommand(
             Name: "Extra Large",
             PricingType: PricingType.Fixed,
-            Price: 18.00m));
+            Price: 18.00m,
+            Sku: null));
 
         // Act
         await grain.UpdateVariationAsync(variation.VariationId, new UpdateMenuItemVariationCommand(
@@ -528,11 +545,11 @@ public class MenuItemAvailabilityTests
 
         // Act
         await grain.AddVariationAsync(new CreateMenuItemVariationCommand(
-            Name: "Large", PricingType: PricingType.Fixed, Price: 3.50m, DisplayOrder: 3));
+            Name: "Large", PricingType: PricingType.Fixed, Price: 3.50m, Sku: null, DisplayOrder: 3));
         await grain.AddVariationAsync(new CreateMenuItemVariationCommand(
-            Name: "Small", PricingType: PricingType.Fixed, Price: 2.00m, DisplayOrder: 1));
+            Name: "Small", PricingType: PricingType.Fixed, Price: 2.00m, Sku: null, DisplayOrder: 1));
         await grain.AddVariationAsync(new CreateMenuItemVariationCommand(
-            Name: "Medium", PricingType: PricingType.Fixed, Price: 2.75m, DisplayOrder: 2));
+            Name: "Medium", PricingType: PricingType.Fixed, Price: 2.75m, Sku: null, DisplayOrder: 2));
 
         // Assert
         var variations = await grain.GetVariationsAsync();
@@ -555,7 +572,8 @@ public class MenuItemAvailabilityTests
         var result = await grain.AddVariationAsync(new CreateMenuItemVariationCommand(
             Name: "Custom Price",
             PricingType: PricingType.Variable,
-            Price: null));
+            Price: null,
+            Sku: null));
 
         // Assert
         result.PricingType.Should().Be(PricingType.Variable);
@@ -576,7 +594,17 @@ public class MenuItemAvailabilityTests
         var grain = await CreateMenuItemAsync(orgId, itemId, categoryId, "Burger", 12.99m);
 
         // Act
-        await grain.UpdateAsync(new UpdateMenuItemCommand(Price: 14.99m));
+        await grain.UpdateAsync(new UpdateMenuItemCommand(
+            CategoryId: null,
+            AccountingGroupId: null,
+            RecipeId: null,
+            Name: null,
+            Description: null,
+            Price: 14.99m,
+            ImageUrl: null,
+            Sku: null,
+            IsActive: null,
+            TrackInventory: null));
 
         // Assert
         var price = await grain.GetPriceAsync();

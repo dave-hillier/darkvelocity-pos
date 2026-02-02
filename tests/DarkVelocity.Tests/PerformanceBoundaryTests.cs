@@ -76,10 +76,13 @@ public class PerformanceBoundaryTests
 
         // Act - Add item with many modifiers
         var modifiers = Enumerable.Range(1, 20).Select(i =>
-            new OrderLineModifier(
-                Id: Guid.NewGuid(),
-                Name: $"Modifier {i}",
-                Price: 0.50m)).ToList();
+            new OrderLineModifier
+            {
+                ModifierId = Guid.NewGuid(),
+                Name = $"Modifier {i}",
+                Price = 0.50m,
+                Quantity = 1
+            }).ToList();
 
         var result = await grain.AddLineAsync(new AddLineCommand(
             MenuItemId: Guid.NewGuid(),
@@ -134,8 +137,8 @@ public class PerformanceBoundaryTests
         // Assert
         var state = await grain.GetStateAsync();
         state.Payments.Should().HaveCount(10);
-        state.TotalPaid.Should().Be(500.00m);
-        state.TotalTips.Should().Be(50.00m);
+        state.PaidAmount.Should().Be(500.00m);
+        state.TipTotal.Should().Be(50.00m);
         state.BalanceDue.Should().Be(0m);
     }
 
@@ -154,14 +157,15 @@ public class PerformanceBoundaryTests
             GrainKeys.Inventory(orgId, siteId, inventoryId));
 
         await grain.InitializeAsync(new InitializeInventoryCommand(
-            OrgId: orgId,
+            OrganizationId: orgId,
             SiteId: siteId,
-            ProductName: "Multi-Batch Item",
+            IngredientId: inventoryId,
+            IngredientName: "Multi-Batch Item",
+            Sku: "MULTI-001",
             Unit: "ea",
+            Category: "Test",
             ReorderPoint: 50,
-            ReorderQty: 100,
-            TrackingMethod: InventoryTrackingMethod.Batch,
-            CostingMethod: CostingMethod.FIFO));
+            ParLevel: 100));
 
         // Act - Receive 30 batches of varying quantities
         for (int i = 0; i < 30; i++)
@@ -170,13 +174,12 @@ public class PerformanceBoundaryTests
                 BatchNumber: $"BATCH-{i:D3}",
                 Quantity: 10 + i,
                 UnitCost: 1.00m + (i * 0.05m),
-                ReceivedAt: DateTime.UtcNow.AddDays(-30 + i),
-                ExpiresAt: DateTime.UtcNow.AddDays(60 + i)));
+                ExpiryDate: DateTime.UtcNow.AddDays(60 + i)));
         }
 
         // Assert - Total should be sum of 10+11+12+...+39 = 30*10 + sum(0..29) = 300 + 435 = 735
         var levelInfo = await grain.GetLevelInfoAsync();
-        levelInfo.OnHand.Should().Be(735);
+        levelInfo.QuantityOnHand.Should().Be(735);
 
         var batches = await grain.GetActiveBatchesAsync();
         batches.Should().HaveCount(30);
@@ -193,14 +196,15 @@ public class PerformanceBoundaryTests
             GrainKeys.Inventory(orgId, siteId, inventoryId));
 
         await grain.InitializeAsync(new InitializeInventoryCommand(
-            OrgId: orgId,
+            OrganizationId: orgId,
             SiteId: siteId,
-            ProductName: "FIFO Test Item",
+            IngredientId: inventoryId,
+            IngredientName: "FIFO Test Item",
+            Sku: "FIFO-001",
             Unit: "ea",
+            Category: "Test",
             ReorderPoint: 10,
-            ReorderQty: 50,
-            TrackingMethod: InventoryTrackingMethod.Batch,
-            CostingMethod: CostingMethod.FIFO));
+            ParLevel: 50));
 
         // Add 5 batches of 20 each = 100 total
         for (int i = 0; i < 5; i++)
@@ -209,22 +213,21 @@ public class PerformanceBoundaryTests
                 BatchNumber: $"BATCH-{i}",
                 Quantity: 20,
                 UnitCost: 1.00m + (i * 0.10m),
-                ReceivedAt: DateTime.UtcNow.AddDays(-5 + i),
-                ExpiresAt: DateTime.UtcNow.AddDays(30)));
+                ExpiryDate: DateTime.UtcNow.AddDays(30)));
         }
 
         // Act - Consume 75 units (should exhaust first 3 batches + 15 from 4th)
-        await grain.ConsumeAsync(new ConsumeInventoryCommand(
+        await grain.ConsumeAsync(new ConsumeStockCommand(
             Quantity: 75,
-            OrderId: Guid.NewGuid(),
-            Reason: "Large order"));
+            Reason: "Large order",
+            OrderId: Guid.NewGuid()));
 
         // Assert - Should have 25 units remaining across batches 4 and 5
         var levelInfo = await grain.GetLevelInfoAsync();
-        levelInfo.OnHand.Should().Be(25);
+        levelInfo.QuantityOnHand.Should().Be(25);
 
         var batches = await grain.GetActiveBatchesAsync();
-        batches.Where(b => b.RemainingQuantity > 0).Should().HaveCountGreaterThanOrEqualTo(2);
+        batches.Where(b => b.Quantity > 0).Should().HaveCountGreaterThanOrEqualTo(2);
     }
 
     #endregion
@@ -250,12 +253,11 @@ public class PerformanceBoundaryTests
         for (int i = 0; i < 50; i++)
         {
             await grain.RecordVisitAsync(new RecordVisitCommand(
-                VisitId: Guid.NewGuid(),
                 SiteId: Guid.NewGuid(),
-                VisitedAt: DateTime.UtcNow.AddDays(-50 + i),
+                OrderId: Guid.NewGuid(),
                 SpendAmount: 25.00m + (i % 20),
-                OrderCount: 1,
-                ItemCount: 3));
+                SiteName: $"Site {i}",
+                PartySize: 2));
         }
 
         // Assert
@@ -263,7 +265,7 @@ public class PerformanceBoundaryTests
         history.Should().HaveCountGreaterThanOrEqualTo(1);
 
         var state = await grain.GetStateAsync();
-        state.TotalVisits.Should().Be(50);
+        state.Stats.TotalVisits.Should().Be(50);
     }
 
     [Fact]
@@ -321,15 +323,16 @@ public class PerformanceBoundaryTests
                 NetSpend: 50m,
                 GrossSpend: 54m,
                 DiscountAmount: 0m,
+                TaxAmount: 0m,
                 ItemCount: 3,
                 TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-100 + i))));
         }
 
         // Assert - 100 transactions at $50 each = $5000
         var snapshot = await grain.GetSnapshotAsync();
-        snapshot.CumulativeSpend.Should().Be(5000m);
+        snapshot.LifetimeSpend.Should().Be(5000m);
         snapshot.AvailablePoints.Should().Be(5000); // 1 point per $1
-        snapshot.TotalTransactions.Should().Be(100);
+        snapshot.LifetimeTransactions.Should().Be(100);
 
         // Should be Gold tier ($5000 > $2000 threshold)
         snapshot.CurrentTier.Should().Be("Gold");
@@ -560,21 +563,12 @@ public class PerformanceBoundaryTests
         var grain = _fixture.Cluster.GrainFactory.GetGrain<IBookingSettingsGrain>(
             GrainKeys.BookingSettings(orgId, siteId));
 
-        await grain.InitializeAsync(new InitializeBookingSettingsCommand(
-            OrganizationId: orgId,
-            SiteId: siteId,
-            DefaultSlotDuration: TimeSpan.FromMinutes(90),
-            MaxAdvanceBookingDays: 60,
-            MinAdvanceBookingMinutes: 60,
-            MaxPartySize: 20));
+        await grain.InitializeAsync(orgId, siteId);
 
         // Act - Block 30 dates (holidays, private events, etc.)
         for (int i = 0; i < 30; i++)
         {
-            await grain.BlockDateAsync(new BlockDateCommand(
-                Date: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(i * 2)),
-                Reason: $"Blocked reason {i + 1}",
-                BlockedBy: Guid.NewGuid()));
+            await grain.BlockDateAsync(DateOnly.FromDateTime(DateTime.UtcNow.AddDays(i * 2)));
         }
 
         // Assert
@@ -598,11 +592,10 @@ public class PerformanceBoundaryTests
             GrainKeys.PurchaseOrder(orgId, poId));
 
         await grain.CreateAsync(new CreatePurchaseOrderCommand(
-            OrgId: orgId,
-            SiteId: siteId,
             SupplierId: supplierId,
-            SupplierName: "Large Order Supplier",
-            ExpectedDeliveryDate: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
+            LocationId: siteId,
+            CreatedByUserId: Guid.NewGuid(),
+            ExpectedDeliveryDate: DateTime.UtcNow.AddDays(7),
             Notes: "Large order test"));
 
         // Act - Add 50 line items
@@ -614,16 +607,17 @@ public class PerformanceBoundaryTests
             expectedTotal += qty * price;
 
             await grain.AddLineAsync(new AddPurchaseOrderLineCommand(
+                LineId: Guid.NewGuid(),
                 IngredientId: Guid.NewGuid(),
                 IngredientName: $"Ingredient {i + 1}",
-                Quantity: qty,
-                Unit: "ea",
-                UnitPrice: price));
+                QuantityOrdered: qty,
+                UnitPrice: price,
+                Notes: null));
         }
 
         // Assert
-        var state = await grain.GetStateAsync();
-        state.Lines.Should().HaveCount(50);
+        var snapshot = await grain.GetSnapshotAsync();
+        snapshot.Lines.Should().HaveCount(50);
 
         var total = await grain.GetTotalAsync();
         total.Should().Be(expectedTotal);
@@ -639,29 +633,33 @@ public class PerformanceBoundaryTests
             GrainKeys.Supplier(orgId, supplierId));
 
         await grain.CreateAsync(new CreateSupplierCommand(
-            OrganizationId: orgId,
+            Code: $"SUP-{supplierId:N}".Substring(0, 10),
             Name: "Large Catalog Supplier",
             ContactName: "Contact",
-            Email: "supplier@test.com",
-            Phone: "555-0000",
-            Address: "123 Main St"));
+            ContactEmail: "supplier@test.com",
+            ContactPhone: "555-0000",
+            Address: "123 Main St",
+            PaymentTermsDays: 30,
+            LeadTimeDays: 7,
+            Notes: null));
 
         // Act - Add 100 ingredients to supplier catalog
         for (int i = 0; i < 100; i++)
         {
-            await grain.AddIngredientAsync(new AddSupplierIngredientCommand(
+            await grain.AddIngredientAsync(new SupplierIngredient(
                 IngredientId: Guid.NewGuid(),
                 IngredientName: $"Ingredient {i + 1}",
+                Sku: $"INT-{i + 1:D4}",
                 SupplierSku: $"SKU-{i + 1:D4}",
                 UnitPrice: 1.00m + (i * 0.10m),
-                MinOrderQuantity: (i % 5) + 1,
                 Unit: "ea",
+                MinOrderQuantity: (i % 5) + 1,
                 LeadTimeDays: (i % 7) + 1));
         }
 
         // Assert
-        var state = await grain.GetStateAsync();
-        state.Ingredients.Should().HaveCount(100);
+        var snapshot = await grain.GetSnapshotAsync();
+        snapshot.Ingredients.Should().HaveCount(100);
     }
 
     #endregion

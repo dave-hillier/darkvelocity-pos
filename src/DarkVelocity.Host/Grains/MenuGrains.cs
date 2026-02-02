@@ -306,13 +306,57 @@ public class MenuItemGrain : Grain, IMenuItemGrain
                     Price: o.Price,
                     IsDefault: o.IsDefault,
                     ServingSize: o.ServingSize,
-                    ServingUnit: o.ServingUnit)).ToList())).ToList());
+                    ServingUnit: o.ServingUnit)).ToList())).ToList(),
+            TaxRates: null,
+            ProductTags: null,
+            IsSnoozed: false,
+            SnoozedUntil: null);
     }
 
     private void EnsureInitialized()
     {
         if (_state.State.MenuItemId == Guid.Empty)
             throw new InvalidOperationException("Menu item grain not initialized");
+    }
+
+    public Task SetSnoozedAsync(bool snoozed, TimeSpan? duration = null)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task AddProductTagAsync(ProductTag tag)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task RemoveProductTagAsync(int tagId)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task UpdateTaxRatesAsync(ContextualTaxRates rates)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<MenuItemVariationSnapshot> AddVariationAsync(CreateMenuItemVariationCommand command)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<MenuItemVariationSnapshot> UpdateVariationAsync(Guid variationId, UpdateMenuItemVariationCommand command)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task RemoveVariationAsync(Guid variationId)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<IReadOnlyList<MenuItemVariationSnapshot>> GetVariationsAsync()
+    {
+        throw new NotImplementedException();
     }
 }
 

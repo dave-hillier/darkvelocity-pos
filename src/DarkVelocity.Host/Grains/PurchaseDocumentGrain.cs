@@ -4,6 +4,7 @@ using DarkVelocity.Host.State;
 using DarkVelocity.Host.Streams;
 using Microsoft.Extensions.Logging;
 using Orleans.EventSourcing;
+using Orleans.Providers;
 using Orleans.Streams;
 
 namespace DarkVelocity.Host.Grains;
@@ -51,7 +52,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
                 state.VendorId = e.VendorId;
                 state.VendorName = e.VendorName;
                 state.DocumentDate = e.DocumentDate;
-                state.Source = Enum.TryParse<DocumentSource>(e.Source ?? "", out var ds) ? ds : DocumentSource.Manual;
+                state.Source = Enum.TryParse<DocumentSource>(e.Source ?? "", out var ds) ? ds : DocumentSource.Upload;
                 state.CreatedAt = e.OccurredAt;
                 break;
 
@@ -84,7 +85,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
                         MappedIngredientId = e.IngredientId,
                         MappedIngredientSku = e.IngredientSku,
                         MappedIngredientName = e.IngredientName,
-                        MappingSource = Enum.TryParse<MappingSource>(e.MappingSource, out var ms) ? ms : State.MappingSource.Manual,
+                        MappingSource = Enum.TryParse<MappingSource>(e.MappingSource, out var ms) ? ms : MappingSource.Manual,
                         MappingConfidence = e.Confidence,
                         Suggestions = null
                     };
@@ -462,7 +463,7 @@ public class PurchaseDocumentGrain : JournaledGrain<PurchaseDocumentState, IPurc
         await ConfirmEvents();
     }
 
-    public async Task UpdateLineAsync(UpdateLineCommand command)
+    public async Task UpdateLineAsync(UpdatePurchaseLineCommand command)
     {
         EnsureExists();
         EnsureExtracted();

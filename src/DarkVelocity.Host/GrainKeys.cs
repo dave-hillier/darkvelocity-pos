@@ -553,6 +553,35 @@ public static class GrainKeys
         return (Guid.Parse(parts[1]), parts[3], string.Join(":", parts[4..]));
     }
 
+    // ============================================================================
+    // Batch Grains (Singleton per scope - used for batch operations)
+    // ============================================================================
+
+    /// <summary>
+    /// Creates a key for a menu batch grain (singleton per org).
+    /// </summary>
+    public static string MenuBatch(Guid orgId) => $"{orgId}:menubatch";
+
+    /// <summary>
+    /// Creates a key for an inventory batch grain (singleton per site).
+    /// </summary>
+    public static string InventoryBatch(Guid orgId, Guid siteId) => $"{orgId}:{siteId}:inventorybatch";
+
+    /// <summary>
+    /// Creates a key for an order batch grain (singleton per site).
+    /// </summary>
+    public static string OrderBatch(Guid orgId, Guid siteId) => $"{orgId}:{siteId}:orderbatch";
+
+    /// <summary>
+    /// Creates a key for a customer batch grain (singleton per org).
+    /// </summary>
+    public static string CustomerBatch(Guid orgId) => $"{orgId}:customerbatch";
+
+    /// <summary>
+    /// Creates a key for a payment batch grain (singleton per site).
+    /// </summary>
+    public static string PaymentBatch(Guid orgId, Guid siteId) => $"{orgId}:{siteId}:paymentbatch";
+
     /// <summary>
     /// Generates a random user code for device authorization (8 alphanumeric chars).
     /// </summary>

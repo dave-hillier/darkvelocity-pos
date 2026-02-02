@@ -2,6 +2,7 @@ using DarkVelocity.Host.Events.JournaledEvents;
 using DarkVelocity.Host.State;
 using DarkVelocity.Host.Streams;
 using Orleans.EventSourcing;
+using Orleans.Providers;
 using Orleans.Streams;
 
 namespace DarkVelocity.Host.Grains;

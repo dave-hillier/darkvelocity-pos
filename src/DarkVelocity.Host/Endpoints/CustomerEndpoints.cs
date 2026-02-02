@@ -124,7 +124,7 @@ public static class CustomerEndpoints
             var rewards = await grain.GetAvailableRewardsAsync();
             var items = rewards.Select(r => Hal.Resource(r, new Dictionary<string, object>
             {
-                ["redeem"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}/rewards/{r.RewardId}/redeem" }
+                ["redeem"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}/rewards/{r.Id}/redeem" }
             })).ToList();
 
             return Results.Ok(Hal.Collection($"/api/orgs/{orgId}/customers/{customerId}/rewards", items, items.Count));

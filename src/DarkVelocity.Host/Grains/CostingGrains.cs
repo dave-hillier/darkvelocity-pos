@@ -101,7 +101,7 @@ public class RecipeGrain : Grain, IRecipeGrain
         var effectiveQty = command.Quantity * (1 + command.WastePercentage / 100);
         var lineCost = effectiveQty * command.CurrentUnitCost;
 
-        var ingredient = new RecipeIngredientState
+        var ingredient = new CostingRecipeIngredientState
         {
             Id = Guid.NewGuid(),
             IngredientId = command.IngredientId,
@@ -156,7 +156,7 @@ public class RecipeGrain : Grain, IRecipeGrain
         await _state.WriteStateAsync();
     }
 
-    public Task<IReadOnlyList<RecipeIngredientSnapshot>> GetIngredientsAsync()
+    public Task<IReadOnlyList<CostingRecipeIngredientSnapshot>> GetIngredientsAsync()
     {
         EnsureExists();
 
@@ -164,7 +164,7 @@ public class RecipeGrain : Grain, IRecipeGrain
         var snapshots = _state.State.Ingredients.Select(i =>
         {
             var effectiveQty = i.Quantity * (1 + i.WastePercentage / 100);
-            return new RecipeIngredientSnapshot(
+            return new CostingRecipeIngredientSnapshot(
                 i.Id,
                 i.IngredientId,
                 i.IngredientName,
@@ -177,7 +177,7 @@ public class RecipeGrain : Grain, IRecipeGrain
                 totalCost > 0 ? (i.CurrentLineCost / totalCost) * 100 : 0);
         }).ToList();
 
-        return Task.FromResult<IReadOnlyList<RecipeIngredientSnapshot>>(snapshots);
+        return Task.FromResult<IReadOnlyList<CostingRecipeIngredientSnapshot>>(snapshots);
     }
 
     public Task<RecipeCostCalculation> CalculateCostAsync(decimal? menuPrice = null)
@@ -193,7 +193,7 @@ public class RecipeGrain : Grain, IRecipeGrain
             .Select(i =>
             {
                 var effectiveQty = i.Quantity * (1 + i.WastePercentage / 100);
-                return new RecipeIngredientSnapshot(
+                return new CostingRecipeIngredientSnapshot(
                     i.Id,
                     i.IngredientId,
                     i.IngredientName,
@@ -327,7 +327,7 @@ public class RecipeGrain : Grain, IRecipeGrain
             .Select(i =>
             {
                 var effectiveQty = i.Quantity * (1 + i.WastePercentage / 100);
-                return new RecipeIngredientSnapshot(
+                return new CostingRecipeIngredientSnapshot(
                     i.Id,
                     i.IngredientId,
                     i.IngredientName,
