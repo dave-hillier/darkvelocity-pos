@@ -1,30 +1,11 @@
 using DarkVelocity.Host;
 using DarkVelocity.Host.Grains;
+using DarkVelocity.Host.State;
 using FluentAssertions;
 
 namespace DarkVelocity.Tests;
 
-/// <summary>
-/// Test summary type for IndexGrain tests.
-/// </summary>
-[GenerateSerializer]
-public sealed record TestOrderSummary(
-    [property: Id(0)] Guid OrderId,
-    [property: Id(1)] string Status,
-    [property: Id(2)] decimal Total,
-    [property: Id(3)] DateTime CreatedAt,
-    [property: Id(4)] string? CustomerName = null);
-
-/// <summary>
-/// NOTE: These tests are skipped because Orleans cannot generate proxies for generic grain interfaces
-/// when the type parameter (TestOrderSummary) is defined outside the main assembly.
-/// The IIndexGrain&lt;TSummary&gt; interface uses lambdas in QueryAsync which also cannot be serialized.
-///
-/// To fix: Either create concrete index grain implementations for specific types,
-/// or redesign the QueryAsync API to use serializable query objects instead of lambdas.
-/// </summary>
 [Collection(ClusterCollection.Name)]
-[Trait("Category", "Skipped")]
 public class IndexGrainTests
 {
     private readonly TestClusterFixture _fixture;
@@ -34,19 +15,46 @@ public class IndexGrainTests
         _fixture = fixture;
     }
 
-    private IIndexGrain<TestOrderSummary> GetIndexGrain(Guid orgId, string indexType, string scope)
+    private IIndexGrain<OrderSummary> GetIndexGrain(Guid orgId, string indexType, string scope)
     {
         var key = GrainKeys.Index(orgId, indexType, scope);
-        return _fixture.Cluster.GrainFactory.GetGrain<IIndexGrain<TestOrderSummary>>(key);
+        return _fixture.Cluster.GrainFactory.GetGrain<IIndexGrain<OrderSummary>>(key);
     }
 
-    private IIndexGrain<TestOrderSummary> GetIndexGrain(Guid orgId, string indexType, Guid siteId)
+    private IIndexGrain<OrderSummary> GetIndexGrain(Guid orgId, string indexType, Guid siteId)
     {
         var key = GrainKeys.Index(orgId, indexType, siteId);
-        return _fixture.Cluster.GrainFactory.GetGrain<IIndexGrain<TestOrderSummary>>(key);
+        return _fixture.Cluster.GrainFactory.GetGrain<IIndexGrain<OrderSummary>>(key);
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    private static OrderSummary CreateOrderSummary(
+        Guid orderId,
+        OrderStatus status = OrderStatus.Open,
+        decimal total = 100m,
+        DateTime? createdAt = null,
+        string? customerName = null)
+    {
+        return new OrderSummary(
+            OrderId: orderId,
+            OrderNumber: $"ORD-{orderId.ToString()[..8]}",
+            SiteId: Guid.NewGuid(),
+            Status: status,
+            Type: OrderType.DineIn,
+            CustomerId: customerName != null ? Guid.NewGuid() : null,
+            CustomerName: customerName,
+            ServerId: null,
+            ServerName: null,
+            TableNumber: null,
+            ItemCount: 1,
+            Subtotal: total,
+            GrandTotal: total,
+            PaidAmount: 0m,
+            BalanceDue: total,
+            CreatedAt: createdAt ?? DateTime.UtcNow,
+            ClosedAt: null);
+    }
+
+    [Fact]
     public async Task RegisterAsync_ShouldAddEntryToIndex()
     {
         // Arrange
@@ -55,7 +63,7 @@ public class IndexGrainTests
         var orderId = Guid.NewGuid();
         var index = GetIndexGrain(orgId, "orders", siteId);
 
-        var summary = new TestOrderSummary(orderId, "Open", 99.99m, DateTime.UtcNow, "John Doe");
+        var summary = CreateOrderSummary(orderId, OrderStatus.Open, 99.99m, customerName: "John Doe");
 
         // Act
         await index.RegisterAsync(orderId, summary);
@@ -68,7 +76,7 @@ public class IndexGrainTests
         exists.Should().BeTrue();
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public async Task RegisterAsync_ShouldUpdateExistingEntry()
     {
         // Arrange
@@ -77,11 +85,11 @@ public class IndexGrainTests
         var orderId = Guid.NewGuid();
         var index = GetIndexGrain(orgId, "orders", siteId);
 
-        var initialSummary = new TestOrderSummary(orderId, "Open", 99.99m, DateTime.UtcNow);
+        var initialSummary = CreateOrderSummary(orderId, OrderStatus.Open, 99.99m);
         await index.RegisterAsync(orderId, initialSummary);
 
         // Act
-        var updatedSummary = new TestOrderSummary(orderId, "Closed", 99.99m, DateTime.UtcNow);
+        var updatedSummary = CreateOrderSummary(orderId, OrderStatus.Closed, 99.99m);
         await index.RegisterAsync(orderId, updatedSummary);
 
         // Assert
@@ -90,10 +98,10 @@ public class IndexGrainTests
 
         var retrieved = await index.GetByIdAsync(orderId);
         retrieved.Should().NotBeNull();
-        retrieved!.Status.Should().Be("Closed");
+        retrieved!.Status.Should().Be(OrderStatus.Closed);
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public async Task UpdateAsync_ShouldUpdateExistingEntry()
     {
         // Arrange
@@ -102,20 +110,20 @@ public class IndexGrainTests
         var orderId = Guid.NewGuid();
         var index = GetIndexGrain(orgId, "orders", siteId);
 
-        var initialSummary = new TestOrderSummary(orderId, "Open", 50m, DateTime.UtcNow);
+        var initialSummary = CreateOrderSummary(orderId, OrderStatus.Open, 50m);
         await index.RegisterAsync(orderId, initialSummary);
 
         // Act
-        var updatedSummary = new TestOrderSummary(orderId, "Paid", 50m, DateTime.UtcNow);
+        var updatedSummary = CreateOrderSummary(orderId, OrderStatus.Paid, 50m);
         await index.UpdateAsync(orderId, updatedSummary);
 
         // Assert
         var retrieved = await index.GetByIdAsync(orderId);
         retrieved.Should().NotBeNull();
-        retrieved!.Status.Should().Be("Paid");
+        retrieved!.Status.Should().Be(OrderStatus.Paid);
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public async Task RemoveAsync_ShouldRemoveEntryFromIndex()
     {
         // Arrange
@@ -124,7 +132,7 @@ public class IndexGrainTests
         var orderId = Guid.NewGuid();
         var index = GetIndexGrain(orgId, "orders", siteId);
 
-        var summary = new TestOrderSummary(orderId, "Open", 75m, DateTime.UtcNow);
+        var summary = CreateOrderSummary(orderId, OrderStatus.Open, 75m);
         await index.RegisterAsync(orderId, summary);
 
         // Act
@@ -138,7 +146,7 @@ public class IndexGrainTests
         exists.Should().BeFalse();
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public async Task RemoveAsync_NonExistentEntry_ShouldBeNoOp()
     {
         // Arrange
@@ -150,8 +158,8 @@ public class IndexGrainTests
         await index.RemoveAsync(Guid.NewGuid());
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
-    public async Task QueryAsync_ShouldFilterByPredicate()
+    [Fact]
+    public async Task GetAllAsync_ShouldAllowClientSideFiltering()
     {
         // Arrange
         var orgId = Guid.NewGuid();
@@ -159,61 +167,51 @@ public class IndexGrainTests
         var index = GetIndexGrain(orgId, "orders", siteId);
 
         var now = DateTime.UtcNow;
-        await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), "Open", 100m, now));
-        await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), "Closed", 200m, now));
-        await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), "Open", 150m, now));
-        await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), "Paid", 75m, now));
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+        var id3 = Guid.NewGuid();
+        var id4 = Guid.NewGuid();
+        await index.RegisterAsync(id1, CreateOrderSummary(id1, OrderStatus.Open, 100m, now));
+        await index.RegisterAsync(id2, CreateOrderSummary(id2, OrderStatus.Closed, 200m, now));
+        await index.RegisterAsync(id3, CreateOrderSummary(id3, OrderStatus.Open, 150m, now));
+        await index.RegisterAsync(id4, CreateOrderSummary(id4, OrderStatus.Paid, 75m, now));
 
-        // Act
-        var openOrders = await index.QueryAsync(s => s.Status == "Open");
+        // Act - filter on client side
+        var all = await index.GetAllAsync();
+        var openOrders = all.Where(e => e.Summary.Status == OrderStatus.Open).ToList();
 
         // Assert
         openOrders.Should().HaveCount(2);
-        openOrders.Should().AllSatisfy(o => o.Status.Should().Be("Open"));
+        openOrders.Should().AllSatisfy(o => o.Summary.Status.Should().Be(OrderStatus.Open));
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
-    public async Task QueryAsync_WithLimit_ShouldRespectLimit()
+    [Fact]
+    public async Task GetAllAsync_ShouldAllowClientSideFilteringByTotal()
     {
         // Arrange
         var orgId = Guid.NewGuid();
         var siteId = Guid.NewGuid();
         var index = GetIndexGrain(orgId, "orders", siteId);
 
-        for (int i = 0; i < 10; i++)
-        {
-            await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), "Open", i * 10m, DateTime.UtcNow));
-        }
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+        var id3 = Guid.NewGuid();
+        var id4 = Guid.NewGuid();
+        await index.RegisterAsync(id1, CreateOrderSummary(id1, OrderStatus.Open, 50m));
+        await index.RegisterAsync(id2, CreateOrderSummary(id2, OrderStatus.Open, 150m));
+        await index.RegisterAsync(id3, CreateOrderSummary(id3, OrderStatus.Open, 250m));
+        await index.RegisterAsync(id4, CreateOrderSummary(id4, OrderStatus.Open, 75m));
 
-        // Act
-        var limited = await index.QueryAsync(_ => true, limit: 5);
-
-        // Assert
-        limited.Should().HaveCount(5);
-    }
-
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
-    public async Task QueryAsync_ByTotalRange_ShouldWork()
-    {
-        // Arrange
-        var orgId = Guid.NewGuid();
-        var siteId = Guid.NewGuid();
-        var index = GetIndexGrain(orgId, "orders", siteId);
-
-        await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), "Open", 50m, DateTime.UtcNow));
-        await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), "Open", 150m, DateTime.UtcNow));
-        await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), "Open", 250m, DateTime.UtcNow));
-        await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), "Open", 75m, DateTime.UtcNow));
-
-        // Act
-        var highValueOrders = await index.QueryAsync(s => s.Total >= 100m);
+        // Act - filter on client side
+        var all = await index.GetAllAsync();
+        var highValueOrders = all.Where(e => e.Summary.GrandTotal >= 100m).ToList();
 
         // Assert
         highValueOrders.Should().HaveCount(2);
-        highValueOrders.Should().AllSatisfy(o => o.Total.Should().BeGreaterThanOrEqualTo(100m));
+        highValueOrders.Should().AllSatisfy(o => o.Summary.GrandTotal.Should().BeGreaterThanOrEqualTo(100m));
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public async Task GetRecentAsync_ShouldReturnMostRecentFirst()
     {
         // Arrange
@@ -225,22 +223,22 @@ public class IndexGrainTests
         var orderId2 = Guid.NewGuid();
         var orderId3 = Guid.NewGuid();
 
-        await index.RegisterAsync(orderId1, new TestOrderSummary(orderId1, "First", 10m, DateTime.UtcNow.AddHours(-2)));
+        await index.RegisterAsync(orderId1, CreateOrderSummary(orderId1, OrderStatus.Open, 10m, DateTime.UtcNow.AddHours(-2)));
         await Task.Delay(10); // Ensure different timestamps
-        await index.RegisterAsync(orderId2, new TestOrderSummary(orderId2, "Second", 20m, DateTime.UtcNow.AddHours(-1)));
+        await index.RegisterAsync(orderId2, CreateOrderSummary(orderId2, OrderStatus.Sent, 20m, DateTime.UtcNow.AddHours(-1)));
         await Task.Delay(10);
-        await index.RegisterAsync(orderId3, new TestOrderSummary(orderId3, "Third", 30m, DateTime.UtcNow));
+        await index.RegisterAsync(orderId3, CreateOrderSummary(orderId3, OrderStatus.Paid, 30m, DateTime.UtcNow));
 
         // Act
         var recent = await index.GetRecentAsync(3);
 
         // Assert
         recent.Should().HaveCount(3);
-        recent[0].Status.Should().Be("Third"); // Most recent first
-        recent[2].Status.Should().Be("First"); // Oldest last
+        recent[0].Status.Should().Be(OrderStatus.Paid); // Most recent first
+        recent[2].Status.Should().Be(OrderStatus.Open); // Oldest last
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public async Task GetRecentAsync_ShouldRespectLimit()
     {
         // Arrange
@@ -250,7 +248,8 @@ public class IndexGrainTests
 
         for (int i = 0; i < 20; i++)
         {
-            await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), $"Order{i}", i * 5m, DateTime.UtcNow));
+            var id = Guid.NewGuid();
+            await index.RegisterAsync(id, CreateOrderSummary(id, OrderStatus.Open, i * 5m));
         }
 
         // Act
@@ -260,7 +259,7 @@ public class IndexGrainTests
         recent.Should().HaveCount(5);
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public async Task GetAllAsync_ShouldReturnAllEntries()
     {
         // Arrange
@@ -271,8 +270,8 @@ public class IndexGrainTests
         var orderId1 = Guid.NewGuid();
         var orderId2 = Guid.NewGuid();
 
-        await index.RegisterAsync(orderId1, new TestOrderSummary(orderId1, "Open", 100m, DateTime.UtcNow));
-        await index.RegisterAsync(orderId2, new TestOrderSummary(orderId2, "Closed", 200m, DateTime.UtcNow));
+        await index.RegisterAsync(orderId1, CreateOrderSummary(orderId1, OrderStatus.Open, 100m));
+        await index.RegisterAsync(orderId2, CreateOrderSummary(orderId2, OrderStatus.Closed, 200m));
 
         // Act
         var all = await index.GetAllAsync();
@@ -283,7 +282,7 @@ public class IndexGrainTests
         all.Select(e => e.EntityId).Should().Contain(orderId2);
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public async Task GetByIdAsync_ExistingEntry_ShouldReturnSummary()
     {
         // Arrange
@@ -292,7 +291,7 @@ public class IndexGrainTests
         var orderId = Guid.NewGuid();
         var index = GetIndexGrain(orgId, "orders", siteId);
 
-        var summary = new TestOrderSummary(orderId, "Open", 99.99m, DateTime.UtcNow, "Jane Doe");
+        var summary = CreateOrderSummary(orderId, OrderStatus.Open, 99.99m, customerName: "Jane Doe");
         await index.RegisterAsync(orderId, summary);
 
         // Act
@@ -301,11 +300,11 @@ public class IndexGrainTests
         // Assert
         retrieved.Should().NotBeNull();
         retrieved!.OrderId.Should().Be(orderId);
-        retrieved.Status.Should().Be("Open");
+        retrieved.Status.Should().Be(OrderStatus.Open);
         retrieved.CustomerName.Should().Be("Jane Doe");
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public async Task GetByIdAsync_NonExistentEntry_ShouldReturnNull()
     {
         // Arrange
@@ -320,7 +319,7 @@ public class IndexGrainTests
         retrieved.Should().BeNull();
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public async Task ExistsAsync_ExistingEntry_ShouldReturnTrue()
     {
         // Arrange
@@ -329,7 +328,7 @@ public class IndexGrainTests
         var orderId = Guid.NewGuid();
         var index = GetIndexGrain(orgId, "orders", siteId);
 
-        await index.RegisterAsync(orderId, new TestOrderSummary(orderId, "Open", 50m, DateTime.UtcNow));
+        await index.RegisterAsync(orderId, CreateOrderSummary(orderId, OrderStatus.Open, 50m));
 
         // Act
         var exists = await index.ExistsAsync(orderId);
@@ -338,7 +337,7 @@ public class IndexGrainTests
         exists.Should().BeTrue();
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public async Task ExistsAsync_NonExistentEntry_ShouldReturnFalse()
     {
         // Arrange
@@ -353,7 +352,7 @@ public class IndexGrainTests
         exists.Should().BeFalse();
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public async Task ClearAsync_ShouldRemoveAllEntries()
     {
         // Arrange
@@ -361,8 +360,10 @@ public class IndexGrainTests
         var siteId = Guid.NewGuid();
         var index = GetIndexGrain(orgId, "orders", siteId);
 
-        await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), "Open", 100m, DateTime.UtcNow));
-        await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), "Closed", 200m, DateTime.UtcNow));
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+        await index.RegisterAsync(id1, CreateOrderSummary(id1, OrderStatus.Open, 100m));
+        await index.RegisterAsync(id2, CreateOrderSummary(id2, OrderStatus.Closed, 200m));
 
         var countBefore = await index.GetCountAsync();
         countBefore.Should().Be(2);
@@ -375,7 +376,7 @@ public class IndexGrainTests
         countAfter.Should().Be(0);
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public async Task DifferentScopes_ShouldMaintainSeparateIndexes()
     {
         // Arrange
@@ -390,8 +391,8 @@ public class IndexGrainTests
         var orderId2 = Guid.NewGuid();
 
         // Act
-        await index1.RegisterAsync(orderId1, new TestOrderSummary(orderId1, "Open", 100m, DateTime.UtcNow));
-        await index2.RegisterAsync(orderId2, new TestOrderSummary(orderId2, "Open", 200m, DateTime.UtcNow));
+        await index1.RegisterAsync(orderId1, CreateOrderSummary(orderId1, OrderStatus.Open, 100m));
+        await index2.RegisterAsync(orderId2, CreateOrderSummary(orderId2, OrderStatus.Open, 200m));
 
         // Assert
         var count1 = await index1.GetCountAsync();
@@ -407,25 +408,25 @@ public class IndexGrainTests
         exists1InIndex2.Should().BeFalse();
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public async Task MonthlyScope_ShouldWork()
     {
         // Arrange
         var orgId = Guid.NewGuid();
-        var expenseIndex = _fixture.Cluster.GrainFactory.GetGrain<IIndexGrain<TestOrderSummary>>(
+        var expenseIndex = _fixture.Cluster.GrainFactory.GetGrain<IIndexGrain<OrderSummary>>(
             GrainKeys.Index(orgId, "expenses", 2024, 1)); // January 2024
 
         var expenseId = Guid.NewGuid();
 
         // Act
-        await expenseIndex.RegisterAsync(expenseId, new TestOrderSummary(expenseId, "Approved", 500m, DateTime.UtcNow));
+        await expenseIndex.RegisterAsync(expenseId, CreateOrderSummary(expenseId, OrderStatus.Closed, 500m));
 
         // Assert
         var count = await expenseIndex.GetCountAsync();
         count.Should().Be(1);
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public void GrainKeysIndex_ShouldGenerateCorrectFormat()
     {
         // Arrange
@@ -443,7 +444,7 @@ public class IndexGrainTests
         stringKey.Should().Be("org:12345678-1234-1234-1234-123456789012:index:custom:my-scope");
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public void GrainKeysParseIndex_ShouldParseCorrectly()
     {
         // Arrange
@@ -459,7 +460,7 @@ public class IndexGrainTests
         scope.Should().Be("site-456");
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public void GrainKeysParseIndex_WithColonsInScope_ShouldPreserveScope()
     {
         // Arrange
@@ -472,7 +473,7 @@ public class IndexGrainTests
         scope.Should().Be("scope:with:colons");
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
+    [Fact]
     public void GrainKeysParseIndex_InvalidFormat_ShouldThrow()
     {
         // Arrange
@@ -485,8 +486,8 @@ public class IndexGrainTests
         act.Should().Throw<ArgumentException>();
     }
 
-    [Fact(Skip = "Orleans cannot generate proxy for IIndexGrain<TestOrderSummary> - type defined in test assembly")]
-    public async Task ComplexQuery_MultipleConditions_ShouldWork()
+    [Fact]
+    public async Task GetAllAsync_ComplexClientSideFiltering_ShouldWork()
     {
         // Arrange
         var orgId = Guid.NewGuid();
@@ -494,13 +495,21 @@ public class IndexGrainTests
         var index = GetIndexGrain(orgId, "orders", siteId);
 
         var now = DateTime.UtcNow;
-        await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), "Open", 50m, now, "Alice"));
-        await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), "Open", 150m, now, "Bob"));
-        await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), "Closed", 200m, now, "Charlie"));
-        await index.RegisterAsync(Guid.NewGuid(), new TestOrderSummary(Guid.NewGuid(), "Open", 80m, now, "Diana"));
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+        var id3 = Guid.NewGuid();
+        var id4 = Guid.NewGuid();
+        await index.RegisterAsync(id1, CreateOrderSummary(id1, OrderStatus.Open, 50m, now, "Alice"));
+        await index.RegisterAsync(id2, CreateOrderSummary(id2, OrderStatus.Open, 150m, now, "Bob"));
+        await index.RegisterAsync(id3, CreateOrderSummary(id3, OrderStatus.Closed, 200m, now, "Charlie"));
+        await index.RegisterAsync(id4, CreateOrderSummary(id4, OrderStatus.Open, 80m, now, "Diana"));
 
-        // Act - Open orders with total >= 100
-        var results = await index.QueryAsync(s => s.Status == "Open" && s.Total >= 100m);
+        // Act - Open orders with total >= 100, filtered on client side
+        var all = await index.GetAllAsync();
+        var results = all
+            .Where(e => e.Summary.Status == OrderStatus.Open && e.Summary.GrandTotal >= 100m)
+            .Select(e => e.Summary)
+            .ToList();
 
         // Assert
         results.Should().HaveCount(1);

@@ -39,9 +39,8 @@ public record IndexQueryResult<TSummary>(
 /// 2. API/other grains query the index for listings
 /// 3. Index maintains bounded history with automatic cleanup
 ///
-/// Note: QueryAsync with Func predicate is designed for grain-to-grain calls.
-/// For external API calls, use GetAllAsync() or GetRecentAsync() and filter
-/// in the calling code.
+/// For filtering, use GetAllAsync() or GetRecentAsync() and filter in the calling code.
+/// Lambda predicates cannot be serialized across Orleans grain boundaries.
 /// </summary>
 /// <typeparam name="TSummary">The summary type stored in the index. Must have [GenerateSerializer].</typeparam>
 public interface IIndexGrain<TSummary> : IGrainWithStringKey
@@ -64,18 +63,6 @@ public interface IIndexGrain<TSummary> : IGrainWithStringKey
     /// No-op if the entity doesn't exist.
     /// </summary>
     Task RemoveAsync(Guid entityId);
-
-    /// <summary>
-    /// Queries the index with a predicate filter.
-    ///
-    /// Note: This method is designed for grain-to-grain calls within the silo.
-    /// The predicate function cannot be serialized across process boundaries.
-    /// For external API calls, use GetAllAsync() and filter in the caller.
-    /// </summary>
-    /// <param name="predicate">Filter function applied to each summary.</param>
-    /// <param name="limit">Maximum number of results to return. Null for unlimited.</param>
-    /// <returns>Matching summaries in reverse chronological order (newest first).</returns>
-    Task<IReadOnlyList<TSummary>> QueryAsync(Func<TSummary, bool> predicate, int? limit = null);
 
     /// <summary>
     /// Gets the most recent entries from the index.

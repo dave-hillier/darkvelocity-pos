@@ -21,8 +21,9 @@ namespace DarkVelocity.Host.Grains;
 ///
 /// Querying:
 /// <code>
-/// var openOrders = await index.QueryAsync(s => s.Status == "Open", limit: 50);
 /// var recentOrders = await index.GetRecentAsync(20);
+/// var allEntries = await index.GetAllAsync();
+/// var openOrders = allEntries.Where(e => e.Summary.Status == "Open").ToList();
 /// </code>
 /// </summary>
 /// <typeparam name="TSummary">The summary type stored in the index. Must have [GenerateSerializer].</typeparam>
@@ -74,22 +75,6 @@ public class IndexGrain<TSummary> : Grain, IIndexGrain<TSummary>
             _state.State.Version++;
             await _state.WriteStateAsync();
         }
-    }
-
-    /// <inheritdoc />
-    public Task<IReadOnlyList<TSummary>> QueryAsync(Func<TSummary, bool> predicate, int? limit = null)
-    {
-        var query = _state.State.Entries.Values
-            .OrderByDescending(e => e.RegisteredAt)
-            .Where(e => predicate(e.Summary))
-            .Select(e => e.Summary);
-
-        if (limit.HasValue)
-        {
-            query = query.Take(limit.Value);
-        }
-
-        return Task.FromResult<IReadOnlyList<TSummary>>(query.ToList());
     }
 
     /// <inheritdoc />
