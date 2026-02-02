@@ -103,7 +103,7 @@ public enum CmsChangeType
 
 /// <summary>
 /// Represents a content change event with field-level diff information.
-/// This is the primary event stored in the history grain.
+/// This is the primary event stored by JournaledGrain for history and state rebuild.
 /// </summary>
 /// <param name="DocumentType">The type of document (e.g., "MenuItem", "MenuCategory", "ModifierBlock").</param>
 /// <param name="DocumentId">The unique identifier of the document.</param>
@@ -115,6 +115,10 @@ public enum CmsChangeType
 /// <param name="ChangeType">The type of change.</param>
 /// <param name="Changes">The list of field-level changes.</param>
 /// <param name="ChangeNote">Optional note describing the change.</param>
+/// <param name="VersionSnapshotJson">JSON-serialized version state for create/draft operations (used by JournaledGrain to rebuild state).</param>
+/// <param name="PublishedVersion">The new published version number after this change (for publish/revert operations).</param>
+/// <param name="DraftVersion">The new draft version number after this change.</param>
+/// <param name="IsArchived">Whether the document is archived after this change.</param>
 [GenerateSerializer]
 public sealed record CmsContentChanged(
     [property: Id(0)] string DocumentType,
@@ -126,7 +130,11 @@ public sealed record CmsContentChanged(
     [property: Id(6)] DateTimeOffset OccurredAt,
     [property: Id(7)] CmsChangeType ChangeType,
     [property: Id(8)] IReadOnlyList<FieldChange> Changes,
-    [property: Id(9)] string? ChangeNote) : IntegrationEvent
+    [property: Id(9)] string? ChangeNote,
+    [property: Id(10)] string? VersionSnapshotJson = null,
+    [property: Id(11)] int? PublishedVersion = null,
+    [property: Id(12)] int? DraftVersion = null,
+    [property: Id(13)] bool? IsArchived = null) : IntegrationEvent
 {
     public override string EventType => $"cms.{DocumentType.ToLowerInvariant()}.changed";
 
@@ -176,3 +184,17 @@ public sealed record UndoResult(
     public static UndoResult Failed(string message)
         => new(false, null, [], message);
 }
+
+/// <summary>
+/// Summary of a change event for list views.
+/// </summary>
+[GenerateSerializer]
+public record HistoryEntrySummary(
+    [property: Id(0)] string ChangeId,
+    [property: Id(1)] DateTimeOffset OccurredAt,
+    [property: Id(2)] Guid? ChangedBy,
+    [property: Id(3)] CmsChangeType ChangeType,
+    [property: Id(4)] int FromVersion,
+    [property: Id(5)] int ToVersion,
+    [property: Id(6)] string? ChangeNote,
+    [property: Id(7)] int FieldChangeCount);

@@ -371,6 +371,7 @@ public static class MenuCmsEndpoints
         // Menu Item History and Undo Endpoints
         // ========================================================================
 
+        // History endpoints now call the document grain directly (via JournaledGrain's RetrieveConfirmedEvents)
         group.MapGet("/items/{documentId}/history", async (
             Guid orgId,
             string documentId,
@@ -384,10 +385,9 @@ public static class MenuCmsEndpoints
 
             take = take <= 0 ? 50 : Math.Min(take, 100);
 
-            var historyGrain = grainFactory.GetGrain<ICmsHistoryGrain>(
-                GrainKeys.CmsHistory(orgId, "MenuItem", documentId));
-            var history = await historyGrain.GetHistorySummaryAsync(skip, take);
-            var totalChanges = await historyGrain.GetTotalChangesAsync();
+            // Call document grain directly - history is now stored via JournaledGrain
+            var history = await itemGrain.GetHistorySummaryAsync(skip, take);
+            var totalChanges = await itemGrain.GetTotalChangesAsync();
 
             return Results.Ok(Hal.Resource(new
             {
@@ -419,9 +419,8 @@ public static class MenuCmsEndpoints
             if (!await itemGrain.ExistsAsync())
                 return Results.NotFound();
 
-            var historyGrain = grainFactory.GetGrain<ICmsHistoryGrain>(
-                GrainKeys.CmsHistory(orgId, "MenuItem", documentId));
-            var change = await historyGrain.GetChangeAsync(changeId);
+            // Call document grain directly - history is now stored via JournaledGrain
+            var change = await itemGrain.GetChangeAsync(changeId);
 
             if (change == null)
                 return Results.NotFound(new { message = "Change not found" });
@@ -452,9 +451,8 @@ public static class MenuCmsEndpoints
             if (!await itemGrain.ExistsAsync())
                 return Results.NotFound();
 
-            var historyGrain = grainFactory.GetGrain<ICmsHistoryGrain>(
-                GrainKeys.CmsHistory(orgId, "MenuItem", documentId));
-            var diff = await historyGrain.GetDiffAsync(from, to);
+            // Call document grain directly - history is now stored via JournaledGrain
+            var diff = await itemGrain.GetDiffAsync(from, to);
 
             return Results.Ok(new CmsDiffResponse(
                 FromVersion: diff.FromVersion,

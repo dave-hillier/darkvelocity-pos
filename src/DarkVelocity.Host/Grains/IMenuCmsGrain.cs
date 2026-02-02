@@ -1,3 +1,4 @@
+using DarkVelocity.Host.Events;
 using DarkVelocity.Host.State;
 
 namespace DarkVelocity.Host.Grains;
@@ -130,6 +131,13 @@ public interface IMenuItemDocumentGrain : IGrainWithStringKey
 
     // Preview at a specific time
     Task<MenuItemVersionSnapshot?> PreviewAtAsync(DateTimeOffset when);
+
+    // History (via JournaledGrain RetrieveConfirmedEvents)
+    Task<IReadOnlyList<CmsContentChanged>> GetHistoryAsync(int skip = 0, int take = 50);
+    Task<IReadOnlyList<HistoryEntrySummary>> GetHistorySummaryAsync(int skip = 0, int take = 50);
+    Task<CmsContentChanged?> GetChangeAsync(string changeId);
+    Task<ContentDiff> GetDiffAsync(int fromVersion, int toVersion);
+    Task<int> GetTotalChangesAsync();
 }
 
 // ============================================================================
