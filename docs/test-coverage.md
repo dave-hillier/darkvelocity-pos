@@ -712,6 +712,178 @@ All API tests use HAL+JSON responses with `_links` and `_embedded` properties.
 
 ---
 
+## Integration & Edge Case Tests
+
+### StateTransitionValidationTests (45 tests)
+
+Tests invalid state transitions across domain grains to prevent invalid workflow paths.
+
+**Booking State Transitions**
+| Test | Scenario |
+|------|----------|
+| `ModifyAsync_AfterArrival_ShouldFail` | Cannot modify after guest arrival |
+| `CancelAsync_AfterSeated_ShouldFail` | Cannot cancel after guest is seated |
+| `ConfirmAsync_AlreadyConfirmed_ShouldFail` | Cannot confirm twice |
+| `SeatAsync_WithoutArrival_ShouldFail` | Cannot seat without check-in |
+| `RecordDepartureAsync_WithoutSeating_ShouldFail` | Cannot depart without seating |
+| `RecordNoShowAsync_AfterArrival_ShouldFail` | Cannot no-show arrived guest |
+| `AssignTableAsync_AfterCancellation_ShouldFail` | Cannot assign to cancelled booking |
+
+**Order State Transitions**
+| Test | Scenario |
+|------|----------|
+| `VoidAsync_OnClosedOrder_ShouldFail` | Cannot void closed order |
+| `CloseAsync_WithUnpaidBalance_ShouldFail` | Cannot close with balance due |
+| `SendAsync_EmptyOrder_ShouldFail` | Cannot send order without items |
+| `AddLineAsync_AfterClosed_ShouldFail` | Cannot add items to closed order |
+| `RemoveLineAsync_AfterSent_ShouldFail` | Cannot remove sent items |
+| `RecordPaymentAsync_OnVoidedOrder_ShouldFail` | Cannot pay voided order |
+
+**Payment State Transitions**
+| Test | Scenario |
+|------|----------|
+| `RefundAsync_OnPendingPayment_ShouldFail` | Cannot refund pending payment |
+| `VoidAsync_OnCompletedPayment_ShouldFail` | Cannot void completed payment |
+| `CompleteAsync_AlreadyCompleted_ShouldFail` | Cannot complete twice |
+| `RefundAsync_PartialAfterFull_ShouldFail` | Cannot partial refund after full refund |
+
+### OrderInventoryIntegrationTests (23 tests)
+
+Tests cross-grain integration between Order and Inventory grains.
+
+| Test | Scenario |
+|------|----------|
+| `ConsumeForOrderAsync_ShouldDeductInventory` | Order deducts inventory on kitchen send |
+| `ConsumeForOrderAsync_InsufficientStock_ShouldFail` | Rejects when insufficient stock |
+| `VoidOrderAsync_ShouldReverseInventory` | Voided order returns inventory |
+| `ConsumeAsync_FIFO_ShouldConsumeOldestFirst` | FIFO batch consumption |
+| `ConsumeAsync_MultipleBatches_ShouldTrackCorrectly` | Multi-batch consumption tracking |
+| `VoidLineAsync_PartialOrder_ShouldPartiallyReverse` | Partial void reverses partial inventory |
+
+### PaymentSplitScenarioTests (18 tests)
+
+Tests multiple payment methods per order and split payment scenarios.
+
+| Test | Scenario |
+|------|----------|
+| `SplitPayment_CashAndCard_ShouldAllowBoth` | Mixed cash and card payments |
+| `SplitPayment_ThreeWays_ShouldTrackAll` | Three-way split tracking |
+| `PartialPayment_ShouldTrackBalance` | Partial payment with balance |
+| `PartialPayment_Overpay_ShouldHandleChange` | Overpayment handling |
+| `SplitPayment_Tips_ShouldAccumulateCorrectly` | Split tip accumulation |
+| `SplitPayment_VoidOne_ShouldUpdateBalance` | Void one payment, balance updates |
+
+### RefundErrorScenarioTests (23 tests)
+
+Tests refund validation and error scenarios.
+
+| Test | Scenario |
+|------|----------|
+| `RefundAsync_ExceedsAmount_ShouldReject` | Cannot refund more than paid |
+| `RefundAsync_AfterFullRefund_ShouldReject` | Cannot refund twice |
+| `PartialRefund_ThenFull_ShouldCalculateRemaining` | Partial + full refund math |
+| `RefundAsync_OnVoidedPayment_ShouldReject` | Cannot refund voided payment |
+| `RefundAsync_ZeroAmount_ShouldReject` | Cannot refund zero |
+| `RefundAsync_NegativeAmount_ShouldReject` | Cannot refund negative |
+
+### MenuItemAvailabilityTests (30 tests)
+
+Tests menu item availability, snoozing, and variation management.
+
+**Snooze Tests**
+| Test | Scenario |
+|------|----------|
+| `SetSnoozedAsync_ShouldSnoozeItem` | Snoozes item for delivery |
+| `SetSnoozedAsync_WithDuration_ShouldSetSnoozedUntil` | Time-limited snooze |
+| `SetSnoozedAsync_Unsnooze_ShouldClearSnooze` | Clears snooze state |
+
+**Deactivation Tests**
+| Test | Scenario |
+|------|----------|
+| `DeactivateAsync_ShouldMakeItemUnavailable` | Deactivates item |
+| `UpdateAsync_Reactivate_ShouldMakeItemAvailable` | Reactivates item |
+
+**Variation Tests**
+| Test | Scenario |
+|------|----------|
+| `AddVariationAsync_ShouldAddVariation` | Adds size/variation |
+| `UpdateVariationAsync_Deactivate_ShouldMakeUnavailable` | Deactivates variation |
+| `AddVariationAsync_VariablePricing_ShouldAllowNullPrice` | Variable pricing support |
+
+**Product Tag & Tax Tests**
+| Test | Scenario |
+|------|----------|
+| `AddProductTagAsync_ShouldAddTag` | Adds allergen/dietary tags |
+| `UpdateTaxRatesAsync_ShouldSetContextualRates` | Contextual tax rates |
+
+### KitchenTicketRoutingTests (35 tests)
+
+Tests kitchen ticket routing, station management, and priority handling.
+
+**Multi-Station Routing**
+| Test | Scenario |
+|------|----------|
+| `AddItemAsync_WithDifferentStations_ShouldTrackAllStations` | Multi-station tracking |
+| `AddItemAsync_SameStationMultipleTimes_ShouldNotDuplicateStation` | No duplicate station IDs |
+
+**Station Management**
+| Test | Scenario |
+|------|----------|
+| `ReceiveTicketAsync_ShouldAddTicketToStation` | Station receives ticket |
+| `CompleteTicketAsync_ShouldRemoveFromStation` | Completion removes ticket |
+| `PauseAsync_WithActiveTickets_ShouldKeepTickets` | Paused station keeps tickets |
+| `CloseAsync_WithActiveTickets_ShouldClearTickets` | Closed station clears tickets |
+
+**Priority & Rush**
+| Test | Scenario |
+|------|----------|
+| `MarkRushAsync_ShouldSetRushPriority` | Rush priority setting |
+| `MarkVipAsync_ShouldSetVipPriority` | VIP priority setting |
+| `FireAllAsync_ShouldSetFireAllAndAllDayPriority` | Fire all items |
+
+**Course Management**
+| Test | Scenario |
+|------|----------|
+| `AddItemAsync_WithCourseNumber_ShouldTrackCourse` | Course number tracking |
+
+### BoundaryAndEdgeCaseTests (35 tests)
+
+Tests boundary conditions, zero/negative values, and edge cases.
+
+**Zero Amount Tests**
+| Test | Scenario |
+|------|----------|
+| `AddLineAsync_ZeroQuantity_ShouldHandleGracefully` | Zero quantity handling |
+| `AddLineAsync_ZeroPrice_ShouldCreateZeroTotalLine` | Complimentary items |
+| `RecordPaymentAsync_ZeroAmount_ShouldReject` | Zero payment rejected |
+
+**Negative Value Tests**
+| Test | Scenario |
+|------|----------|
+| `AddLineAsync_NegativeQuantity_ShouldReject` | Negative quantity rejected |
+| `AddLineAsync_NegativePrice_ShouldReject` | Negative price rejected |
+| `RecordPaymentAsync_NegativeAmount_ShouldReject` | Negative payment rejected |
+
+**Large Value Tests**
+| Test | Scenario |
+|------|----------|
+| `AddLineAsync_LargeQuantity_ShouldCalculateCorrectly` | Large quantity math |
+| `AddLineAsync_HighPrecisionPrice_ShouldRoundAppropriately` | Decimal precision |
+
+**Empty Collection Tests**
+| Test | Scenario |
+|------|----------|
+| `GetLinesAsync_EmptyOrder_ShouldReturnEmptyList` | Empty order lines |
+| `AddLineAsync_EmptyModifiersList_ShouldAccept` | Empty modifiers accepted |
+
+**String Boundary Tests**
+| Test | Scenario |
+|------|----------|
+| `AddLineAsync_EmptyName_ShouldReject` | Empty name rejected |
+| `AddLineAsync_UnicodeCharactersInName_ShouldAccept` | Unicode support |
+
+---
+
 ## Stream Event Tests
 
 #### StreamEventTests
@@ -727,12 +899,12 @@ All API tests use HAL+JSON responses with `_links` and `_embedded` properties.
 
 | Category | Count |
 |----------|-------|
-| **Total Test Files** | 48 |
-| **Grain Test Files** | 36+ |
+| **Total Test Files** | 55 |
+| **Grain Test Files** | 43+ |
 | **API Test Files** | 10 |
 | **Service Test Files** | 2 |
 | **Unit Test Files** | 1 |
-| **Total Test Methods** | 400+ |
+| **Total Test Methods** | 600+ |
 
 ### Coverage by Domain
 
@@ -999,40 +1171,39 @@ This section identifies logical coverage gaps and areas for improvement.
 
 ## Recommended Priority Improvements
 
-### Priority 1 (High Risk)
+### Priority 1 (High Risk) - COMPLETED
 
-1. **Add state transition validation tests**
-   - Prevent invalid workflow paths
-   - Verify error messages for invalid transitions
+1. **~~Add state transition validation tests~~** ✓ (45 tests)
+   - StateTransitionValidationTests.cs
+   - Covers Booking, Order, and Payment state machines
 
-2. **Add order ↔ inventory integration tests**
-   - Verify inventory deduction on kitchen send
-   - Test insufficient inventory rejection
+2. **~~Add order ↔ inventory integration tests~~** ✓ (23 tests)
+   - OrderInventoryIntegrationTests.cs
+   - FIFO consumption, stock levels, void reversal
 
-3. **Add payment split scenarios**
-   - Multiple payment methods per order
-   - Partial payments with balance tracking
+3. **~~Add payment split scenarios~~** ✓ (18 tests)
+   - PaymentSplitScenarioTests.cs
+   - Multi-method payments, partial payments, tips
 
-4. **Add refund error scenarios**
-   - Processor failures
-   - Reversals and chargebacks
+4. **~~Add refund error scenarios~~** ✓ (23 tests)
+   - RefundErrorScenarioTests.cs
+   - Amount validation, status validation, partial refunds
 
-### Priority 2 (Medium Risk)
+### Priority 2 (Medium Risk) - COMPLETED
 
-5. **Add menu item availability tests**
-   - Time-based availability
-   - Inventory-based availability
+5. **~~Add menu item availability tests~~** ✓ (30 tests)
+   - MenuItemAvailabilityTests.cs
+   - Snooze, deactivation, variations, tax rates, product tags
 
-6. **Add kitchen ticket routing tests**
-   - Multi-station orders
-   - Station failure handling
+6. **~~Add kitchen ticket routing tests~~** ✓ (35 tests)
+   - KitchenTicketRoutingTests.cs
+   - Multi-station routing, station management, priorities, courses
 
-7. **Add negative/boundary case tests**
-   - Zero amounts
-   - Overflow values
-   - Empty collections
+7. **~~Add negative/boundary case tests~~** ✓ (35 tests)
+   - BoundaryAndEdgeCaseTests.cs
+   - Zero/negative values, empty collections, string boundaries
 
-### Priority 3 (Lower Risk)
+### Priority 3 (Lower Risk) - PENDING
 
 8. **Add concurrent operation tests**
    - Race conditions
