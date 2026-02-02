@@ -6,7 +6,8 @@ namespace DarkVelocity.Host.Streams;
 public static class StreamConstants
 {
     /// <summary>
-    /// Default stream provider name (memory-based for development, can be swapped for Azure Event Hubs, etc.).
+    /// Default stream provider name. Uses Kafka locally (Docker) and Azure Event Hubs (Kafka protocol) in production.
+    /// Stream namespaces map directly to Kafka topics.
     /// </summary>
     public const string DefaultStreamProvider = "DarkVelocityStreamProvider";
 

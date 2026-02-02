@@ -23,6 +23,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Configuration
 DOCKER_COMPOSE_FILE="$PROJECT_ROOT/docker/docker-compose.yml"
+AZURITE_WAIT_TIMEOUT=30
 POSTGRES_WAIT_TIMEOUT=60
 KAFKA_WAIT_TIMEOUT=90
 
@@ -210,9 +211,29 @@ wait_for_kafka() {
     return 0
 }
 
+wait_for_azurite() {
+    print_info "Waiting for Azurite (Azure Storage Emulator) to be ready..."
+
+    local elapsed=0
+    while [[ $elapsed -lt $AZURITE_WAIT_TIMEOUT ]]; do
+        if nc -z localhost 10002 &> /dev/null; then
+            print_success "Azurite is ready"
+            return 0
+        fi
+        sleep 2
+        elapsed=$((elapsed + 2))
+        echo -ne "\r  Waiting... ${elapsed}s"
+    done
+
+    echo ""
+    print_error "Azurite did not become ready within ${AZURITE_WAIT_TIMEOUT}s"
+    return 1
+}
+
 wait_for_services() {
     print_header "Waiting for Infrastructure Services"
 
+    wait_for_azurite
     wait_for_postgres
     wait_for_kafka
 
@@ -289,10 +310,13 @@ show_status() {
     echo ""
     echo "Service Ports:"
     echo "--------------"
-    echo "  PostgreSQL:  localhost:5432"
-    echo "  Kafka:       localhost:9092"
-    echo "  Zookeeper:   localhost:2181"
-    echo "  Kafka UI:    http://localhost:8080"
+    echo "  Azurite Blob:   localhost:10000"
+    echo "  Azurite Queue:  localhost:10001"
+    echo "  Azurite Table:  localhost:10002"
+    echo "  PostgreSQL:     localhost:5432"
+    echo "  Kafka:          localhost:9092"
+    echo "  Zookeeper:      localhost:2181"
+    echo "  Kafka UI:       http://localhost:8080"
     echo ""
     echo "Database Connection:"
     echo "--------------------"

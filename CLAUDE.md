@@ -12,9 +12,10 @@ The backend uses Microsoft Orleans virtual actor framework for distributed state
 
 ### Backend
 - **.NET 10** with Microsoft Orleans (virtual actors)
+- **Azure Table Storage** for JournaledGrain event sourcing (Azurite for local dev)
 - **Entity Framework Core** for persistence
-- **PostgreSQL** for production database
-- **Kafka** for messaging/streaming
+- **PostgreSQL** for relational data
+- **Kafka** for Orleans streaming (Azure Event Hubs with Kafka protocol in production)
 - **SignalR** for real-time updates
 - **xUnit** for testing
 
@@ -143,7 +144,7 @@ cd apps/backoffice && npm install && npm run dev
 ## Key Files
 
 - `DarkVelocity.slnx` - Solution file
-- `docker/docker-compose.yml` - Local PostgreSQL, Kafka, Zookeeper
+- `docker/docker-compose.yml` - Local Azurite, PostgreSQL, Kafka, Zookeeper
 - `docs/orleans-actor-architecture.md` - Detailed architecture docs
 - `architecture.md` - Frontend/backend design decisions
 - `spec.md` - Functional specification
@@ -152,12 +153,19 @@ cd apps/backoffice && npm install && npm run dev
 
 | Service | Port |
 |---------|------|
+| Azurite Blob | 10000 |
+| Azurite Queue | 10001 |
+| Azurite Table | 10002 |
 | PostgreSQL | 5432 |
 | Kafka | 9092 |
 | Kafka UI | 8080 |
 | Zookeeper | 2181 |
 
 Database credentials (dev): `darkvelocity` / `darkvelocity_dev`
+
+Azure Storage (dev): `UseDevelopmentStorage=true` (Azurite default connection string)
+
+Kafka (dev): `localhost:9092` (Docker)
 
 ## Multi-Tenancy
 
