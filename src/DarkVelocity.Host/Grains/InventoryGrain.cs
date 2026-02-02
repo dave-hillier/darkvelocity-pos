@@ -11,17 +11,32 @@ namespace DarkVelocity.Host.Grains;
 public class InventoryGrain : Grain, IInventoryGrain
 {
     private readonly IPersistentState<InventoryState> _state;
+    private readonly IGrainFactory _grainFactory;
     private readonly ILogger<InventoryGrain> _logger;
     private IAsyncStream<IStreamEvent>? _inventoryStream;
     private IAsyncStream<IStreamEvent>? _alertStream;
+    private ILedgerGrain? _ledger;
 
     public InventoryGrain(
         [PersistentState("inventory", "OrleansStorage")]
         IPersistentState<InventoryState> state,
+        IGrainFactory grainFactory,
         ILogger<InventoryGrain> logger)
     {
         _state = state;
+        _grainFactory = grainFactory;
         _logger = logger;
+    }
+
+    private ILedgerGrain GetLedger()
+    {
+        if (_ledger == null && _state.State.OrganizationId != Guid.Empty)
+        {
+            // Key format: org:{orgId}:ledger:inventory:{siteId}:{ingredientId}
+            var ledgerKey = GrainKeys.InventoryLedger(_state.State.OrganizationId, _state.State.SiteId, _state.State.IngredientId);
+            _ledger = _grainFactory.GetGrain<ILedgerGrain>(ledgerKey);
+        }
+        return _ledger!;
     }
 
     public override Task OnActivateAsync(CancellationToken cancellationToken)
@@ -72,6 +87,9 @@ public class InventoryGrain : Grain, IInventoryGrain
         };
 
         await _state.WriteStateAsync();
+
+        // Initialize the ledger for quantity tracking
+        await GetLedger().InitializeAsync(command.OrganizationId);
     }
 
     public Task<InventoryState> GetStateAsync()
@@ -104,6 +122,19 @@ public class InventoryGrain : Grain, IInventoryGrain
         _state.State.Batches.Add(batch);
         RecalculateQuantitiesAndCost();
         _state.State.LastReceivedAt = DateTime.UtcNow;
+
+        // Credit ledger with received quantity
+        var ledgerResult = await GetLedger().CreditAsync(
+            command.Quantity,
+            "receipt",
+            "Batch received",
+            new Dictionary<string, string>
+            {
+                ["batchId"] = batchId.ToString(),
+                ["batchNumber"] = command.BatchNumber ?? "",
+                ["unitCost"] = command.UnitCost.ToString(),
+                ["supplierId"] = command.SupplierId?.ToString() ?? ""
+            });
 
         RecordMovement(MovementType.Receipt, command.Quantity, command.UnitCost, "Batch received", batchId, command.ReceivedBy ?? Guid.Empty);
 
@@ -158,6 +189,18 @@ public class InventoryGrain : Grain, IInventoryGrain
         RecalculateQuantitiesAndCost();
         _state.State.LastReceivedAt = DateTime.UtcNow;
 
+        // Credit ledger with transferred quantity
+        await GetLedger().CreditAsync(
+            command.Quantity,
+            "transfer_in",
+            $"Transfer from site {command.SourceSiteId}",
+            new Dictionary<string, string>
+            {
+                ["batchId"] = batchId.ToString(),
+                ["transferId"] = command.TransferId.ToString(),
+                ["sourceSiteId"] = command.SourceSiteId.ToString()
+            });
+
         RecordMovement(MovementType.Transfer, command.Quantity, command.UnitCost, $"Transfer from site {command.SourceSiteId}", batchId, Guid.Empty, command.TransferId);
 
         _state.State.Version++;
@@ -170,19 +213,35 @@ public class InventoryGrain : Grain, IInventoryGrain
     {
         EnsureExists();
 
-        if (command.Quantity > _state.State.QuantityAvailable)
+        // Check ledger balance for sufficient stock
+        var hasSufficient = await GetLedger().HasSufficientBalanceAsync(command.Quantity);
+        if (!hasSufficient)
             throw new InvalidOperationException("Insufficient stock");
 
         var previousLevel = _state.State.StockLevel;
         var breakdown = ConsumeFifo(command.Quantity);
+        var totalCost = breakdown.Sum(b => b.TotalCost);
+
+        // Debit ledger for consumed quantity
+        var ledgerResult = await GetLedger().DebitAsync(
+            command.Quantity,
+            "consumption",
+            command.Reason,
+            new Dictionary<string, string>
+            {
+                ["orderId"] = command.OrderId?.ToString() ?? "",
+                ["totalCost"] = totalCost.ToString(),
+                ["performedBy"] = (command.PerformedBy ?? Guid.Empty).ToString()
+            });
+
+        if (!ledgerResult.Success)
+            throw new InvalidOperationException(ledgerResult.Error ?? "Insufficient stock");
 
         _state.State.LastConsumedAt = DateTime.UtcNow;
         RecordMovement(MovementType.Consumption, -command.Quantity, _state.State.WeightedAverageCost, command.Reason, null, command.PerformedBy ?? Guid.Empty, command.OrderId);
 
         _state.State.Version++;
         await _state.WriteStateAsync();
-
-        var totalCost = breakdown.Sum(b => b.TotalCost);
 
         // Publish stock consumed event
         await GetInventoryStream().OnNextAsync(new StockConsumedEvent(
@@ -272,6 +331,19 @@ public class InventoryGrain : Grain, IInventoryGrain
         var movement = _state.State.RecentMovements.FirstOrDefault(m => m.Id == movementId)
             ?? throw new InvalidOperationException("Movement not found");
 
+        var reversedQuantity = Math.Abs(movement.Quantity);
+
+        // Credit ledger for reversed quantity
+        await GetLedger().CreditAsync(
+            reversedQuantity,
+            "reversal",
+            $"Reversal: {reason}",
+            new Dictionary<string, string>
+            {
+                ["originalMovementId"] = movementId.ToString(),
+                ["reversedBy"] = reversedBy.ToString()
+            });
+
         // Create a new batch for the reversed quantity
         var batchId = Guid.NewGuid();
         var batch = new StockBatch
@@ -279,10 +351,10 @@ public class InventoryGrain : Grain, IInventoryGrain
             Id = batchId,
             BatchNumber = $"REV-{movementId.ToString()[..8]}",
             ReceivedDate = DateTime.UtcNow,
-            Quantity = Math.Abs(movement.Quantity),
-            OriginalQuantity = Math.Abs(movement.Quantity),
+            Quantity = reversedQuantity,
+            OriginalQuantity = reversedQuantity,
             UnitCost = movement.UnitCost,
-            TotalCost = Math.Abs(movement.Quantity) * movement.UnitCost,
+            TotalCost = reversedQuantity * movement.UnitCost,
             Status = BatchStatus.Active,
             Notes = $"Reversed: {reason}"
         };
@@ -290,7 +362,7 @@ public class InventoryGrain : Grain, IInventoryGrain
         _state.State.Batches.Add(batch);
         RecalculateQuantitiesAndCost();
 
-        RecordMovement(MovementType.Adjustment, Math.Abs(movement.Quantity), movement.UnitCost, $"Reversal: {reason}", batchId, reversedBy);
+        RecordMovement(MovementType.Adjustment, reversedQuantity, movement.UnitCost, $"Reversal: {reason}", batchId, reversedBy);
 
         _state.State.Version++;
         await _state.WriteStateAsync();
@@ -300,8 +372,19 @@ public class InventoryGrain : Grain, IInventoryGrain
     {
         EnsureExists();
 
-        if (command.Quantity > _state.State.QuantityAvailable)
-            throw new InvalidOperationException("Insufficient stock");
+        // Debit ledger for wasted quantity
+        var ledgerResult = await GetLedger().DebitAsync(
+            command.Quantity,
+            "waste",
+            $"{command.WasteCategory}: {command.Reason}",
+            new Dictionary<string, string>
+            {
+                ["wasteCategory"] = command.WasteCategory.ToString(),
+                ["recordedBy"] = command.RecordedBy.ToString()
+            });
+
+        if (!ledgerResult.Success)
+            throw new InvalidOperationException(ledgerResult.Error ?? "Insufficient stock");
 
         var breakdown = ConsumeFifo(command.Quantity);
         var totalCost = breakdown.Sum(b => b.TotalCost);
@@ -317,6 +400,20 @@ public class InventoryGrain : Grain, IInventoryGrain
         EnsureExists();
 
         var variance = command.NewQuantity - _state.State.QuantityOnHand;
+
+        // Adjust ledger to new quantity
+        var ledgerResult = await GetLedger().AdjustToAsync(
+            command.NewQuantity,
+            command.Reason,
+            new Dictionary<string, string>
+            {
+                ["adjustedBy"] = command.AdjustedBy.ToString(),
+                ["variance"] = variance.ToString(),
+                ["approvedBy"] = command.ApprovedBy?.ToString() ?? ""
+            });
+
+        if (!ledgerResult.Success)
+            throw new InvalidOperationException(ledgerResult.Error ?? "Failed to adjust quantity");
 
         if (variance > 0)
         {
@@ -359,8 +456,20 @@ public class InventoryGrain : Grain, IInventoryGrain
     {
         EnsureExists();
 
-        if (command.Quantity > _state.State.QuantityAvailable)
-            throw new InvalidOperationException("Insufficient stock for transfer");
+        // Debit ledger for transferred quantity
+        var ledgerResult = await GetLedger().DebitAsync(
+            command.Quantity,
+            "transfer_out",
+            $"Transfer to site {command.DestinationSiteId}",
+            new Dictionary<string, string>
+            {
+                ["transferId"] = command.TransferId.ToString(),
+                ["destinationSiteId"] = command.DestinationSiteId.ToString(),
+                ["transferredBy"] = command.TransferredBy.ToString()
+            });
+
+        if (!ledgerResult.Success)
+            throw new InvalidOperationException(ledgerResult.Error ?? "Insufficient stock for transfer");
 
         var breakdown = ConsumeFifo(command.Quantity);
         RecordMovement(MovementType.Transfer, -command.Quantity, _state.State.WeightedAverageCost, $"Transfer to site {command.DestinationSiteId}", null, command.TransferredBy, command.TransferId);
@@ -377,6 +486,21 @@ public class InventoryGrain : Grain, IInventoryGrain
         var expiredBatches = _state.State.Batches
             .Where(b => b.Status == BatchStatus.Active && b.ExpiryDate.HasValue && b.ExpiryDate.Value < now)
             .ToList();
+
+        var totalExpiredQuantity = expiredBatches.Sum(b => b.Quantity);
+        if (totalExpiredQuantity > 0)
+        {
+            // Debit ledger for total expired quantity
+            await GetLedger().DebitAsync(
+                totalExpiredQuantity,
+                "expiry_writeoff",
+                "Expired batch write-off",
+                new Dictionary<string, string>
+                {
+                    ["performedBy"] = performedBy.ToString(),
+                    ["batchCount"] = expiredBatches.Count.ToString()
+                });
+        }
 
         foreach (var batch in expiredBatches)
         {
@@ -424,9 +548,11 @@ public class InventoryGrain : Grain, IInventoryGrain
             earliestExpiry));
     }
 
-    public Task<bool> HasSufficientStockAsync(decimal quantity)
+    public async Task<bool> HasSufficientStockAsync(decimal quantity)
     {
-        return Task.FromResult(_state.State.QuantityAvailable >= quantity);
+        if (_state.State.OrganizationId == Guid.Empty)
+            return false;
+        return await GetLedger().HasSufficientBalanceAsync(quantity);
     }
 
     public Task<StockLevel> GetStockLevelAsync()

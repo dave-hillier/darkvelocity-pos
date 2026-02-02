@@ -104,6 +104,26 @@ public static class GrainKeys
     public static string GiftCard(Guid orgId, Guid cardId) => OrgEntity(orgId, "giftcard", cardId);
 
     /// <summary>
+    /// Creates a key for a ledger grain.
+    /// Format: org:{orgId}:ledger:{ownerType}:{ownerId}
+    /// </summary>
+    public static string Ledger(Guid orgId, string ownerType, string ownerId)
+        => $"org:{orgId}:ledger:{ownerType}:{ownerId}";
+
+    /// <summary>
+    /// Creates a key for a ledger grain with a Guid owner ID.
+    /// </summary>
+    public static string Ledger(Guid orgId, string ownerType, Guid ownerId)
+        => Ledger(orgId, ownerType, ownerId.ToString());
+
+    /// <summary>
+    /// Creates a key for an inventory ledger (site-scoped).
+    /// Format: org:{orgId}:ledger:inventory:{siteId}:{ingredientId}
+    /// </summary>
+    public static string InventoryLedger(Guid orgId, Guid siteId, Guid ingredientId)
+        => $"org:{orgId}:ledger:inventory:{siteId}:{ingredientId}";
+
+    /// <summary>
     /// Creates a key for an account grain.
     /// </summary>
     public static string Account(Guid orgId, Guid accountId) => OrgEntity(orgId, "account", accountId);

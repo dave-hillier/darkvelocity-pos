@@ -17,7 +17,7 @@ public record GiftCardTransactionContext(
     Guid? SiteId = null,
     Guid PerformedBy = default);
 
-public class GiftCardGrain : LedgerGrain<GiftCardState, GiftCardTransaction>, IGiftCardGrain
+public class GiftCardGrain : LedgerGrainBase<GiftCardState, GiftCardTransaction>, IGiftCardGrain
 {
     private IAsyncStream<IStreamEvent>? _giftCardStream;
 

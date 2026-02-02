@@ -350,12 +350,26 @@ public class PaymentGrain : Grain, IPaymentGrain
 public class CashDrawerGrain : Grain, ICashDrawerGrain
 {
     private readonly IPersistentState<CashDrawerState> _state;
+    private readonly IGrainFactory _grainFactory;
+    private ILedgerGrain? _ledger;
 
     public CashDrawerGrain(
         [PersistentState("cashdrawer", "OrleansStorage")]
-        IPersistentState<CashDrawerState> state)
+        IPersistentState<CashDrawerState> state,
+        IGrainFactory grainFactory)
     {
         _state = state;
+        _grainFactory = grainFactory;
+    }
+
+    private ILedgerGrain GetLedger()
+    {
+        if (_ledger == null && _state.State.OrganizationId != Guid.Empty)
+        {
+            var ledgerKey = GrainKeys.Ledger(_state.State.OrganizationId, "cashdrawer", _state.State.Id);
+            _ledger = _grainFactory.GetGrain<ILedgerGrain>(ledgerKey);
+        }
+        return _ledger!;
     }
 
     public async Task<DrawerOpenedResult> OpenAsync(OpenDrawerCommand command)
@@ -380,7 +394,6 @@ public class CashDrawerGrain : Grain, ICashDrawerGrain
         _state.State.OpeningFloat = command.OpeningFloat;
         _state.State.CashIn = 0;
         _state.State.CashOut = 0;
-        _state.State.ExpectedBalance = command.OpeningFloat;
         _state.State.ActualBalance = null;
         _state.State.CashDrops.Clear();
         _state.State.Transactions.Clear();
@@ -396,28 +409,57 @@ public class CashDrawerGrain : Grain, ICashDrawerGrain
 
         await _state.WriteStateAsync();
 
+        // Initialize ledger and credit opening float
+        var ledger = GetLedger();
+        await ledger.InitializeAsync(command.OrganizationId);
+        await ledger.CreditAsync(
+            command.OpeningFloat,
+            "opening_float",
+            null,
+            new Dictionary<string, string>
+            {
+                ["userId"] = command.UserId.ToString(),
+                ["siteId"] = command.SiteId.ToString()
+            });
+
         return new DrawerOpenedResult(_state.State.Id, _state.State.OpenedAt.Value);
     }
 
-    public Task<CashDrawerState> GetStateAsync()
+    public async Task<CashDrawerState> GetStateAsync()
     {
-        return Task.FromResult(_state.State);
+        // Sync ExpectedBalance from ledger if initialized
+        if (_state.State.OrganizationId != Guid.Empty)
+        {
+            _state.State.ExpectedBalance = await GetLedger().GetBalanceAsync();
+        }
+        return _state.State;
     }
 
     public async Task RecordCashInAsync(RecordCashInCommand command)
     {
         EnsureOpen();
 
+        var result = await GetLedger().CreditAsync(
+            command.Amount,
+            "cash_sale",
+            null,
+            new Dictionary<string, string>
+            {
+                ["paymentId"] = command.PaymentId?.ToString() ?? ""
+            });
+
+        if (!result.Success)
+            throw new InvalidOperationException(result.Error);
+
         _state.State.CashIn += command.Amount;
-        _state.State.ExpectedBalance += command.Amount;
 
         _state.State.Transactions.Add(new DrawerTransaction
         {
-            Id = Guid.NewGuid(),
+            Id = result.TransactionId,
             Type = DrawerTransactionType.CashSale,
             Amount = command.Amount,
             PaymentId = command.PaymentId,
-            Timestamp = DateTime.UtcNow
+            Timestamp = result.Timestamp
         });
 
         _state.State.Version++;
@@ -428,19 +470,24 @@ public class CashDrawerGrain : Grain, ICashDrawerGrain
     {
         EnsureOpen();
 
-        if (command.Amount > _state.State.ExpectedBalance)
-            throw new InvalidOperationException("Insufficient cash in drawer");
+        var result = await GetLedger().DebitAsync(
+            command.Amount,
+            "cash_payout",
+            command.Reason,
+            null);
+
+        if (!result.Success)
+            throw new InvalidOperationException(result.Error ?? "Insufficient cash in drawer");
 
         _state.State.CashOut += command.Amount;
-        _state.State.ExpectedBalance -= command.Amount;
 
         _state.State.Transactions.Add(new DrawerTransaction
         {
-            Id = Guid.NewGuid(),
+            Id = result.TransactionId,
             Type = DrawerTransactionType.CashPayout,
             Amount = command.Amount,
             Description = command.Reason,
-            Timestamp = DateTime.UtcNow
+            Timestamp = result.Timestamp
         });
 
         _state.State.Version++;
@@ -451,28 +498,36 @@ public class CashDrawerGrain : Grain, ICashDrawerGrain
     {
         EnsureOpen();
 
-        if (command.Amount > _state.State.ExpectedBalance)
-            throw new InvalidOperationException("Insufficient cash for drop");
+        var result = await GetLedger().DebitAsync(
+            command.Amount,
+            "drop",
+            command.Notes,
+            new Dictionary<string, string>
+            {
+                ["droppedBy"] = _state.State.CurrentUserId?.ToString() ?? ""
+            });
+
+        if (!result.Success)
+            throw new InvalidOperationException(result.Error ?? "Insufficient cash for drop");
 
         var drop = new CashDrop
         {
-            Id = Guid.NewGuid(),
+            Id = result.TransactionId,
             Amount = command.Amount,
             DroppedBy = _state.State.CurrentUserId!.Value,
-            DroppedAt = DateTime.UtcNow,
+            DroppedAt = result.Timestamp,
             Notes = command.Notes
         };
 
         _state.State.CashDrops.Add(drop);
-        _state.State.ExpectedBalance -= command.Amount;
 
         _state.State.Transactions.Add(new DrawerTransaction
         {
-            Id = Guid.NewGuid(),
+            Id = result.TransactionId,
             Type = DrawerTransactionType.Drop,
             Amount = command.Amount,
             Description = command.Notes,
-            Timestamp = DateTime.UtcNow
+            Timestamp = result.Timestamp
         });
 
         _state.State.Version++;
@@ -483,6 +538,7 @@ public class CashDrawerGrain : Grain, ICashDrawerGrain
     {
         EnsureOpen();
 
+        // No balance change, just record the no-sale event
         _state.State.Transactions.Add(new DrawerTransaction
         {
             Id = Guid.NewGuid(),
@@ -513,19 +569,28 @@ public class CashDrawerGrain : Grain, ICashDrawerGrain
         if (_state.State.Status == DrawerStatus.Closed)
             throw new InvalidOperationException("Drawer is already closed");
 
-        var variance = command.ActualBalance - _state.State.ExpectedBalance;
+        var expectedBalance = await GetLedger().GetBalanceAsync();
+        var variance = command.ActualBalance - expectedBalance;
 
+        _state.State.ExpectedBalance = expectedBalance;
         _state.State.ActualBalance = command.ActualBalance;
         _state.State.Status = DrawerStatus.Closed;
         _state.State.Version++;
 
         await _state.WriteStateAsync();
 
-        return new DrawerClosedResult(_state.State.ExpectedBalance, command.ActualBalance, variance);
+        return new DrawerClosedResult(expectedBalance, command.ActualBalance, variance);
     }
 
     public Task<bool> IsOpenAsync() => Task.FromResult(_state.State.Status == DrawerStatus.Open);
-    public Task<decimal> GetExpectedBalanceAsync() => Task.FromResult(_state.State.ExpectedBalance);
+
+    public async Task<decimal> GetExpectedBalanceAsync()
+    {
+        if (_state.State.OrganizationId == Guid.Empty)
+            return 0;
+        return await GetLedger().GetBalanceAsync();
+    }
+
     public Task<DrawerStatus> GetStatusAsync() => Task.FromResult(_state.State.Status);
     public Task<bool> ExistsAsync() => Task.FromResult(_state.State.Id != Guid.Empty);
 
