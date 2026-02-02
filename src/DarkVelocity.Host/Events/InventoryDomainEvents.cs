@@ -5,9 +5,9 @@ namespace DarkVelocity.Host.Events;
 // ============================================================================
 
 /// <summary>
-/// Stock batch received from supplier delivery.
+/// Stock batch received from supplier delivery (domain event for Kafka).
 /// </summary>
-public sealed record StockBatchReceived : DomainEvent
+public sealed record StockBatchReceivedDomainEvent : DomainEvent
 {
     public override string EventType => "inventory.batch.received";
     public override string AggregateType => "Inventory";
@@ -149,9 +149,9 @@ public enum RejectionReason
 // ============================================================================
 
 /// <summary>
-/// Stock consumed from inventory (generic consumption).
+/// Stock consumed from inventory (domain event for Kafka).
 /// </summary>
-public sealed record StockConsumed : DomainEvent
+public sealed record StockConsumedDomainEvent : DomainEvent
 {
     public override string EventType => "inventory.stock.consumed";
     public override string AggregateType => "Inventory";
@@ -287,9 +287,9 @@ public sealed record StockSampled : DomainEvent
 }
 
 /// <summary>
-/// Stock transferred out to another site.
+/// Stock transferred out to another site (domain event for Kafka).
 /// </summary>
-public sealed record StockTransferredOut : DomainEvent
+public sealed record StockTransferredOutDomainEvent : DomainEvent
 {
     public override string EventType => "inventory.stock.transferred_out";
     public override string AggregateType => "Inventory";
@@ -477,9 +477,9 @@ public sealed record UnpackedBatch
 // ============================================================================
 
 /// <summary>
-/// Low stock alert triggered.
+/// Low stock alert triggered (domain event for Kafka).
 /// </summary>
-public sealed record LowStockAlertTriggered : DomainEvent
+public sealed record LowStockAlertTriggeredDomainEvent : DomainEvent
 {
     public override string EventType => "inventory.alert.low_stock";
     public override string AggregateType => "Inventory";

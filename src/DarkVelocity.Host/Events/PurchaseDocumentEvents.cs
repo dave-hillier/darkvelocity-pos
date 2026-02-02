@@ -218,3 +218,179 @@ public sealed record PurchaseDocumentConfirmed : IPurchaseDocumentEvent
     [Id(4)] public DateOnly? DocumentDate { get; init; }
     [Id(5)] public DateTime OccurredAt { get; init; }
 }
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+/// <summary>
+/// Type of purchase document.
+/// </summary>
+public enum PurchaseDocumentType
+{
+    /// <summary>Supplier invoice for goods received</summary>
+    Invoice,
+    /// <summary>Receipt from retail purchase</summary>
+    Receipt,
+    /// <summary>Purchase order (before goods received)</summary>
+    PurchaseOrder,
+    /// <summary>Credit note from supplier</summary>
+    CreditNote,
+    /// <summary>Unknown document type</summary>
+    Unknown
+}
+
+/// <summary>
+/// Status of a purchase document in the processing workflow.
+/// </summary>
+public enum PurchaseDocumentStatus
+{
+    /// <summary>Document received, awaiting processing</summary>
+    Received,
+    /// <summary>OCR/extraction in progress</summary>
+    Processing,
+    /// <summary>Extraction complete, data extracted</summary>
+    Extracted,
+    /// <summary>Extraction complete, awaiting review</summary>
+    PendingReview,
+    /// <summary>Document confirmed and ready for downstream processing</summary>
+    Confirmed,
+    /// <summary>Document rejected/discarded</summary>
+    Rejected,
+    /// <summary>Processing failed</summary>
+    Failed
+}
+
+/// <summary>
+/// Source/origin of the document.
+/// </summary>
+public enum DocumentSource
+{
+    /// <summary>Uploaded via API or UI</summary>
+    Upload,
+    /// <summary>Received via email</summary>
+    Email,
+    /// <summary>Photo captured via mobile app</summary>
+    Photo,
+    /// <summary>Received from integrated supplier system</summary>
+    SupplierIntegration,
+    /// <summary>Manually entered</summary>
+    Manual,
+    /// <summary>Unknown source</summary>
+    Unknown
+}
+
+/// <summary>
+/// Source of an SKU mapping.
+/// </summary>
+public enum MappingSource
+{
+    /// <summary>Manually mapped by a user</summary>
+    Manual,
+    /// <summary>Automatically learned from confirmed document</summary>
+    Learned,
+    /// <summary>Auto-matched by fuzzy pattern</summary>
+    Auto,
+    /// <summary>Matched by exact product code</summary>
+    ProductCode,
+    /// <summary>Matched by fuzzy pattern</summary>
+    FuzzyMatch,
+    /// <summary>Suggested by AI/ML</summary>
+    AiSuggestion,
+    /// <summary>Imported from external system</summary>
+    Import
+}
+
+// ============================================================================
+// Supporting Types
+// ============================================================================
+
+/// <summary>
+/// A suggested mapping for an unmapped line item.
+/// </summary>
+[GenerateSerializer]
+public sealed record SuggestedMapping
+{
+    [Id(0)] public required Guid IngredientId { get; init; }
+    [Id(1)] public required string IngredientName { get; init; }
+    [Id(2)] public required string Sku { get; init; }
+    [Id(3)] public required decimal Confidence { get; init; }
+    [Id(4)] public string? MatchReason { get; init; }
+}
+
+/// <summary>
+/// Extracted data from a purchase document (output from OCR/AI processing).
+/// </summary>
+[GenerateSerializer]
+public sealed class ExtractedDocumentData
+{
+    [Id(0)] public PurchaseDocumentType DetectedType { get; init; }
+    [Id(1)] public string? VendorName { get; init; }
+    [Id(2)] public string? VendorAddress { get; init; }
+    [Id(3)] public string? VendorPhone { get; init; }
+    [Id(4)] public string? InvoiceNumber { get; init; }
+    [Id(5)] public string? PurchaseOrderNumber { get; init; }
+    [Id(6)] public DateOnly? DocumentDate { get; init; }
+    [Id(7)] public DateOnly? DueDate { get; init; }
+    [Id(8)] public string? PaymentTerms { get; init; }
+    [Id(9)] public TimeOnly? TransactionTime { get; init; }
+    [Id(10)] public string? PaymentMethod { get; init; }
+    [Id(11)] public string? CardLastFour { get; init; }
+    [Id(12)] public IReadOnlyList<ExtractedLineItem> Lines { get; init; } = [];
+    [Id(13)] public decimal? Subtotal { get; init; }
+    [Id(14)] public decimal? Tax { get; init; }
+    [Id(15)] public decimal? Tip { get; init; }
+    [Id(16)] public decimal? DeliveryFee { get; init; }
+    [Id(17)] public decimal? Total { get; init; }
+    [Id(18)] public string Currency { get; init; } = "USD";
+}
+
+/// <summary>
+/// A line item extracted from a purchase document.
+/// </summary>
+[GenerateSerializer]
+public sealed record ExtractedLineItem
+{
+    [Id(0)] public required string Description { get; init; }
+    [Id(1)] public decimal? Quantity { get; init; }
+    [Id(2)] public string? Unit { get; init; }
+    [Id(3)] public decimal? UnitPrice { get; init; }
+    [Id(4)] public decimal? TotalPrice { get; init; }
+    [Id(5)] public string? ProductCode { get; init; }
+    [Id(6)] public decimal Confidence { get; init; } = 1.0m;
+}
+
+/// <summary>
+/// Data from a confirmed purchase document, ready for downstream processing.
+/// </summary>
+[GenerateSerializer]
+public sealed record ConfirmedDocumentData
+{
+    [Id(0)] public Guid? VendorId { get; init; }
+    [Id(1)] public string? VendorName { get; init; }
+    [Id(2)] public DateOnly? DocumentDate { get; init; }
+    [Id(3)] public string? InvoiceNumber { get; init; }
+    [Id(4)] public IReadOnlyList<ConfirmedLineItem> Lines { get; init; } = [];
+    [Id(5)] public decimal Total { get; init; }
+    [Id(6)] public decimal Tax { get; init; }
+    [Id(7)] public string Currency { get; init; } = "USD";
+    [Id(8)] public bool IsPaid { get; init; }
+    [Id(9)] public DateOnly? DueDate { get; init; }
+}
+
+/// <summary>
+/// A confirmed line item with mapped ingredient.
+/// </summary>
+[GenerateSerializer]
+public sealed record ConfirmedLineItem
+{
+    [Id(0)] public int LineIndex { get; init; }
+    [Id(1)] public required string Description { get; init; }
+    [Id(2)] public decimal? Quantity { get; init; }
+    [Id(3)] public string? Unit { get; init; }
+    [Id(4)] public decimal? UnitPrice { get; init; }
+    [Id(5)] public decimal? TotalPrice { get; init; }
+    [Id(6)] public Guid? IngredientId { get; init; }
+    [Id(7)] public string? IngredientSku { get; init; }
+    [Id(8)] public MappingSource? MappingSource { get; init; }
+}

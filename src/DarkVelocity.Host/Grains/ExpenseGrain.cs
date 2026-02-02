@@ -157,14 +157,14 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseEvent>, IExpens
         {
             ExpenseId = command.ExpenseId,
             SiteId = command.SiteId,
-            Category = command.Category,
+            Category = command.Category.ToString(),
             CustomCategory = command.CustomCategory,
             Description = command.Description,
             Amount = command.Amount,
             Currency = command.Currency,
             ExpenseDate = command.ExpenseDate,
             VendorName = command.VendorName,
-            PaymentMethod = command.PaymentMethod,
+            PaymentMethod = command.PaymentMethod?.ToString(),
             RecordedBy = command.RecordedBy,
             OrganizationId = command.OrganizationId,
             OccurredAt = DateTime.UtcNow
@@ -211,13 +211,13 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseEvent>, IExpens
         await ConfirmEvents();
         await UpdateIndexAsync();
 
-        var evt = new ExpenseUpdated
+        var evt = new ExpenseUpdatedDomainEvent
         {
             ExpenseId = State.ExpenseId,
             UpdatedBy = command.UpdatedBy,
             Description = command.Description,
             Amount = command.Amount,
-            Category = command.Category,
+            Category = command.Category?.ToString(),
             ExpenseDate = command.ExpenseDate,
             OrganizationId = State.OrganizationId,
             OccurredAt = DateTime.UtcNow
@@ -249,7 +249,7 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseEvent>, IExpens
         await ConfirmEvents();
         await UpdateIndexAsync();
 
-        var evt = new ExpenseApproved
+        var evt = new ExpenseApprovedDomainEvent
         {
             ExpenseId = State.ExpenseId,
             ApprovedBy = command.ApprovedBy,
@@ -284,7 +284,7 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseEvent>, IExpens
         await ConfirmEvents();
         await UpdateIndexAsync();
 
-        var evt = new ExpenseRejected
+        var evt = new ExpenseRejectedDomainEvent
         {
             ExpenseId = State.ExpenseId,
             RejectedBy = command.RejectedBy,
@@ -314,9 +314,7 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseEvent>, IExpens
         {
             ExpenseId = State.ExpenseId,
             PaidBy = command.PaidBy,
-            PaymentDate = command.PaymentDate.HasValue
-                ? command.PaymentDate.Value.ToDateTime(TimeOnly.MinValue)
-                : DateTime.UtcNow,
+            PaymentDate = command.PaymentDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
             ReferenceNumber = command.ReferenceNumber,
             PaymentMethod = command.PaymentMethod?.ToString(),
             OccurredAt = DateTime.UtcNow
@@ -324,13 +322,13 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseEvent>, IExpens
         await ConfirmEvents();
         await UpdateIndexAsync();
 
-        var evt = new ExpensePaid
+        var evt = new ExpensePaidDomainEvent
         {
             ExpenseId = State.ExpenseId,
             PaidBy = command.PaidBy,
-            PaymentDate = command.PaymentDate,
+            PaymentDate = command.PaymentDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
             ReferenceNumber = command.ReferenceNumber,
-            PaymentMethod = command.PaymentMethod,
+            PaymentMethod = command.PaymentMethod?.ToString(),
             OrganizationId = State.OrganizationId,
             OccurredAt = DateTime.UtcNow
         };
@@ -365,7 +363,7 @@ public class ExpenseGrain : JournaledGrain<ExpenseState, IExpenseEvent>, IExpens
             GrainKeys.Site(State.OrganizationId, State.SiteId));
         await indexGrain.RemoveExpenseAsync(State.ExpenseId);
 
-        var evt = new ExpenseVoided
+        var evt = new ExpenseVoidedDomainEvent
         {
             ExpenseId = State.ExpenseId,
             VoidedBy = command.VoidedBy,
