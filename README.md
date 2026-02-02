@@ -55,4 +55,4 @@ See `CLAUDE.md` for architecture details and development guidelines.
 
 ## License
 
-MIT
+[Polyform Strict License 1.0.0](https://polyformproject.org/licenses/strict/1.0.0/)
