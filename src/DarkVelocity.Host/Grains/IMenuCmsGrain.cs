@@ -262,7 +262,7 @@ public record CreateModifierBlockCommand(
     [property: Id(2)] int MinSelections = 0,
     [property: Id(3)] int MaxSelections = 1,
     [property: Id(4)] bool IsRequired = false,
-    [property: Id(5)] IReadOnlyList<CreateModifierOptionCommand>? Options = null,
+    [property: Id(5)] List<CreateModifierOptionCommand>? Options = null,
     [property: Id(6)] Guid? CreatedBy = null,
     [property: Id(7)] bool PublishImmediately = false);
 
@@ -276,7 +276,7 @@ public record CreateModifierBlockDraftCommand(
     [property: Id(2)] int? MinSelections = null,
     [property: Id(3)] int? MaxSelections = null,
     [property: Id(4)] bool? IsRequired = null,
-    [property: Id(5)] IReadOnlyList<CreateModifierOptionCommand>? Options = null,
+    [property: Id(5)] List<CreateModifierOptionCommand>? Options = null,
     [property: Id(6)] string? ChangeNote = null,
     [property: Id(7)] Guid? CreatedBy = null);
 
@@ -441,9 +441,9 @@ public record AddAvailabilityWindowCommand(
     [property: Id(0)] string Name,
     [property: Id(1)] TimeOnly StartTime,
     [property: Id(2)] TimeOnly EndTime,
-    [property: Id(3)] IReadOnlyList<DayOfWeek> DaysOfWeek,
-    [property: Id(4)] IReadOnlyList<string>? ItemDocumentIds = null,
-    [property: Id(5)] IReadOnlyList<string>? CategoryDocumentIds = null);
+    [property: Id(3)] List<DayOfWeek> DaysOfWeek,
+    [property: Id(4)] List<string>? ItemDocumentIds = null,
+    [property: Id(5)] List<string>? CategoryDocumentIds = null);
 
 /// <summary>
 /// Snapshot of site menu overrides.

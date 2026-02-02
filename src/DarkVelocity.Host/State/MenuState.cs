@@ -2,6 +2,8 @@ using DarkVelocity.Host.Grains;
 
 namespace DarkVelocity.Host.State;
 
+// Note: PricingType is defined in DarkVelocity.Host.Grains.IMenuGrain
+
 // ============================================================================
 // Menu Category State
 // ============================================================================
@@ -45,6 +47,43 @@ public sealed class MenuItemState
     [Id(14)] public decimal? TheoreticalCost { get; set; }
     [Id(15)] public List<MenuItemModifierState> Modifiers { get; set; } = [];
     [Id(16)] public int Version { get; set; }
+    [Id(17)] public bool IsSnoozed { get; set; }
+    [Id(18)] public DateTime? SnoozedUntil { get; set; }
+    [Id(19)] public List<ProductTagState> ProductTags { get; set; } = [];
+    [Id(20)] public ContextualTaxRatesState? TaxRates { get; set; }
+    [Id(21)] public List<MenuItemVariationState> Variations { get; set; } = [];
+}
+
+[GenerateSerializer]
+public sealed class ProductTagState
+{
+    [Id(0)] public int TagId { get; set; }
+    [Id(1)] public string Name { get; set; } = string.Empty;
+}
+
+[GenerateSerializer]
+public sealed class ContextualTaxRatesState
+{
+    [Id(0)] public decimal DeliveryTaxPercent { get; set; }
+    [Id(1)] public decimal TakeawayTaxPercent { get; set; }
+    [Id(2)] public decimal DineInTaxPercent { get; set; }
+}
+
+[GenerateSerializer]
+public sealed class MenuItemVariationState
+{
+    [Id(0)] public Guid VariationId { get; set; }
+    [Id(1)] public Guid MenuItemId { get; set; }
+    [Id(2)] public string Name { get; set; } = string.Empty;
+    [Id(3)] public PricingType PricingType { get; set; }
+    [Id(4)] public decimal? Price { get; set; }
+    [Id(5)] public string? Sku { get; set; }
+    [Id(6)] public int DisplayOrder { get; set; }
+    [Id(7)] public bool IsActive { get; set; } = true;
+    [Id(8)] public bool TrackInventory { get; set; }
+    [Id(9)] public Guid? InventoryItemId { get; set; }
+    [Id(10)] public decimal? InventoryQuantityPerSale { get; set; }
+    [Id(11)] public decimal? TheoreticalCost { get; set; }
 }
 
 [GenerateSerializer]

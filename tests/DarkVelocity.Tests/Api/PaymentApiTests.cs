@@ -166,7 +166,7 @@ public class PaymentApiTests
         {
             gatewayReference = "ref_123456",
             authorizationCode = "AUTH123",
-            cardInfo = new { lastFour = "1234", brand = "Visa", expiryMonth = 12, expiryYear = 2025 },
+            cardInfo = new { maskedNumber = "****1234", brand = "Visa", expiryMonth = "12", expiryYear = "2025", entryMethod = "chip" },
             gatewayName = "Stripe",
             tipAmount = 5.00m
         };

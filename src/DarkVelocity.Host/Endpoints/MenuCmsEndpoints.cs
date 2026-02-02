@@ -778,9 +778,9 @@ public static class MenuCmsEndpoints
                 Name: request.Name,
                 StartTime: request.StartTime,
                 EndTime: request.EndTime,
-                DaysOfWeek: request.DaysOfWeek,
-                ItemDocumentIds: request.ItemDocumentIds,
-                CategoryDocumentIds: request.CategoryDocumentIds));
+                DaysOfWeek: request.DaysOfWeek.ToList(),
+                ItemDocumentIds: request.ItemDocumentIds?.ToList(),
+                CategoryDocumentIds: request.CategoryDocumentIds?.ToList()));
 
             var resolverGrain = grainFactory.GetGrain<IMenuContentResolverGrain>(GrainKeys.MenuContentResolver(orgId, siteId));
             await resolverGrain.InvalidateCacheAsync();

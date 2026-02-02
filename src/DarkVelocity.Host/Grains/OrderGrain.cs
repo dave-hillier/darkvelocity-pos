@@ -255,6 +255,9 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
         if (State.Id != Guid.Empty)
             throw new InvalidOperationException("Order already exists");
 
+        if (command.GuestCount <= 0)
+            throw new ArgumentException("Guest count must be greater than zero", nameof(command));
+
         var key = this.GetPrimaryKeyString();
         var (orgId, siteId, _, orderId) = GrainKeys.ParseSiteEntity(key);
 
@@ -304,6 +307,15 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
     {
         EnsureExists();
         EnsureNotClosed();
+
+        if (string.IsNullOrWhiteSpace(command.Name))
+            throw new ArgumentException("Name cannot be empty", nameof(command));
+
+        if (command.UnitPrice < 0)
+            throw new ArgumentException("Unit price cannot be negative", nameof(command));
+
+        if (command.Quantity <= 0)
+            throw new ArgumentException("Quantity must be greater than zero", nameof(command));
 
         var lineId = Guid.NewGuid();
         var lineTotal = command.UnitPrice * command.Quantity;
@@ -577,6 +589,15 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderJournaledEvent>, IOrd
     public async Task RecordPaymentAsync(Guid paymentId, decimal amount, decimal tipAmount, string method)
     {
         EnsureExists();
+
+        // Allow zero payments only when balance is already zero (e.g., 100% discount scenarios)
+        if (amount < 0)
+            throw new ArgumentException("Payment amount cannot be negative", nameof(amount));
+        if (amount == 0 && State.BalanceDue > 0)
+            throw new ArgumentException("Payment amount must be greater than zero when balance is due", nameof(amount));
+
+        if (tipAmount < 0)
+            throw new ArgumentException("Tip amount cannot be negative", nameof(tipAmount));
 
         RaiseEvent(new OrderPaymentRecordedJournaledEvent
         {

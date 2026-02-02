@@ -72,7 +72,8 @@ public class ConcurrentOperationTests
             Type: OrderType.DineIn,
             GuestCount: 2));
 
-        // Add items totaling $100
+        // Add items totaling $100 subtotal
+        // With 10% tax, GrandTotal = $110
         for (int i = 0; i < 10; i++)
         {
             await grain.AddLineAsync(new AddLineCommand(
@@ -84,21 +85,22 @@ public class ConcurrentOperationTests
 
         await grain.SendAsync(Guid.NewGuid());
 
-        // Act - Make 4 concurrent partial payments of $25 each
+        // Act - Make 4 concurrent partial payments of $27.50 each ($110 total)
         var tasks = Enumerable.Range(1, 4).Select(i =>
             grain.RecordPaymentAsync(
                 Guid.NewGuid(),
-                25.00m,
+                27.50m,
                 0m,
                 "Cash"));
 
         await Task.WhenAll(tasks);
 
         // Assert - All payments recorded, balance should be $0
+        // Subtotal: $100, Tax (10%): $10, GrandTotal: $110, Paid: $110
         var state = await grain.GetStateAsync();
         state.Payments.Should().HaveCount(4);
         state.BalanceDue.Should().Be(0m);
-        state.PaidAmount.Should().Be(100m);
+        state.PaidAmount.Should().Be(110m);
     }
 
     [Fact]
@@ -620,9 +622,14 @@ public class ConcurrentOperationTests
         await Task.WhenAll(addTasks);
 
         // Assert
+        // Subtotal: 50 items * $5 = $250
+        // Tax (10%): $25
+        // GrandTotal: $275
         var state = await grain.GetStateAsync();
         state.Lines.Should().HaveCount(50);
-        state.GrandTotal.Should().Be(250.00m); // 50 items * $5
+        state.Subtotal.Should().Be(250.00m); // 50 items * $5
+        state.TaxTotal.Should().Be(25.00m);  // 10% tax
+        state.GrandTotal.Should().Be(275.00m); // Subtotal + Tax
     }
 
     #endregion

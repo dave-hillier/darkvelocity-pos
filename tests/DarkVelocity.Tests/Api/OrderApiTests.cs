@@ -215,6 +215,10 @@ public class OrderApiTests
         var createOrderJson = JsonDocument.Parse(createOrderContent);
         var orderId = createOrderJson.RootElement.GetProperty("id").GetGuid();
 
+        // Add a line item before sending (orders need at least one item to send)
+        var lineRequest = new { menuItemId = Guid.NewGuid(), name = "Test Item", quantity = 1, unitPrice = 10.00m };
+        await _client.PostAsJsonAsync($"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/lines", lineRequest);
+
         var sendRequest = new { sentBy = Guid.NewGuid() };
 
         // Act

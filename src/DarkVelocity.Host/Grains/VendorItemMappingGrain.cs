@@ -337,6 +337,16 @@ public class VendorItemMappingGrain : Grain, IVendorItemMappingGrain
                 _state.State.ProductCodeMappings.Remove(mapping.VendorProductCode.ToUpperInvariant());
             }
 
+            // Remove learned patterns associated with this mapping
+            var tokens = _fuzzyMatcher.Tokenize(command.VendorDescription);
+            if (tokens.Count > 0)
+            {
+                _state.State.LearnedPatterns.RemoveAll(p =>
+                    p.IngredientId == mapping.IngredientId &&
+                    p.Tokens.Count == tokens.Count &&
+                    p.Tokens.All(t => tokens.Contains(t)));
+            }
+
             _state.State.UpdatedAt = DateTime.UtcNow;
             _state.State.Version++;
 

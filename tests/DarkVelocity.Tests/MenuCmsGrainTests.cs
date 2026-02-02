@@ -456,7 +456,7 @@ public class MenuCategoryDocumentGrainTests
         await grain.AddItemAsync(itemId3);
 
         // Act
-        await grain.ReorderItemsAsync([itemId3, itemId1, itemId2]);
+        await grain.ReorderItemsAsync(new List<string> { itemId3, itemId1, itemId2 });
 
         // Assert
         var snapshot = await grain.GetSnapshotAsync();
@@ -800,8 +800,8 @@ public class SiteMenuOverridesGrainTests
             Name: "Happy Hour",
             StartTime: new TimeOnly(16, 0),
             EndTime: new TimeOnly(18, 0),
-            DaysOfWeek: [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday],
-            ItemDocumentIds: ["drink-1", "drink-2"]));
+            DaysOfWeek: new List<DayOfWeek> { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday },
+            ItemDocumentIds: new List<string> { "drink-1", "drink-2" }));
 
         // Assert
         window.Name.Should().Be("Happy Hour");
@@ -823,7 +823,7 @@ public class SiteMenuOverridesGrainTests
             Name: "Test Window",
             StartTime: new TimeOnly(10, 0),
             EndTime: new TimeOnly(14, 0),
-            DaysOfWeek: [DayOfWeek.Saturday]));
+            DaysOfWeek: new List<DayOfWeek> { DayOfWeek.Saturday }));
 
         // Act
         await grain.RemoveAvailabilityWindowAsync(window.WindowId);

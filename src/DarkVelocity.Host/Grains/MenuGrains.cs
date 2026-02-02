@@ -140,6 +140,12 @@ public class MenuItemGrain : Grain, IMenuItemGrain
         if (_state.State.MenuItemId != Guid.Empty)
             throw new InvalidOperationException("Menu item already exists");
 
+        if (string.IsNullOrWhiteSpace(command.Name))
+            throw new ArgumentException("Name cannot be empty", nameof(command));
+
+        if (command.Price < 0)
+            throw new ArgumentException("Price cannot be negative", nameof(command));
+
         var key = this.GetPrimaryKeyString();
         var parts = key.Split(':');
         var orgId = Guid.Parse(parts[0]);
@@ -160,7 +166,18 @@ public class MenuItemGrain : Grain, IMenuItemGrain
             Sku = command.Sku,
             IsActive = true,
             TrackInventory = command.TrackInventory,
-            Version = 1
+            Version = 1,
+            TaxRates = command.TaxRates != null ? new ContextualTaxRatesState
+            {
+                DeliveryTaxPercent = command.TaxRates.DeliveryTaxPercent,
+                TakeawayTaxPercent = command.TaxRates.TakeawayTaxPercent,
+                DineInTaxPercent = command.TaxRates.DineInTaxPercent
+            } : null,
+            ProductTags = command.ProductTags?.Select(t => new ProductTagState
+            {
+                TagId = t.TagId,
+                Name = t.Name
+            }).ToList() ?? []
         };
 
         await _state.WriteStateAsync();
@@ -210,6 +227,12 @@ public class MenuItemGrain : Grain, IMenuItemGrain
     public async Task AddModifierAsync(MenuItemModifier modifier)
     {
         EnsureInitialized();
+
+        if (modifier.Options == null || modifier.Options.Count == 0)
+            throw new ArgumentException("Modifier must have at least one option", nameof(modifier));
+
+        if (modifier.MinSelections > modifier.MaxSelections)
+            throw new ArgumentException("MinSelections cannot be greater than MaxSelections", nameof(modifier));
 
         var existing = _state.State.Modifiers.FirstOrDefault(m => m.ModifierId == modifier.ModifierId);
         if (existing != null)
@@ -277,6 +300,14 @@ public class MenuItemGrain : Grain, IMenuItemGrain
             ? _state.State.TheoreticalCost.Value / _state.State.Price * 100
             : (decimal?)null;
 
+        var taxRates = _state.State.TaxRates != null
+            ? new ContextualTaxRates(_state.State.TaxRates.DeliveryTaxPercent, _state.State.TaxRates.TakeawayTaxPercent, _state.State.TaxRates.DineInTaxPercent)
+            : null;
+
+        var productTags = _state.State.ProductTags
+            .Select(t => new ProductTag(t.TagId, t.Name))
+            .ToList();
+
         return new MenuItemSnapshot(
             MenuItemId: _state.State.MenuItemId,
             LocationId: _state.State.LocationId,
@@ -307,10 +338,10 @@ public class MenuItemGrain : Grain, IMenuItemGrain
                     IsDefault: o.IsDefault,
                     ServingSize: o.ServingSize,
                     ServingUnit: o.ServingUnit)).ToList())).ToList(),
-            TaxRates: null,
-            ProductTags: null,
-            IsSnoozed: false,
-            SnoozedUntil: null);
+            TaxRates: taxRates,
+            ProductTags: productTags,
+            IsSnoozed: _state.State.IsSnoozed,
+            SnoozedUntil: _state.State.SnoozedUntil);
     }
 
     private void EnsureInitialized()
@@ -319,45 +350,127 @@ public class MenuItemGrain : Grain, IMenuItemGrain
             throw new InvalidOperationException("Menu item grain not initialized");
     }
 
-    public Task SetSnoozedAsync(bool snoozed, TimeSpan? duration = null)
+    public async Task SetSnoozedAsync(bool snoozed, TimeSpan? duration = null)
     {
-        throw new NotImplementedException();
+        EnsureInitialized();
+        _state.State.IsSnoozed = snoozed;
+        _state.State.SnoozedUntil = snoozed && duration.HasValue
+            ? DateTime.UtcNow.Add(duration.Value)
+            : null;
+        _state.State.Version++;
+        await _state.WriteStateAsync();
     }
 
-    public Task AddProductTagAsync(ProductTag tag)
+    public async Task AddProductTagAsync(ProductTag tag)
     {
-        throw new NotImplementedException();
+        EnsureInitialized();
+        var existing = _state.State.ProductTags.FirstOrDefault(t => t.TagId == tag.TagId);
+        if (existing != null)
+        {
+            existing.Name = tag.Name;
+        }
+        else
+        {
+            _state.State.ProductTags.Add(new ProductTagState
+            {
+                TagId = tag.TagId,
+                Name = tag.Name
+            });
+        }
+        _state.State.Version++;
+        await _state.WriteStateAsync();
     }
 
-    public Task RemoveProductTagAsync(int tagId)
+    public async Task RemoveProductTagAsync(int tagId)
     {
-        throw new NotImplementedException();
+        EnsureInitialized();
+        _state.State.ProductTags.RemoveAll(t => t.TagId == tagId);
+        _state.State.Version++;
+        await _state.WriteStateAsync();
     }
 
-    public Task UpdateTaxRatesAsync(ContextualTaxRates rates)
+    public async Task UpdateTaxRatesAsync(ContextualTaxRates rates)
     {
-        throw new NotImplementedException();
+        EnsureInitialized();
+        _state.State.TaxRates = new ContextualTaxRatesState
+        {
+            DeliveryTaxPercent = rates.DeliveryTaxPercent,
+            TakeawayTaxPercent = rates.TakeawayTaxPercent,
+            DineInTaxPercent = rates.DineInTaxPercent
+        };
+        _state.State.Version++;
+        await _state.WriteStateAsync();
     }
 
-    public Task<MenuItemVariationSnapshot> AddVariationAsync(CreateMenuItemVariationCommand command)
+    public async Task<MenuItemVariationSnapshot> AddVariationAsync(CreateMenuItemVariationCommand command)
     {
-        throw new NotImplementedException();
+        EnsureInitialized();
+        var variationId = Guid.NewGuid();
+        var variation = new MenuItemVariationState
+        {
+            VariationId = variationId,
+            MenuItemId = _state.State.MenuItemId,
+            Name = command.Name,
+            PricingType = command.PricingType,
+            Price = command.Price,
+            Sku = command.Sku,
+            DisplayOrder = command.DisplayOrder,
+            IsActive = true,
+            TrackInventory = command.TrackInventory,
+            InventoryItemId = command.InventoryItemId,
+            InventoryQuantityPerSale = command.InventoryQuantityPerSale
+        };
+        _state.State.Variations.Add(variation);
+        _state.State.Version++;
+        await _state.WriteStateAsync();
+
+        return CreateVariationSnapshot(variation);
     }
 
-    public Task<MenuItemVariationSnapshot> UpdateVariationAsync(Guid variationId, UpdateMenuItemVariationCommand command)
+    public async Task<MenuItemVariationSnapshot> UpdateVariationAsync(Guid variationId, UpdateMenuItemVariationCommand command)
     {
-        throw new NotImplementedException();
+        EnsureInitialized();
+        var variation = _state.State.Variations.FirstOrDefault(v => v.VariationId == variationId)
+            ?? throw new InvalidOperationException("Variation not found");
+
+        if (command.Name != null) variation.Name = command.Name;
+        if (command.PricingType.HasValue) variation.PricingType = command.PricingType.Value;
+        if (command.Price.HasValue) variation.Price = command.Price.Value;
+        if (command.Sku != null) variation.Sku = command.Sku;
+        if (command.DisplayOrder.HasValue) variation.DisplayOrder = command.DisplayOrder.Value;
+        if (command.IsActive.HasValue) variation.IsActive = command.IsActive.Value;
+        if (command.TrackInventory.HasValue) variation.TrackInventory = command.TrackInventory.Value;
+        if (command.InventoryItemId.HasValue) variation.InventoryItemId = command.InventoryItemId;
+        if (command.InventoryQuantityPerSale.HasValue) variation.InventoryQuantityPerSale = command.InventoryQuantityPerSale;
+
+        _state.State.Version++;
+        await _state.WriteStateAsync();
+
+        return CreateVariationSnapshot(variation);
     }
 
-    public Task RemoveVariationAsync(Guid variationId)
+    public async Task RemoveVariationAsync(Guid variationId)
     {
-        throw new NotImplementedException();
+        EnsureInitialized();
+        _state.State.Variations.RemoveAll(v => v.VariationId == variationId);
+        _state.State.Version++;
+        await _state.WriteStateAsync();
     }
 
     public Task<IReadOnlyList<MenuItemVariationSnapshot>> GetVariationsAsync()
     {
-        throw new NotImplementedException();
+        EnsureInitialized();
+        var snapshots = _state.State.Variations
+            .OrderBy(v => v.DisplayOrder)
+            .Select(CreateVariationSnapshot)
+            .ToList();
+        return Task.FromResult<IReadOnlyList<MenuItemVariationSnapshot>>(snapshots);
     }
+
+    private static MenuItemVariationSnapshot CreateVariationSnapshot(MenuItemVariationState v) =>
+        new(v.VariationId, v.MenuItemId, v.Name, v.PricingType, v.Price, v.Sku,
+            v.DisplayOrder, v.IsActive, v.TrackInventory, v.InventoryItemId,
+            v.InventoryQuantityPerSale, v.TheoreticalCost);
 }
 
 // ============================================================================

@@ -297,6 +297,10 @@ public class GiftCardGrain : LedgerGrainBase<GiftCardState, GiftCardTransaction>
     {
         EnsureInitialized();
 
+        var newBalance = State.State.CurrentBalance + command.Amount;
+        if (newBalance < 0)
+            throw new InvalidOperationException("Adjustment would result in negative balance");
+
         var result = command.Amount >= 0
             ? await CreditAsync(
                 command.Amount,
