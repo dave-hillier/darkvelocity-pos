@@ -1,3 +1,5 @@
+using DarkVelocity.Host.Events;
+using DarkVelocity.Host.Services;
 using DarkVelocity.Host.State;
 using Orleans.Runtime;
 
@@ -14,12 +16,44 @@ namespace DarkVelocity.Host.Grains;
 public class MenuItemDocumentGrain : Grain, IMenuItemDocumentGrain
 {
     private readonly IPersistentState<MenuItemDocumentState> _state;
+    private readonly IGrainFactory _grainFactory;
 
     public MenuItemDocumentGrain(
         [PersistentState("menuItemDocument", "OrleansStorage")]
-        IPersistentState<MenuItemDocumentState> state)
+        IPersistentState<MenuItemDocumentState> state,
+        IGrainFactory grainFactory)
     {
         _state = state;
+        _grainFactory = grainFactory;
+    }
+
+    private async Task RecordHistoryAsync(
+        CmsChangeType changeType,
+        int fromVersion,
+        int toVersion,
+        Guid? userId,
+        string? changeNote,
+        IReadOnlyList<FieldChange> changes)
+    {
+        var changeEvent = new CmsContentChanged(
+            DocumentType: "MenuItem",
+            DocumentId: _state.State.DocumentId,
+            OrgId: _state.State.OrgId,
+            FromVersion: fromVersion,
+            ToVersion: toVersion,
+            ChangedBy: userId,
+            OccurredAt: DateTimeOffset.UtcNow,
+            ChangeType: changeType,
+            Changes: changes,
+            ChangeNote: changeNote);
+
+        var historyGrain = _grainFactory.GetGrain<ICmsHistoryGrain>(
+            GrainKeys.CmsHistory(_state.State.OrgId, "MenuItem", _state.State.DocumentId));
+        await historyGrain.RecordChangeAsync(changeEvent);
+
+        var undoGrain = _grainFactory.GetGrain<ICmsUndoGrain>(
+            GrainKeys.CmsUndo(_state.State.OrgId, "MenuItem", _state.State.DocumentId));
+        await undoGrain.PushAsync(changeEvent);
     }
 
     public async Task<MenuItemDocumentSnapshot> CreateAsync(CreateMenuItemDocumentCommand command)
@@ -96,6 +130,12 @@ public class MenuItemDocumentGrain : Grain, IMenuItemDocumentGrain
         }
 
         await _state.WriteStateAsync();
+
+        // Record history for creation
+        var changes = CmsFieldChangeService.ComputeMenuItemChanges(null, version);
+        var changeType = command.PublishImmediately ? CmsChangeType.Created : CmsChangeType.DraftCreated;
+        await RecordHistoryAsync(changeType, 0, 1, command.CreatedBy, "Initial creation", changes);
+
         return GetSnapshot();
     }
 
@@ -169,6 +209,12 @@ public class MenuItemDocumentGrain : Grain, IMenuItemDocumentGrain
         });
 
         await _state.WriteStateAsync();
+
+        // Record history for draft creation
+        var changes = CmsFieldChangeService.ComputeMenuItemChanges(baseVersion, newVersion);
+        await RecordHistoryAsync(CmsChangeType.DraftCreated, baseVersion.VersionNumber, newVersionNumber,
+            command.CreatedBy, command.ChangeNote, changes);
+
         return ToVersionSnapshot(newVersion);
     }
 
@@ -218,7 +264,12 @@ public class MenuItemDocumentGrain : Grain, IMenuItemDocumentGrain
         if (!_state.State.DraftVersion.HasValue)
             throw new InvalidOperationException("No draft to publish");
 
+        var draftVersion = _state.State.Versions.First(v => v.VersionNumber == _state.State.DraftVersion.Value);
+        var previousVersion = _state.State.PublishedVersion.HasValue
+            ? _state.State.Versions.FirstOrDefault(v => v.VersionNumber == _state.State.PublishedVersion.Value)
+            : null;
         var previousPublished = _state.State.PublishedVersion;
+
         _state.State.PublishedVersion = _state.State.DraftVersion;
         _state.State.DraftVersion = null;
 
@@ -231,6 +282,15 @@ public class MenuItemDocumentGrain : Grain, IMenuItemDocumentGrain
         });
 
         await _state.WriteStateAsync();
+
+        // Record history for publish and notify undo grain
+        var changes = CmsFieldChangeService.ComputeMenuItemChanges(previousVersion, draftVersion);
+        await RecordHistoryAsync(CmsChangeType.Published, previousPublished ?? 0, draftVersion.VersionNumber,
+            publishedBy, note ?? $"Published version {draftVersion.VersionNumber}", changes);
+
+        var undoGrain = _grainFactory.GetGrain<ICmsUndoGrain>(
+            GrainKeys.CmsUndo(_state.State.OrgId, "MenuItem", _state.State.DocumentId));
+        await undoGrain.MarkPublishedAsync(draftVersion.VersionNumber);
     }
 
     public async Task DiscardDraftAsync()
@@ -240,8 +300,8 @@ public class MenuItemDocumentGrain : Grain, IMenuItemDocumentGrain
         if (!_state.State.DraftVersion.HasValue)
             return;
 
-        var draftVersion = _state.State.DraftVersion.Value;
-        _state.State.Versions.RemoveAll(v => v.VersionNumber == draftVersion);
+        var discardedDraftVersion = _state.State.DraftVersion.Value;
+        _state.State.Versions.RemoveAll(v => v.VersionNumber == discardedDraftVersion);
         _state.State.DraftVersion = null;
 
         // Recalculate current version
@@ -263,6 +323,10 @@ public class MenuItemDocumentGrain : Grain, IMenuItemDocumentGrain
         var targetVersion = _state.State.Versions.FirstOrDefault(v => v.VersionNumber == version)
             ?? throw new InvalidOperationException($"Version {version} not found");
 
+        var previousVersion = _state.State.PublishedVersion.HasValue
+            ? _state.State.Versions.FirstOrDefault(v => v.VersionNumber == _state.State.PublishedVersion.Value)
+            : null;
+        var previousPublished = _state.State.PublishedVersion;
         var newVersionNumber = _state.State.CurrentVersion + 1;
 
         // Create a new version that's a copy of the target version
@@ -304,6 +368,11 @@ public class MenuItemDocumentGrain : Grain, IMenuItemDocumentGrain
         });
 
         await _state.WriteStateAsync();
+
+        // Record history for revert
+        var changes = CmsFieldChangeService.ComputeMenuItemChanges(previousVersion, revertedVersion);
+        await RecordHistoryAsync(CmsChangeType.Reverted, previousPublished ?? 0, newVersionNumber,
+            revertedBy, reason ?? $"Reverted to version {version}", changes);
     }
 
     public async Task AddTranslationAsync(AddMenuItemTranslationCommand command)

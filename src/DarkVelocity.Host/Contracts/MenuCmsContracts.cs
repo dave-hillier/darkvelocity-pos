@@ -511,3 +511,82 @@ public record MenuCategorySummaryResponse(
     bool IsArchived,
     int ItemCount,
     DateTimeOffset LastModified);
+
+// ============================================================================
+// CMS History and Undo API Contracts
+// ============================================================================
+
+/// <summary>
+/// Request to undo or redo operations.
+/// </summary>
+public record UndoRequest(
+    int Count = 1);
+
+/// <summary>
+/// Response containing a history entry summary.
+/// </summary>
+public record CmsHistoryEntryResponse(
+    string ChangeId,
+    DateTimeOffset OccurredAt,
+    Guid? ChangedBy,
+    string ChangeType,
+    int FromVersion,
+    int ToVersion,
+    string? ChangeNote,
+    int FieldChangeCount);
+
+/// <summary>
+/// Response containing detailed history entry with field changes.
+/// </summary>
+public record CmsHistoryDetailResponse(
+    string ChangeId,
+    DateTimeOffset OccurredAt,
+    Guid? ChangedBy,
+    string ChangeType,
+    int FromVersion,
+    int ToVersion,
+    string? ChangeNote,
+    IReadOnlyList<FieldChangeResponse> Changes);
+
+/// <summary>
+/// Response containing a field-level change.
+/// </summary>
+public record FieldChangeResponse(
+    string FieldPath,
+    string? OldValue,
+    string? NewValue,
+    string Operation);
+
+/// <summary>
+/// Response containing a diff between two versions.
+/// </summary>
+public record CmsDiffResponse(
+    int FromVersion,
+    int ToVersion,
+    IReadOnlyList<FieldChangeResponse> Changes,
+    int ChangeCount);
+
+/// <summary>
+/// Response from an undo or redo operation.
+/// </summary>
+public record UndoResultResponse(
+    bool Success,
+    int? NewVersion,
+    IReadOnlyList<FieldChangeResponse> ChangesApplied,
+    string? Message);
+
+/// <summary>
+/// Response for undo preview.
+/// </summary>
+public record UndoPreviewResponse(
+    IReadOnlyList<FieldChangeResponse> Changes,
+    int OperationCount);
+
+/// <summary>
+/// Response containing undo/redo stack status.
+/// </summary>
+public record UndoStatusResponse(
+    int UndoCount,
+    int RedoCount,
+    bool HasDraft,
+    int? LastPublishedVersion);

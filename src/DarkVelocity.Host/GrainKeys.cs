@@ -640,4 +640,41 @@ public static class GrainKeys
         }
         return new string(result);
     }
+
+    // ============================================================================
+    // CMS History and Undo Grains
+    // ============================================================================
+
+    /// <summary>
+    /// Creates a key for a CMS history grain.
+    /// Key pattern: "{orgId}:{docType}:{docId}:history"
+    /// </summary>
+    /// <param name="orgId">The organization ID.</param>
+    /// <param name="docType">The document type (e.g., "MenuItem", "MenuCategory", "Recipe", "RecipeCategory").</param>
+    /// <param name="docId">The document ID.</param>
+    public static string CmsHistory(Guid orgId, string docType, string docId)
+        => $"{orgId}:{docType}:{docId}:history";
+
+    /// <summary>
+    /// Creates a key for a CMS undo grain.
+    /// Key pattern: "{orgId}:{docType}:{docId}:undo"
+    /// </summary>
+    /// <param name="orgId">The organization ID.</param>
+    /// <param name="docType">The document type (e.g., "MenuItem", "MenuCategory", "Recipe", "RecipeCategory").</param>
+    /// <param name="docId">The document ID.</param>
+    public static string CmsUndo(Guid orgId, string docType, string docId)
+        => $"{orgId}:{docType}:{docId}:undo";
+
+    /// <summary>
+    /// Parses a CMS history or undo grain key.
+    /// </summary>
+    /// <param name="key">The grain key.</param>
+    /// <returns>Tuple of (OrgId, DocType, DocId).</returns>
+    public static (Guid OrgId, string DocType, string DocId) ParseCmsCompanionKey(string key)
+    {
+        var parts = key.Split(':');
+        if (parts.Length < 4)
+            throw new ArgumentException($"Invalid CMS companion key format: {key}");
+        return (Guid.Parse(parts[0]), parts[1], parts[2]);
+    }
 }
