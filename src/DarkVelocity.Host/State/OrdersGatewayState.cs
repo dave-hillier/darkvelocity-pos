@@ -50,27 +50,34 @@ public sealed class ExternalOrderState
     [Id(3)] public Guid DeliveryPlatformId { get; set; }
     [Id(4)] public string PlatformOrderId { get; set; } = string.Empty;
     [Id(5)] public string PlatformOrderNumber { get; set; } = string.Empty;
-    [Id(6)] public Guid? InternalOrderId { get; set; }
-    [Id(7)] public ExternalOrderStatus Status { get; set; }
-    [Id(8)] public ExternalOrderType OrderType { get; set; }
-    [Id(9)] public DateTime PlacedAt { get; set; }
-    [Id(10)] public DateTime? AcceptedAt { get; set; }
-    [Id(11)] public DateTime? EstimatedPickupAt { get; set; }
-    [Id(12)] public DateTime? ActualPickupAt { get; set; }
-    [Id(13)] public ExternalOrderCustomerState Customer { get; set; } = new();
-    [Id(14)] public List<ExternalOrderItemState> Items { get; set; } = [];
-    [Id(15)] public decimal Subtotal { get; set; }
-    [Id(16)] public decimal DeliveryFee { get; set; }
-    [Id(17)] public decimal ServiceFee { get; set; }
-    [Id(18)] public decimal Tax { get; set; }
-    [Id(19)] public decimal Tip { get; set; }
-    [Id(20)] public decimal Total { get; set; }
-    [Id(21)] public string Currency { get; set; } = "EUR";
-    [Id(22)] public string? SpecialInstructions { get; set; }
-    [Id(23)] public string? PlatformRawPayload { get; set; }
-    [Id(24)] public string? ErrorMessage { get; set; }
-    [Id(25)] public int RetryCount { get; set; }
-    [Id(26)] public int Version { get; set; }
+    [Id(6)] public string? ChannelDisplayId { get; set; }
+    [Id(7)] public Guid? InternalOrderId { get; set; }
+    [Id(8)] public ExternalOrderStatus Status { get; set; }
+    [Id(9)] public ExternalOrderType OrderType { get; set; }
+    [Id(10)] public DateTime PlacedAt { get; set; }
+    [Id(11)] public DateTime? ScheduledPickupAt { get; set; }
+    [Id(12)] public DateTime? ScheduledDeliveryAt { get; set; }
+    [Id(13)] public bool IsAsapDelivery { get; set; }
+    [Id(14)] public DateTime? AcceptedAt { get; set; }
+    [Id(15)] public DateTime? EstimatedPickupAt { get; set; }
+    [Id(16)] public DateTime? ActualPickupAt { get; set; }
+    [Id(17)] public ExternalOrderCustomerState Customer { get; set; } = new();
+    [Id(18)] public CourierInfoState? Courier { get; set; }
+    [Id(19)] public List<ExternalOrderItemState> Items { get; set; } = [];
+    [Id(20)] public decimal Subtotal { get; set; }
+    [Id(21)] public decimal DeliveryFee { get; set; }
+    [Id(22)] public decimal ServiceFee { get; set; }
+    [Id(23)] public decimal Tax { get; set; }
+    [Id(24)] public decimal Tip { get; set; }
+    [Id(25)] public decimal Total { get; set; }
+    [Id(26)] public string Currency { get; set; } = "EUR";
+    [Id(27)] public List<ExternalOrderDiscountState> Discounts { get; set; } = [];
+    [Id(28)] public PackagingPreferencesState? Packaging { get; set; }
+    [Id(29)] public string? SpecialInstructions { get; set; }
+    [Id(30)] public string? PlatformRawPayload { get; set; }
+    [Id(31)] public string? ErrorMessage { get; set; }
+    [Id(32)] public int RetryCount { get; set; }
+    [Id(33)] public int Version { get; set; }
 }
 
 [GenerateSerializer]
@@ -78,7 +85,45 @@ public sealed class ExternalOrderCustomerState
 {
     [Id(0)] public string Name { get; set; } = string.Empty;
     [Id(1)] public string? Phone { get; set; }
-    [Id(2)] public string? DeliveryAddress { get; set; }
+    [Id(2)] public string? Email { get; set; }
+    [Id(3)] public DeliveryAddressState? DeliveryAddress { get; set; }
+}
+
+[GenerateSerializer]
+public sealed class DeliveryAddressState
+{
+    [Id(0)] public string Street { get; set; } = string.Empty;
+    [Id(1)] public string? PostalCode { get; set; }
+    [Id(2)] public string City { get; set; } = string.Empty;
+    [Id(3)] public string Country { get; set; } = string.Empty;
+    [Id(4)] public string? ExtraAddressInfo { get; set; }
+}
+
+[GenerateSerializer]
+public sealed class CourierInfoState
+{
+    [Id(0)] public string? FirstName { get; set; }
+    [Id(1)] public string? LastName { get; set; }
+    [Id(2)] public string? PhoneNumber { get; set; }
+    [Id(3)] public string? Provider { get; set; }
+    [Id(4)] public int? Status { get; set; }
+}
+
+[GenerateSerializer]
+public sealed class ExternalOrderDiscountState
+{
+    [Id(0)] public string Type { get; set; } = string.Empty;
+    [Id(1)] public DiscountProvider Provider { get; set; }
+    [Id(2)] public string Name { get; set; } = string.Empty;
+    [Id(3)] public decimal Amount { get; set; }
+}
+
+[GenerateSerializer]
+public sealed class PackagingPreferencesState
+{
+    [Id(0)] public bool IncludeCutlery { get; set; }
+    [Id(1)] public bool IsReusable { get; set; }
+    [Id(2)] public decimal? BagFee { get; set; }
 }
 
 [GenerateSerializer]
