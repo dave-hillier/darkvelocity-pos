@@ -212,7 +212,7 @@ public class ExternalOrderGrain : Grain, IExternalOrderGrain
         _state = state;
     }
 
-    public async Task<ExternalOrderSnapshot> CreateAsync(CreateExternalOrderCommand command)
+    public async Task<ExternalOrderSnapshot> ReceiveAsync(ExternalOrderReceived order)
     {
         if (_state.State.ExternalOrderId != Guid.Empty)
             throw new InvalidOperationException("External order already exists");
@@ -226,20 +226,40 @@ public class ExternalOrderGrain : Grain, IExternalOrderGrain
         {
             OrgId = orgId,
             ExternalOrderId = orderId,
-            LocationId = command.LocationId,
-            DeliveryPlatformId = command.DeliveryPlatformId,
-            PlatformOrderId = command.PlatformOrderId,
-            PlatformOrderNumber = command.PlatformOrderNumber,
+            LocationId = order.LocationId,
+            DeliveryPlatformId = order.DeliveryPlatformId,
+            PlatformOrderId = order.PlatformOrderId,
+            PlatformOrderNumber = order.PlatformOrderNumber,
+            ChannelDisplayId = order.ChannelDisplayId,
             Status = ExternalOrderStatus.Pending,
-            OrderType = command.OrderType,
-            PlacedAt = command.PlacedAt,
+            OrderType = order.OrderType,
+            PlacedAt = order.PlacedAt,
+            ScheduledPickupAt = order.ScheduledPickupAt,
+            ScheduledDeliveryAt = order.ScheduledDeliveryAt,
+            IsAsapDelivery = order.IsAsapDelivery,
             Customer = new ExternalOrderCustomerState
             {
-                Name = command.Customer.Name,
-                Phone = command.Customer.Phone,
-                DeliveryAddress = command.Customer.DeliveryAddress
+                Name = order.Customer.Name,
+                Phone = order.Customer.Phone,
+                Email = order.Customer.Email,
+                DeliveryAddress = order.Customer.DeliveryAddress != null ? new DeliveryAddressState
+                {
+                    Street = order.Customer.DeliveryAddress.Street,
+                    PostalCode = order.Customer.DeliveryAddress.PostalCode,
+                    City = order.Customer.DeliveryAddress.City,
+                    Country = order.Customer.DeliveryAddress.Country,
+                    ExtraAddressInfo = order.Customer.DeliveryAddress.ExtraAddressInfo
+                } : null
             },
-            Items = command.Items.Select(i => new ExternalOrderItemState
+            Courier = order.Courier != null ? new CourierInfoState
+            {
+                FirstName = order.Courier.FirstName,
+                LastName = order.Courier.LastName,
+                PhoneNumber = order.Courier.PhoneNumber,
+                Provider = order.Courier.Provider,
+                Status = order.Courier.Status
+            } : null,
+            Items = order.Items.Select(i => new ExternalOrderItemState
             {
                 PlatformItemId = i.PlatformItemId,
                 InternalMenuItemId = i.InternalMenuItemId,
@@ -254,15 +274,28 @@ public class ExternalOrderGrain : Grain, IExternalOrderGrain
                     Price = m.Price
                 }).ToList() ?? []
             }).ToList(),
-            Subtotal = command.Subtotal,
-            DeliveryFee = command.DeliveryFee,
-            ServiceFee = command.ServiceFee,
-            Tax = command.Tax,
-            Tip = command.Tip,
-            Total = command.Total,
-            Currency = command.Currency,
-            SpecialInstructions = command.SpecialInstructions,
-            PlatformRawPayload = command.PlatformRawPayload,
+            Subtotal = order.Subtotal,
+            DeliveryFee = order.DeliveryFee,
+            ServiceFee = order.ServiceFee,
+            Tax = order.Tax,
+            Tip = order.Tip,
+            Total = order.Total,
+            Currency = order.Currency,
+            Discounts = order.Discounts?.Select(d => new ExternalOrderDiscountState
+            {
+                Type = d.Type,
+                Provider = d.Provider,
+                Name = d.Name,
+                Amount = d.Amount
+            }).ToList() ?? [],
+            Packaging = order.Packaging != null ? new PackagingPreferencesState
+            {
+                IncludeCutlery = order.Packaging.IncludeCutlery,
+                IsReusable = order.Packaging.IsReusable,
+                BagFee = order.Packaging.BagFee
+            } : null,
+            SpecialInstructions = order.SpecialInstructions,
+            PlatformRawPayload = order.PlatformRawPayload,
             Version = 1
         };
 
@@ -374,6 +407,21 @@ public class ExternalOrderGrain : Grain, IExternalOrderGrain
         await _state.WriteStateAsync();
     }
 
+    public async Task UpdateCourierAsync(CourierInfo courier)
+    {
+        EnsureInitialized();
+        _state.State.Courier = new CourierInfoState
+        {
+            FirstName = courier.FirstName,
+            LastName = courier.LastName,
+            PhoneNumber = courier.PhoneNumber,
+            Provider = courier.Provider,
+            Status = courier.Status
+        };
+        _state.State.Version++;
+        await _state.WriteStateAsync();
+    }
+
     private ExternalOrderSnapshot CreateSnapshot()
     {
         return new ExternalOrderSnapshot(
@@ -382,17 +430,33 @@ public class ExternalOrderGrain : Grain, IExternalOrderGrain
             DeliveryPlatformId: _state.State.DeliveryPlatformId,
             PlatformOrderId: _state.State.PlatformOrderId,
             PlatformOrderNumber: _state.State.PlatformOrderNumber,
+            ChannelDisplayId: _state.State.ChannelDisplayId,
             InternalOrderId: _state.State.InternalOrderId,
             Status: _state.State.Status,
             OrderType: _state.State.OrderType,
             PlacedAt: _state.State.PlacedAt,
+            ScheduledPickupAt: _state.State.ScheduledPickupAt,
+            ScheduledDeliveryAt: _state.State.ScheduledDeliveryAt,
+            IsAsapDelivery: _state.State.IsAsapDelivery,
             AcceptedAt: _state.State.AcceptedAt,
             EstimatedPickupAt: _state.State.EstimatedPickupAt,
             ActualPickupAt: _state.State.ActualPickupAt,
             Customer: new ExternalOrderCustomer(
                 Name: _state.State.Customer.Name,
                 Phone: _state.State.Customer.Phone,
-                DeliveryAddress: _state.State.Customer.DeliveryAddress),
+                Email: _state.State.Customer.Email,
+                DeliveryAddress: _state.State.Customer.DeliveryAddress != null ? new DeliveryAddress(
+                    Street: _state.State.Customer.DeliveryAddress.Street,
+                    PostalCode: _state.State.Customer.DeliveryAddress.PostalCode,
+                    City: _state.State.Customer.DeliveryAddress.City,
+                    Country: _state.State.Customer.DeliveryAddress.Country,
+                    ExtraAddressInfo: _state.State.Customer.DeliveryAddress.ExtraAddressInfo) : null),
+            Courier: _state.State.Courier != null ? new CourierInfo(
+                FirstName: _state.State.Courier.FirstName,
+                LastName: _state.State.Courier.LastName,
+                PhoneNumber: _state.State.Courier.PhoneNumber,
+                Provider: _state.State.Courier.Provider,
+                Status: _state.State.Courier.Status) : null,
             Items: _state.State.Items.Select(i => new ExternalOrderItem(
                 PlatformItemId: i.PlatformItemId,
                 InternalMenuItemId: i.InternalMenuItemId,
@@ -411,6 +475,15 @@ public class ExternalOrderGrain : Grain, IExternalOrderGrain
             Tip: _state.State.Tip,
             Total: _state.State.Total,
             Currency: _state.State.Currency,
+            Discounts: _state.State.Discounts.Select(d => new ExternalOrderDiscount(
+                Type: d.Type,
+                Provider: d.Provider,
+                Name: d.Name,
+                Amount: d.Amount)).ToList(),
+            Packaging: _state.State.Packaging != null ? new PackagingPreferences(
+                IncludeCutlery: _state.State.Packaging.IncludeCutlery,
+                IsReusable: _state.State.Packaging.IsReusable,
+                BagFee: _state.State.Packaging.BagFee) : null,
             SpecialInstructions: _state.State.SpecialInstructions,
             ErrorMessage: _state.State.ErrorMessage,
             RetryCount: _state.State.RetryCount);
@@ -566,7 +639,7 @@ public class PlatformPayoutGrain : Grain, IPlatformPayoutGrain
         _state = state;
     }
 
-    public async Task<PayoutSnapshot> CreateAsync(CreatePayoutCommand command)
+    public async Task<PayoutSnapshot> ReceiveAsync(PayoutReceived payout)
     {
         if (_state.State.PayoutId != Guid.Empty)
             throw new InvalidOperationException("Payout already exists");
@@ -580,16 +653,16 @@ public class PlatformPayoutGrain : Grain, IPlatformPayoutGrain
         {
             OrgId = orgId,
             PayoutId = payoutId,
-            DeliveryPlatformId = command.DeliveryPlatformId,
-            LocationId = command.LocationId,
-            PeriodStart = command.PeriodStart,
-            PeriodEnd = command.PeriodEnd,
-            GrossAmount = command.GrossAmount,
-            PlatformFees = command.PlatformFees,
-            NetAmount = command.NetAmount,
-            Currency = command.Currency,
+            DeliveryPlatformId = payout.DeliveryPlatformId,
+            LocationId = payout.LocationId,
+            PeriodStart = payout.PeriodStart,
+            PeriodEnd = payout.PeriodEnd,
+            GrossAmount = payout.GrossAmount,
+            PlatformFees = payout.PlatformFees,
+            NetAmount = payout.NetAmount,
+            Currency = payout.Currency,
             Status = PayoutStatus.Pending,
-            PayoutReference = command.PayoutReference,
+            PayoutReference = payout.PayoutReference,
             Version = 1
         };
 
