@@ -4,7 +4,7 @@ This file provides guidance for Claude Code when working with the DarkVelocity c
 
 ## Project Overview
 
-DarkVelocity is a complete restaurant and bar management solution built with .NET 10 and React. It provides everything hospitality businesses need: point of sale, kitchen display systems, table and floor management, reservations and bookings, inventory and procurement, customer loyalty, gift cards, staff scheduling, and back-office reporting.
+DarkVelocity is a hospitality operations platform built with .NET 10 and React. It unifies the systems that restaurants, bars, and hotels typically buy separately: point of sale, kitchen display, table management, reservations, inventory, procurement, customer loyalty, gift cards, staff scheduling, payroll, delivery platform integration, and back-office reporting.
 
 The backend uses Microsoft Orleans virtual actor framework for distributed state management with event sourcing patterns.
 
@@ -181,3 +181,56 @@ Kafka (dev): `localhost:9092` (Docker)
 - **Sales Period**: Daily business period for a site
 - **Order**: Captures items, modifiers, discounts, payments
 - **Kitchen Ticket**: Order items sent to kitchen display/printer
+
+## Grain Domains
+
+Orleans grains are organized by domain. Each grain is a stateful actor with identity.
+
+| Domain | Grains |
+|--------|--------|
+| **Orders** | Order, LineItems, KitchenTicket, KitchenStation |
+| **Payments** | Payment, PaymentIntent, PaymentMethod, CashDrawer, Refund, GiftCard |
+| **Payment Processors** | Merchant, Terminal, MockProcessor, StripeProcessor, AdyenProcessor |
+| **Customers** | Customer, CustomerSpendProjection, LoyaltyProgram |
+| **Inventory** | Inventory, Supplier, PurchaseOrder, PurchaseDocument, Delivery, VendorItemMapping |
+| **Menu** | MenuDefinition, MenuCategory, MenuItem, MenuItemVariation, ModifierBlock, ContentTag, SiteMenuOverrides, MenuContentResolver, MenuRegistry |
+| **Recipes** | Recipe, RecipeDocument, RecipeCategoryDocument, RecipeRegistry, IngredientPrice |
+| **Costing** | CostAlert, CostingSettings, AccountingGroup, MenuEngineering |
+| **Tables & Bookings** | Table, FloorPlan, Booking, BookingSettings, BookingCalendar, Waitlist, CustomerVisitHistory |
+| **Staff** | Employee, Role, Schedule, TimeEntry, TipPool, PayrollPeriod, EmployeeAvailability, ShiftSwap, TimeOff |
+| **Finance** | Account, Ledger, Expense, ExpenseIndex, TaxRate |
+| **External Channels** | Channel, ChannelRegistry, DeliveryPlatform, ExternalOrder, MenuSync, PlatformPayout, StatusMapping |
+| **Devices** | PosDevice, Device, DeviceAuth, DeviceStatus, Session, Printer, CashDrawerHardware |
+| **Reporting** | DailySales, DailyInventorySnapshot, DailyConsumption, DailyWaste, PeriodAggregation, SiteDashboard |
+| **Fiscal** | FiscalDevice, FiscalTransaction, FiscalJournal |
+| **Organization** | Organization, Site, User, UserGroup, UserLookup |
+| **System** | Alert, Notification, EmailInbox, Workflow, WebhookEndpoint, WebhookSubscription |
+
+## API Endpoint Groups
+
+All endpoints follow the pattern `/api/orgs/{orgId}/...` for tenant-scoped resources.
+
+| Group | Path | Purpose |
+|-------|------|---------|
+| **Auth** | `/api/auth`, `/api/oauth`, `/api/device` | PIN login, OAuth, device authentication |
+| **Organizations** | `/api/orgs` | Tenant management |
+| **Sites** | `/api/orgs/{orgId}/sites` | Venue configuration |
+| **Orders** | `.../sites/{siteId}/orders` | Order lifecycle, line items, discounts |
+| **Payments** | `.../sites/{siteId}/payments` | Cash, card, refunds, voids |
+| **Tables** | `.../sites/{siteId}/tables` | Table management |
+| **Menu** | `/api/orgs/{orgId}/menu` | Categories, items, modifiers |
+| **Menu CMS** | `/api/orgs/{orgId}/menu/cms` | Menu content management |
+| **Recipes** | `/api/orgs/{orgId}/recipes/cms` | Recipe management |
+| **Inventory** | `.../sites/{siteId}/inventory` | Stock, receiving, consumption |
+| **Purchases** | `.../sites/{siteId}/purchases` | Purchase orders |
+| **Bookings** | `.../sites/{siteId}/bookings` | Reservations |
+| **Availability** | `.../sites/{siteId}/availability` | Booking capacity |
+| **Waitlist** | `.../sites/{siteId}/waitlist` | Guest waitlist |
+| **Floor Plans** | `.../sites/{siteId}/floor-plans` | Floor layout |
+| **Customers** | `/api/orgs/{orgId}/customers` | Customer profiles |
+| **Employees** | `/api/orgs/{orgId}/employees` | Staff management |
+| **Expenses** | `.../sites/{siteId}/expenses` | Expense tracking |
+| **Channels** | `/api/orgs/{orgId}/channels` | Delivery platform integration |
+| **Webhooks** | `/api/orgs/{orgId}/webhooks` | Webhook management |
+| **Search** | `/api/orgs/{orgId}/search` | Cross-domain search |
+| **Devices** | `/api/devices`, `/api/stations` | Device registration |
