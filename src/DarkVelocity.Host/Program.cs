@@ -71,7 +71,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
    .WithTags("Health");
 
 // Orleans Dashboard at /dashboard
-app.MapOrleansDashboard();
+app.MapOrleansDashboard(routePrefix: "/dashboard");
 
 // Map all API endpoints
 app.MapOAuthEndpoints()

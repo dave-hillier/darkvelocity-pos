@@ -16,11 +16,11 @@ public static class PurchaseDocumentEndpoints
         group.MapPost("/", async (
             Guid orgId,
             Guid siteId,
-            [FromForm] IFormFile file,
+            IFormFile file,
             [FromQuery] PurchaseDocumentType? type,
             [FromQuery] DocumentSource? source,
-            [FromServices] IGrainFactory grainFactory,
-            [FromServices] IDocumentIntelligenceService documentService) =>
+            IGrainFactory grainFactory,
+            IDocumentIntelligenceService documentService) =>
         {
             if (file == null || file.Length == 0)
                 return Results.BadRequest(Hal.Error("invalid_file", "No file uploaded"));
