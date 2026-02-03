@@ -45,6 +45,7 @@ builder.Services
     .AddSearchServices(builder.Configuration)
     .AddPaymentGatewayServices()
     .AddMemoryCache()
+    .AddApiKeySeeder()
     .AddSingleton<IDocumentIntelligenceService, StubDocumentIntelligenceService>()
     .AddSingleton<IEmailIngestionService, StubEmailIngestionService>()
     .AddSingleton<IFuzzyMatchingService, FuzzyMatchingService>();
