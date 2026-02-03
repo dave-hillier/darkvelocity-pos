@@ -381,6 +381,7 @@ public class RecipeDocumentGrain : JournaledGrain<RecipeDocumentState, IRecipeDo
             DocumentId: State.DocumentId,
             OccurredAt: DateTimeOffset.UtcNow,
             PublishedVersion: State.DraftVersion.Value,
+            PreviousPublishedVersion: State.PublishedVersion,
             PublishedBy: publishedBy,
             Note: note
         ));
@@ -416,6 +417,7 @@ public class RecipeDocumentGrain : JournaledGrain<RecipeDocumentState, IRecipeDo
         RaiseEvent(new RecipeRevertedToVersion(
             DocumentId: State.DocumentId,
             OccurredAt: DateTimeOffset.UtcNow,
+            FromVersion: State.CurrentVersion,
             ToVersion: version,
             NewVersionNumber: newVersionNumber,
             RevertedBy: revertedBy,
@@ -1228,6 +1230,8 @@ public class RecipeCategoryDocumentGrain : JournaledGrain<RecipeCategoryDocument
 public class RecipeRegistryGrain : Grain, IRecipeRegistryGrain
 {
     private readonly IPersistentState<RecipeRegistryState> _state;
+
+    private RecipeRegistryState State => _state.State;
 
     public RecipeRegistryGrain(
         [PersistentState("recipeRegistry", "OrleansStorage")]
