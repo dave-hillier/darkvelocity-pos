@@ -45,6 +45,7 @@ builder.Services
     .AddSearchServices(builder.Configuration)
     .AddPaymentGatewayServices()
     .AddMemoryCache()
+    .AddApiKeySeeder()
     .AddSingleton<IDocumentIntelligenceService, StubDocumentIntelligenceService>()
     .AddSingleton<IEmailIngestionService, StubEmailIngestionService>()
     .AddSingleton<IFuzzyMatchingService, FuzzyMatchingService>();
@@ -76,6 +77,7 @@ app.MapOrleansDashboard(routePrefix: "/dashboard");
 // Map all API endpoints
 app.MapOAuthEndpoints()
    .MapAuthEndpoints()
+   .MapApiKeyEndpoints()
    .MapDeviceEndpoints()
    .MapOrganizationEndpoints()
    .MapSiteEndpoints()
