@@ -564,6 +564,501 @@ public class StockInventoryBddTests
     }
 
     // ============================================================================
+    // Feature: Unit Conversion
+    // As a bar manager
+    // I want to sell drinks in familiar units (pints, glasses)
+    // While tracking stock in metric (liters)
+    // ============================================================================
+
+    [Fact]
+    public async Task Given_StockInLiters_When_SaleInPints_Then_StockDecreasedByConvertedAmount()
+    {
+        // Given: 50 liters of draft lager tracked in metric
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "Pilsner Lager", "L");
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("KEG-001", 50m, 2.00m));
+
+        // When: 10 pints are sold (1 pint = 0.568 liters)
+        const decimal pintsToLiters = 0.568m;
+        var pintsOrdered = 10m;
+        var litersConsumed = pintsOrdered * pintsToLiters;
+
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), litersConsumed, Guid.NewGuid());
+
+        // Then: Stock decreased by 5.68 liters (50 - 5.68 = 44.32)
+        var levelInfo = await inventory.GetLevelInfoAsync();
+        levelInfo.QuantityAvailable.Should().BeApproximately(44.32m, 0.01m);
+    }
+
+    [Fact]
+    public async Task Given_StockInMilliliters_When_WineSoldByGlass_Then_CorrectConversion()
+    {
+        // Given: Wine tracked in ml (standard 750ml bottles = 750ml each)
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "House Merlot", "ml");
+
+        // 10 bottles received (7500ml total)
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("WINE-001", 7500m, 0.015m)); // per ml cost
+
+        // When: Various glass sizes sold throughout service
+        // 5 small glasses (125ml each)
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 5m * 125m, Guid.NewGuid());
+        // 8 medium glasses (175ml each)
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 8m * 175m, Guid.NewGuid());
+        // 3 large glasses (250ml each)
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 3m * 250m, Guid.NewGuid());
+
+        // Then: Stock reflects total ml consumed
+        // 7500 - (625 + 1400 + 750) = 7500 - 2775 = 4725ml
+        var levelInfo = await inventory.GetLevelInfoAsync();
+        levelInfo.QuantityAvailable.Should().Be(4725m);
+    }
+
+    [Fact]
+    public async Task Given_StockInKilograms_When_RecipeUsesGrams_Then_ConvertedCorrectly()
+    {
+        // Given: Flour tracked in kilograms
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "Bread Flour", "kg");
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("FLOUR-001", 25m, 1.20m)); // 25kg bag
+
+        // When: Recipes consume flour in grams
+        // Pizza dough uses 250g flour, make 20 pizzas
+        const decimal gramsToKg = 0.001m;
+        var gramsPerPizza = 250m;
+        var pizzasMade = 20m;
+        var kgConsumed = gramsPerPizza * pizzasMade * gramsToKg; // 5kg
+
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), kgConsumed, Guid.NewGuid());
+
+        // Then: Stock is 20kg (25 - 5)
+        var levelInfo = await inventory.GetLevelInfoAsync();
+        levelInfo.QuantityAvailable.Should().Be(20m);
+    }
+
+    [Fact]
+    public async Task Given_StockInLiters_When_CocktailUsesOunces_Then_ConvertedCorrectly()
+    {
+        // Given: Vodka tracked in liters
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "Premium Vodka", "L");
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("VODKA-001", 4.5m, 18.00m)); // 6x 750ml bottles
+
+        // When: Cocktails made with 1.5oz pours (standard shot)
+        const decimal ozToLiters = 0.0296m;
+        var ozPerDrink = 1.5m;
+        var drinksServed = 30m;
+        var litersConsumed = ozPerDrink * drinksServed * ozToLiters; // ~1.33L
+
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), litersConsumed, Guid.NewGuid());
+
+        // Then: Stock reflects converted consumption
+        var levelInfo = await inventory.GetLevelInfoAsync();
+        levelInfo.QuantityAvailable.Should().BeApproximately(4.5m - 1.332m, 0.01m);
+    }
+
+    [Fact]
+    public async Task Given_KegInLiters_When_HalfPintsAndPintsSold_Then_AccurateTracking()
+    {
+        // Given: A 50L keg of craft beer
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "IPA Craft Beer", "L");
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("KEG-IPA-001", 50m, 3.00m));
+
+        const decimal pintToLiters = 0.568m;
+        const decimal halfPintToLiters = 0.284m;
+
+        // When: Mixed service - some pints, some halves
+        // Evening service: 40 pints, 15 half pints
+        var pintsLiters = 40m * pintToLiters;      // 22.72L
+        var halvesLiters = 15m * halfPintToLiters; // 4.26L
+
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), pintsLiters, Guid.NewGuid());
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), halvesLiters, Guid.NewGuid());
+
+        // Then: Stock shows remaining beer
+        // 50 - 22.72 - 4.26 = 23.02L (about 40 more pints worth)
+        var levelInfo = await inventory.GetLevelInfoAsync();
+        levelInfo.QuantityAvailable.Should().BeApproximately(23.02m, 0.01m);
+    }
+
+    // ============================================================================
+    // Feature: Container and Packaging Units
+    // As a stocktaker
+    // I want to count in cases and loose bottles
+    // So that counting is fast and accurate
+    // ============================================================================
+
+    [Fact]
+    public async Task Given_StockInBottles_When_StockTakeRecordsCasesAndLooseBottles_Then_TotalCalculatedCorrectly()
+    {
+        // Given: Wine tracked in bottles, initial stock unknown/incorrect
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "Sauvignon Blanc", "bottles");
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("WINE-INIT", 100m, 8.00m));
+
+        // When: Stock take counts 3 cases (12 bottles each) + 7 loose bottles
+        const int bottlesPerCase = 12;
+        var cases = 3;
+        var looseBottles = 7;
+        var totalBottles = (cases * bottlesPerCase) + looseBottles; // 36 + 7 = 43
+
+        await inventory.AdjustQuantityAsync(
+            new AdjustQuantityCommand(totalBottles, "Stock take: 3 cases + 7 loose", Guid.NewGuid()));
+
+        // Then: Stock shows 43 bottles
+        var levelInfo = await inventory.GetLevelInfoAsync();
+        levelInfo.QuantityOnHand.Should().Be(43m);
+    }
+
+    [Fact]
+    public async Task Given_StockInCans_When_MixedPackagingCounted_Then_UnifiedTotal()
+    {
+        // Given: Soft drinks tracked by individual cans
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "Cola", "cans");
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("COLA-INIT", 200m, 0.50m));
+
+        // When: Stock take finds mixed packaging
+        // 2 full pallets (50 cases each, 24 cans per case)
+        // 3 partial cases with 18, 12, and 6 cans
+        // 5 loose cans
+        var palletCans = 2 * 50 * 24;           // 2400
+        var partialCaseCans = 18 + 12 + 6;      // 36
+        var looseCans = 5;
+        var totalCans = palletCans + partialCaseCans + looseCans; // 2441
+
+        await inventory.AdjustQuantityAsync(
+            new AdjustQuantityCommand(totalCans, "Stock take: 2 pallets + 3 partial cases + 5 loose", Guid.NewGuid()));
+
+        // Then: Stock unified to single can count
+        var levelInfo = await inventory.GetLevelInfoAsync();
+        levelInfo.QuantityOnHand.Should().Be(2441m);
+    }
+
+    [Fact]
+    public async Task Given_ReceivingInCases_When_SellingIndividually_Then_StockTrackedInBaseUnits()
+    {
+        // Given: Beer received as cases but tracked/sold as bottles
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "Craft Lager Bottles", "bottles");
+
+        // Receive 5 cases of 24 bottles
+        const int bottlesPerCase = 24;
+        var casesReceived = 5;
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand(
+            "LAGER-CASE-001",
+            casesReceived * bottlesPerCase, // 120 bottles
+            0.80m)); // cost per bottle
+
+        // When: Individual bottles sold throughout the day
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 6m, Guid.NewGuid());  // Table 1
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 4m, Guid.NewGuid());  // Table 2
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 12m, Guid.NewGuid()); // Party
+
+        // Then: Stock shows remaining bottles (120 - 6 - 4 - 12 = 98)
+        var levelInfo = await inventory.GetLevelInfoAsync();
+        levelInfo.QuantityAvailable.Should().Be(98m);
+    }
+
+    [Fact]
+    public async Task Given_KegAsContainer_When_ConvertedToPints_Then_YieldTracked()
+    {
+        // Given: Kegs tracked in liters, theoretical yield calculated
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "Session Ale", "L");
+
+        // 50L keg received - theoretical yield ~88 pints (50 / 0.568)
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("KEG-SESSION-001", 50m, 1.50m));
+
+        const decimal pintToLiters = 0.568m;
+
+        // When: Busy night - 80 pints sold
+        var pintsServed = 80m;
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), pintsServed * pintToLiters, Guid.NewGuid());
+
+        // Then: ~8 pints worth remaining (50 - 45.44 = 4.56L)
+        var levelInfo = await inventory.GetLevelInfoAsync();
+        levelInfo.QuantityAvailable.Should().BeApproximately(4.56m, 0.01m);
+    }
+
+    [Fact]
+    public async Task Given_ProduceByCase_When_SoldByPiece_Then_ConversionApplied()
+    {
+        // Given: Avocados received by case, sold individually
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "Hass Avocados", "pieces");
+
+        // Received 4 cases of 48 avocados each
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("AVO-001", 4 * 48, 0.75m)); // 192 avocados
+
+        // When: Used for various dishes
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 25m, Guid.NewGuid()); // Lunch guac
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 40m, Guid.NewGuid()); // Dinner service
+        await inventory.RecordWasteAsync(new RecordWasteCommand(8m, "Overripe", "Spoilage", Guid.NewGuid()));
+
+        // Then: 119 avocados remaining (192 - 25 - 40 - 8)
+        var levelInfo = await inventory.GetLevelInfoAsync();
+        levelInfo.QuantityAvailable.Should().Be(119m);
+    }
+
+    // ============================================================================
+    // Feature: Negative Stock (Overselling)
+    // As an operations manager
+    // I want the system to allow sales beyond recorded stock
+    // Because reality doesn't stop for inventory discrepancies
+    // ============================================================================
+
+    [Fact]
+    public async Task Given_LowStock_When_SalesExceedRecordedStock_Then_StockGoesNegative()
+    {
+        // Given: System shows 5 portions of special, but kitchen has unrecorded stock
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "Chef Special", "portions");
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("SPECIAL-001", 5m, 15.00m));
+
+        // Allow negative stock for this inventory item
+        await inventory.UpdateSettingsAsync(new UpdateInventorySettingsCommand(
+            ReorderPoint: 2m,
+            ParLevel: 20m,
+            AllowNegativeStock: true));
+
+        // When: Busy service sells 8 portions (3 more than recorded)
+        // Kitchen had extra stock from unrecorded transfer
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 8m, Guid.NewGuid());
+
+        // Then: Stock shows -3 (flagging discrepancy for investigation)
+        var levelInfo = await inventory.GetLevelInfoAsync();
+        levelInfo.QuantityAvailable.Should().Be(-3m);
+        levelInfo.Level.Should().Be(StockLevel.OutOfStock);
+    }
+
+    [Fact]
+    public async Task Given_ZeroStock_When_SaleOccurs_Then_NegativeStockRecorded()
+    {
+        // Given: Stock already at zero (perhaps already sold out according to system)
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "Lobster Tail", "pieces");
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("LOBSTER-001", 10m, 25.00m));
+
+        await inventory.UpdateSettingsAsync(new UpdateInventorySettingsCommand(
+            ReorderPoint: 2m,
+            ParLevel: 15m,
+            AllowNegativeStock: true));
+
+        // Sell all recorded stock
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 10m, Guid.NewGuid());
+
+        var zeroLevel = await inventory.GetLevelInfoAsync();
+        zeroLevel.QuantityAvailable.Should().Be(0m);
+
+        // When: Server finds 2 more lobsters in walk-in, sells them without recording receipt
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 2m, Guid.NewGuid());
+
+        // Then: Stock is -2, indicating unrecorded inventory was used
+        var negativeLevel = await inventory.GetLevelInfoAsync();
+        negativeLevel.QuantityAvailable.Should().Be(-2m);
+    }
+
+    [Fact]
+    public async Task Given_NegativeStock_When_DeliveryReceived_Then_StockBecomesPositive()
+    {
+        // Given: Stock is negative due to previous overselling
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "Ribeye Steak", "portions");
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("RIBEYE-001", 20m, 18.00m));
+
+        await inventory.UpdateSettingsAsync(new UpdateInventorySettingsCommand(
+            ReorderPoint: 5m,
+            ParLevel: 30m,
+            AllowNegativeStock: true));
+
+        // Oversell by 5 portions
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 25m, Guid.NewGuid());
+
+        var negativeLevel = await inventory.GetLevelInfoAsync();
+        negativeLevel.QuantityAvailable.Should().Be(-5m);
+
+        // When: New delivery arrives with 30 portions
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("RIBEYE-002", 30m, 19.00m));
+
+        // Then: Stock is now 25 (covers the deficit plus new stock)
+        var positiveLevel = await inventory.GetLevelInfoAsync();
+        positiveLevel.QuantityAvailable.Should().Be(25m);
+        positiveLevel.Level.Should().Be(StockLevel.Normal);
+    }
+
+    [Fact]
+    public async Task Given_NegativeStock_When_StockTakePerformed_Then_CanAdjustToActualCount()
+    {
+        // Given: Stock showing -10 due to unrecorded transfers during busy weekend
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "House Wine", "bottles");
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("WINE-001", 20m, 6.00m));
+
+        await inventory.UpdateSettingsAsync(new UpdateInventorySettingsCommand(
+            ReorderPoint: 10m,
+            ParLevel: 50m,
+            AllowNegativeStock: true));
+
+        // Heavy weekend sales exceeded recorded stock
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 30m, Guid.NewGuid());
+
+        var negativeLevel = await inventory.GetLevelInfoAsync();
+        negativeLevel.QuantityAvailable.Should().Be(-10m);
+
+        // When: Monday stock take reveals actual 15 bottles on shelf
+        // (Sister venue had transferred 25 bottles without recording)
+        await inventory.AdjustQuantityAsync(
+            new AdjustQuantityCommand(15m, "Stock take correction - unrecorded transfer from downtown", Guid.NewGuid()));
+
+        // Then: Stock corrected to actual count
+        var correctedLevel = await inventory.GetLevelInfoAsync();
+        correctedLevel.QuantityOnHand.Should().Be(15m);
+    }
+
+    [Fact]
+    public async Task Given_NegativeStock_When_MultipleSalesContinue_Then_NegativeIncreases()
+    {
+        // Given: Already negative stock during festival weekend
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "Festival Lager", "L");
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("FEST-001", 100m, 2.00m));
+
+        await inventory.UpdateSettingsAsync(new UpdateInventorySettingsCommand(
+            ReorderPoint: 20m,
+            ParLevel: 150m,
+            AllowNegativeStock: true));
+
+        // Already oversold by 20L
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 120m, Guid.NewGuid());
+
+        var initialNegative = await inventory.GetLevelInfoAsync();
+        initialNegative.QuantityAvailable.Should().Be(-20m);
+
+        // When: Service continues as backup kegs arrive (unrecorded)
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 50m, Guid.NewGuid());
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 30m, Guid.NewGuid());
+
+        // Then: Negative stock increases (more discrepancy to reconcile)
+        var deeperNegative = await inventory.GetLevelInfoAsync();
+        deeperNegative.QuantityAvailable.Should().Be(-100m); // -20 - 50 - 30
+    }
+
+    [Fact]
+    public async Task Given_NegativeStockDisabled_When_OversellAttempted_Then_SaleFails()
+    {
+        // Given: High-value item with strict inventory control
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "Dom Perignon", "bottles");
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("DOM-001", 6m, 180.00m));
+
+        // Negative stock NOT allowed (default behavior for controlled items)
+        await inventory.UpdateSettingsAsync(new UpdateInventorySettingsCommand(
+            ReorderPoint: 2m,
+            ParLevel: 12m,
+            AllowNegativeStock: false));
+
+        // When: Attempting to sell more than available
+        var act = () => inventory.ConsumeForOrderAsync(Guid.NewGuid(), 8m, Guid.NewGuid());
+
+        // Then: Sale fails - cannot oversell controlled inventory
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*Insufficient stock*");
+    }
+
+    [Fact]
+    public async Task Given_BusyServiceWithUnrecordedTransfer_When_ReconciliationDone_Then_VarianceCalculated()
+    {
+        // Given: Normal opening stock
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "Burger Patties", "pieces");
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("PATTY-001", 100m, 1.50m));
+
+        await inventory.UpdateSettingsAsync(new UpdateInventorySettingsCommand(
+            ReorderPoint: 20m,
+            ParLevel: 120m,
+            AllowNegativeStock: true));
+
+        // Busy Saturday - cooked 80 burgers per POS
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 80m, Guid.NewGuid());
+
+        // Kitchen ran out, got emergency transfer of 30 patties (unrecorded)
+        // Then cooked 40 more burgers
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(), 40m, Guid.NewGuid());
+
+        // Stock shows: 100 - 80 - 40 = -20 (but reality had 30 transferred in)
+        var endOfDayLevel = await inventory.GetLevelInfoAsync();
+        endOfDayLevel.QuantityAvailable.Should().Be(-20m);
+
+        // When: End of day count reveals 10 patties remaining
+        // This means: started 100 + transferred 30 - sold 120 = 10 actual
+        // System thought: started 100 - sold 120 = -20
+        // Variance = 30 (the unrecorded transfer)
+        var actualCount = 10m;
+        var systemCount = endOfDayLevel.QuantityAvailable;
+        var variance = actualCount - systemCount; // 10 - (-20) = 30
+
+        variance.Should().Be(30m); // Matches the unrecorded transfer
+
+        // Adjust to actual
+        await inventory.AdjustQuantityAsync(
+            new AdjustQuantityCommand(actualCount, $"End of day count. Variance: {variance} (unrecorded transfer suspected)", Guid.NewGuid()));
+
+        var reconciled = await inventory.GetLevelInfoAsync();
+        reconciled.QuantityOnHand.Should().Be(10m);
+    }
+
+    // ============================================================================
+    // Feature: Complex Real-World Scenario
+    // Combining unit conversion, containers, and negative stock
+    // ============================================================================
+
+    [Fact]
+    public async Task Given_BarOperations_When_MixedUnitsAndOverselling_Then_SystemTracksReality()
+    {
+        // Given: A busy cocktail bar tracking spirits in liters
+        var context = CreateTestContext();
+        var inventory = await CreateInventoryGrain(context, "Bourbon Whiskey", "L");
+
+        // Opening stock: 3 bottles (750ml each) = 2.25L
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("BOURBON-001", 2.25m, 28.00m));
+
+        await inventory.UpdateSettingsAsync(new UpdateInventorySettingsCommand(
+            ReorderPoint: 1m,
+            ParLevel: 5m,
+            AllowNegativeStock: true));
+
+        const decimal ozToLiters = 0.0296m;
+        const decimal standardPour = 1.5m; // 1.5 oz
+
+        // When: Friday night service
+        // Happy hour: 20 bourbon cocktails
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(),
+            20m * standardPour * ozToLiters, Guid.NewGuid()); // ~0.888L
+
+        // Dinner service: 15 more cocktails
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(),
+            15m * standardPour * ozToLiters, Guid.NewGuid()); // ~0.666L
+
+        // Late night: 25 more cocktails (bartender grabbed backup bottle from storage - unrecorded)
+        await inventory.ConsumeForOrderAsync(Guid.NewGuid(),
+            25m * standardPour * ozToLiters, Guid.NewGuid()); // ~1.11L
+
+        // Then: System shows negative (2.25 - 0.888 - 0.666 - 1.11 = -0.414L)
+        // Reality: 3 bottles + 1 unrecorded = 4 bottles (3L), consumed ~2.664L
+        var endOfNight = await inventory.GetLevelInfoAsync();
+        endOfNight.QuantityAvailable.Should().BeApproximately(-0.414m, 0.01m);
+
+        // Saturday morning: barback records the backup bottle
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("BOURBON-BACKUP", 0.75m, 28.00m));
+
+        // Stock now accurate: -0.414 + 0.75 = 0.336L (about 11 more shots)
+        var afterRecording = await inventory.GetLevelInfoAsync();
+        afterRecording.QuantityAvailable.Should().BeApproximately(0.336m, 0.01m);
+    }
+
+    // ============================================================================
     // Helper Methods - BDD-style Given/When builders
     // ============================================================================
 
