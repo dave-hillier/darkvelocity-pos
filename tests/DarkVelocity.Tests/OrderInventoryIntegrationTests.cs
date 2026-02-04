@@ -346,6 +346,107 @@ public class OrderInventoryIntegrationTests
         orderState.Status.Should().Be(OrderStatus.Voided);
     }
 
+    [Fact]
+    public async Task Inventory_ReverseOrderConsumption_ShouldRestoreAllMovementsForOrder()
+    {
+        // Arrange
+        var (inventory, _) = await CreateInventoryWithStockAsync(100m);
+        var orderId = Guid.NewGuid();
+        var performedBy = Guid.NewGuid();
+
+        // Consume multiple times for the same order
+        await inventory.ConsumeForOrderAsync(orderId, 10m, performedBy);
+        await inventory.ConsumeForOrderAsync(orderId, 15m, performedBy);
+
+        var levelAfterConsumption = await inventory.GetLevelInfoAsync();
+        levelAfterConsumption.QuantityAvailable.Should().Be(75m); // 100 - 10 - 15
+
+        // Act
+        var reversedCount = await inventory.ReverseOrderConsumptionAsync(orderId, "Order voided", performedBy);
+
+        // Assert
+        reversedCount.Should().Be(2);
+
+        var levelAfterReversal = await inventory.GetLevelInfoAsync();
+        levelAfterReversal.QuantityAvailable.Should().Be(100m);
+    }
+
+    [Fact]
+    public async Task Inventory_ReverseOrderConsumption_WhenNoMovements_ShouldReturnZero()
+    {
+        // Arrange
+        var (inventory, _) = await CreateInventoryWithStockAsync(100m);
+        var nonExistentOrderId = Guid.NewGuid();
+
+        // Act
+        var reversedCount = await inventory.ReverseOrderConsumptionAsync(
+            nonExistentOrderId, "Order voided", Guid.NewGuid());
+
+        // Assert
+        reversedCount.Should().Be(0);
+
+        var levelInfo = await inventory.GetLevelInfoAsync();
+        levelInfo.QuantityAvailable.Should().Be(100m);
+    }
+
+    [Fact]
+    public async Task Order_VoidWithReverseInventory_ShouldPassFlagInEvent()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+
+        var orderId = Guid.NewGuid();
+        var order = _fixture.Cluster.GrainFactory.GetGrain<IOrderGrain>(
+            GrainKeys.Order(orgId, siteId, orderId));
+
+        await order.CreateAsync(new CreateOrderCommand(orgId, siteId, Guid.NewGuid(), OrderType.DineIn, GuestCount: 1));
+        await order.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Burger", 2, 10.00m));
+
+        // Act - Void with ReverseInventory=true
+        await order.VoidAsync(new VoidOrderCommand(Guid.NewGuid(), "Customer cancelled", ReverseInventory: true));
+
+        // Assert
+        var orderState = await order.GetStateAsync();
+        orderState.Status.Should().Be(OrderStatus.Voided);
+        orderState.VoidReason.Should().Be("Customer cancelled");
+    }
+
+    [Fact]
+    public async Task Order_VoidWithoutReverseInventory_ShouldNotReverseStock()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+        var ingredientId = Guid.NewGuid();
+
+        var inventory = await CreateInventoryAsync(orgId, siteId, ingredientId);
+        await inventory.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH-001", 100m, 2.00m));
+
+        var orderId = Guid.NewGuid();
+        var order = _fixture.Cluster.GrainFactory.GetGrain<IOrderGrain>(
+            GrainKeys.Order(orgId, siteId, orderId));
+
+        await order.CreateAsync(new CreateOrderCommand(orgId, siteId, Guid.NewGuid(), OrderType.DineIn, GuestCount: 1));
+        await order.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Burger", 1, 10.00m));
+
+        // Simulate inventory consumption (as would happen when order completes)
+        await inventory.ConsumeForOrderAsync(orderId, 5m, Guid.NewGuid());
+
+        var levelAfterOrder = await inventory.GetLevelInfoAsync();
+        levelAfterOrder.QuantityAvailable.Should().Be(95m);
+
+        // Act - Void WITHOUT ReverseInventory (default is false)
+        await order.VoidAsync(new VoidOrderCommand(Guid.NewGuid(), "Dropped food"));
+
+        // Assert - inventory should NOT be reversed
+        var levelAfterVoid = await inventory.GetLevelInfoAsync();
+        levelAfterVoid.QuantityAvailable.Should().Be(95m); // Still deducted
+
+        var orderState = await order.GetStateAsync();
+        orderState.Status.Should().Be(OrderStatus.Voided);
+    }
+
     // ============================================================================
     // Waste Recording Tests
     // ============================================================================

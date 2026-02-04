@@ -707,8 +707,25 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderEvent>, IOrderGrain
 
         await ConfirmEvents();
 
+        // Build line snapshots for inventory reversal if requested
+        IReadOnlyList<OrderLineSnapshot>? lineSnapshots = null;
+        if (command.ReverseInventory)
+        {
+            lineSnapshots = State.Lines
+                .Where(l => l.Status != OrderLineStatus.Voided)
+                .Select(l => new OrderLineSnapshot(
+                    l.Id,
+                    l.MenuItemId,
+                    l.Name,
+                    l.Quantity,
+                    l.UnitPrice,
+                    l.LineTotal,
+                    null))
+                .ToList();
+        }
+
         // Publish order voided event - single source of truth
-        // Downstream subscribers (Sales, Loyalty) react to this event
+        // Downstream subscribers (Sales, Loyalty, Inventory) react to this event
         if (OrderStream != null)
         {
             await OrderStream.OnNextAsync(new OrderVoidedEvent(
@@ -719,7 +736,9 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderEvent>, IOrderGrain
                 command.Reason,
                 command.VoidedBy,
                 businessDate,
-                State.CustomerId)
+                State.CustomerId,
+                command.ReverseInventory,
+                lineSnapshots)
             {
                 OrganizationId = State.OrganizationId
             });

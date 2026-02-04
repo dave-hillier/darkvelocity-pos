@@ -166,21 +166,66 @@ public class InventoryConsumptionSubscriberGrain : Grain, IGrainWithStringKey, I
 
     private async Task HandleOrderVoidedAsync(OrderVoidedEvent evt)
     {
+        if (!evt.ReverseInventory)
+        {
+            _logger.LogInformation(
+                "Order {OrderId} voided without inventory reversal (ReverseInventory=false)",
+                evt.OrderId);
+            return;
+        }
+
+        if (evt.Lines == null || evt.Lines.Count == 0)
+        {
+            _logger.LogInformation(
+                "Order {OrderId} voided with inventory reversal requested but no lines provided",
+                evt.OrderId);
+            return;
+        }
+
         _logger.LogInformation(
-            "Inventory consumption reversal for order {OrderId} - this requires movement lookup",
-            evt.OrderId);
+            "Processing inventory reversal for voided order {OrderNumber} with {LineCount} line items",
+            evt.OrderNumber,
+            evt.Lines.Count);
 
-        // In a full implementation:
-        // 1. Look up the original consumption movements for this order
-        //    (would require an order-to-movements index or querying all inventory grains)
-        // 2. Call ReverseConsumptionAsync for each movement
-        // For now, log and acknowledge
+        var reversedCount = 0;
 
-        _logger.LogWarning(
-            "Inventory reversal for order {OrderId} not fully implemented - requires movement tracking",
-            evt.OrderId);
+        foreach (var line in evt.Lines)
+        {
+            // Route to the appropriate InventoryGrain based on site and product ID
+            var ingredientKey = GrainKeys.Inventory(evt.OrganizationId, evt.SiteId, line.ProductId);
+            var inventoryGrain = GrainFactory.GetGrain<IInventoryGrain>(ingredientKey);
 
-        await Task.CompletedTask;
+            try
+            {
+                var movementsReversed = await inventoryGrain.ReverseOrderConsumptionAsync(
+                    evt.OrderId,
+                    evt.Reason,
+                    evt.VoidedByUserId);
+
+                if (movementsReversed > 0)
+                {
+                    _logger.LogInformation(
+                        "Reversed {MovementCount} consumption movements for {ProductName} on voided order {OrderNumber}",
+                        movementsReversed,
+                        line.ProductName,
+                        evt.OrderNumber);
+                    reversedCount += movementsReversed;
+                }
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("does not exist") || ex.Message.Contains("not initialized"))
+            {
+                // Inventory not set up for this item - skip
+                _logger.LogDebug(
+                    "No inventory tracking for {ProductName} ({ProductId}) - skipping reversal",
+                    line.ProductName,
+                    line.ProductId);
+            }
+        }
+
+        _logger.LogInformation(
+            "Completed inventory reversal for order {OrderNumber}: {ReversedCount} movements reversed",
+            evt.OrderNumber,
+            reversedCount);
     }
 
     private async Task PublishStockAlertAsync(OrderCompletedEvent evt, OrderLineSnapshot line)

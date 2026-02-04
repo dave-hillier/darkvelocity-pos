@@ -39,7 +39,10 @@ public record ApplyDiscountCommand(
     [property: Id(6)] Guid? ApprovedBy = null);
 
 [GenerateSerializer]
-public record VoidOrderCommand([property: Id(0)] Guid VoidedBy, [property: Id(1)] string Reason);
+public record VoidOrderCommand(
+    [property: Id(0)] Guid VoidedBy,
+    [property: Id(1)] string Reason,
+    [property: Id(2)] bool ReverseInventory = false);
 [GenerateSerializer]
 public record VoidLineCommand([property: Id(0)] Guid LineId, [property: Id(1)] Guid VoidedBy, [property: Id(2)] string Reason);
 

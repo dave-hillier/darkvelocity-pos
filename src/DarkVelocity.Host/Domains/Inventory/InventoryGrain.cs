@@ -569,6 +569,63 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryEvent>, I
         RecordMovement(MovementType.Adjustment, reversedQuantity, movement.UnitCost, $"Reversal: {reason}", batchId, reversedBy);
     }
 
+    public async Task<int> ReverseOrderConsumptionAsync(Guid orderId, string reason, Guid reversedBy)
+    {
+        EnsureExists();
+
+        // Find all consumption movements for this order
+        var orderMovements = State.RecentMovements
+            .Where(m => m.ReferenceId == orderId && m.Type == MovementType.Consumption)
+            .ToList();
+
+        if (orderMovements.Count == 0)
+        {
+            return 0;
+        }
+
+        var totalReversedQuantity = 0m;
+        var totalCost = 0m;
+
+        foreach (var movement in orderMovements)
+        {
+            var reversedQuantity = Math.Abs(movement.Quantity);
+            totalReversedQuantity += reversedQuantity;
+            totalCost += movement.TotalCost;
+
+            // Credit ledger for reversed quantity
+            await Ledger.CreditAsync(
+                reversedQuantity,
+                "order_void_reversal",
+                $"Order void reversal: {reason}",
+                new Dictionary<string, string>
+                {
+                    ["originalMovementId"] = movement.Id.ToString(),
+                    ["orderId"] = orderId.ToString(),
+                    ["reversedBy"] = reversedBy.ToString()
+                });
+        }
+
+        // Raise a single adjustment event for the total reversal
+        RaiseEvent(new StockAdjusted
+        {
+            IngredientId = State.IngredientId,
+            PreviousQuantity = State.QuantityOnHand,
+            NewQuantity = State.QuantityOnHand + totalReversedQuantity,
+            Variance = totalReversedQuantity,
+            Reason = $"Order void reversal: {reason}",
+            AdjustedBy = reversedBy,
+            OccurredAt = DateTime.UtcNow
+        });
+        await ConfirmEvents();
+
+        // Record a single movement for the reversal
+        var batchId = State.Batches.LastOrDefault()?.Id;
+        var avgUnitCost = totalReversedQuantity > 0 ? totalCost / totalReversedQuantity : State.WeightedAverageCost;
+        RecordMovement(MovementType.Adjustment, totalReversedQuantity, avgUnitCost, $"Order void reversal: {reason}", batchId, reversedBy, orderId);
+
+        return orderMovements.Count;
+    }
+
     public async Task RecordWasteAsync(RecordWasteCommand command)
     {
         EnsureExists();

@@ -274,7 +274,7 @@ public sealed record KitchenLineItem(
 
 /// <summary>
 /// Published when an order is voided.
-/// Subscribers: Sales (aggregation), Kitchen (ticket cancellation).
+/// Subscribers: Sales (aggregation), Kitchen (ticket cancellation), Inventory (optional reversal).
 /// </summary>
 [GenerateSerializer]
 public sealed record OrderVoidedEvent(
@@ -285,7 +285,9 @@ public sealed record OrderVoidedEvent(
     [property: Id(4)] string Reason,
     [property: Id(5)] Guid VoidedByUserId,
     [property: Id(6)] DateOnly? BusinessDate = null,
-    [property: Id(7)] Guid? CustomerId = null
+    [property: Id(7)] Guid? CustomerId = null,
+    [property: Id(8)] bool ReverseInventory = false,
+    [property: Id(9)] IReadOnlyList<OrderLineSnapshot>? Lines = null
 ) : StreamEvent;
 
 /// <summary>
