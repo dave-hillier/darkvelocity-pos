@@ -107,6 +107,7 @@ public interface IInventoryGrain : IGrainWithStringKey
     Task<ConsumptionResult> ConsumeAsync(ConsumeStockCommand command);
     Task<ConsumptionResult> ConsumeForOrderAsync(Guid orderId, decimal quantity, Guid? performedBy);
     Task ReverseConsumptionAsync(Guid movementId, string reason, Guid reversedBy);
+    Task<int> ReverseOrderConsumptionAsync(Guid orderId, string reason, Guid reversedBy);
 
     // Waste & Adjustments
     Task RecordWasteAsync(RecordWasteCommand command);
