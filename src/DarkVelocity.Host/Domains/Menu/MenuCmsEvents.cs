@@ -50,6 +50,30 @@ public interface ISiteMenuOverridesEvent
 }
 
 // ============================================================================
+// Nutrition Info Data (for event sourcing)
+// ============================================================================
+
+/// <summary>
+/// Nutrition information data transfer object for events.
+/// </summary>
+[GenerateSerializer]
+public sealed record NutritionInfoData(
+    [property: Id(0)] decimal? Calories,
+    [property: Id(1)] decimal? CaloriesFromFat,
+    [property: Id(2)] decimal? TotalFatGrams,
+    [property: Id(3)] decimal? SaturatedFatGrams,
+    [property: Id(4)] decimal? TransFatGrams,
+    [property: Id(5)] decimal? CholesterolMg,
+    [property: Id(6)] decimal? SodiumMg,
+    [property: Id(7)] decimal? TotalCarbohydratesGrams,
+    [property: Id(8)] decimal? DietaryFiberGrams,
+    [property: Id(9)] decimal? SugarsGrams,
+    [property: Id(10)] decimal? ProteinGrams,
+    [property: Id(11)] string? ServingSize,
+    [property: Id(12)] decimal? ServingSizeGrams
+);
+
+// ============================================================================
 // Menu Item Document Domain Events (for JournaledGrain)
 // ============================================================================
 
@@ -72,7 +96,9 @@ public sealed record MenuItemDocumentInitialized(
     [property: Id(11)] bool TrackInventory,
     [property: Id(12)] string Locale,
     [property: Id(13)] Guid? CreatedBy,
-    [property: Id(14)] bool PublishImmediately
+    [property: Id(14)] bool PublishImmediately,
+    [property: Id(15)] NutritionInfoData? Nutrition = null,
+    [property: Id(16)] List<string>? TagIds = null
 ) : IMenuItemDocumentEvent;
 
 /// <summary>
@@ -95,7 +121,8 @@ public sealed record MenuItemDraftVersionCreated(
     [property: Id(12)] string? Sku,
     [property: Id(13)] bool? TrackInventory,
     [property: Id(14)] List<string>? ModifierBlockIds,
-    [property: Id(15)] List<string>? TagIds
+    [property: Id(15)] List<string>? TagIds,
+    [property: Id(16)] NutritionInfoData? Nutrition = null
 ) : IMenuItemDocumentEvent;
 
 /// <summary>

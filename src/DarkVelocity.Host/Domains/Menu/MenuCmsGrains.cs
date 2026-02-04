@@ -51,7 +51,9 @@ public class MenuItemDocumentGrain : JournaledGrain<MenuItemDocumentState, IMenu
                     AccountingGroupId = e.AccountingGroupId,
                     RecipeId = e.RecipeId,
                     Sku = e.Sku,
-                    TrackInventory = e.TrackInventory
+                    TrackInventory = e.TrackInventory,
+                    TagIds = e.TagIds?.ToList() ?? [],
+                    Nutrition = ToNutritionInfo(e.Nutrition)
                 });
                 break;
 
@@ -85,7 +87,8 @@ public class MenuItemDocumentGrain : JournaledGrain<MenuItemDocumentState, IMenu
                     TagIds = e.TagIds ?? [.. baseVersion.TagIds],
                     Sku = e.Sku ?? baseVersion.Sku,
                     TrackInventory = e.TrackInventory ?? baseVersion.TrackInventory,
-                    DisplayOrder = baseVersion.DisplayOrder
+                    DisplayOrder = baseVersion.DisplayOrder,
+                    Nutrition = e.Nutrition != null ? ToNutritionInfo(e.Nutrition) : CloneNutrition(baseVersion.Nutrition)
                 };
                 if (e.Name != null)
                     newVersion.Content.Translations[newVersion.Content.DefaultLocale].Name = e.Name;
@@ -130,7 +133,8 @@ public class MenuItemDocumentGrain : JournaledGrain<MenuItemDocumentState, IMenu
                     TagIds = [.. targetVersion.TagIds],
                     Sku = targetVersion.Sku,
                     TrackInventory = targetVersion.TrackInventory,
-                    DisplayOrder = targetVersion.DisplayOrder
+                    DisplayOrder = targetVersion.DisplayOrder,
+                    Nutrition = CloneNutrition(targetVersion.Nutrition)
                 };
                 state.Versions.Add(revertedVersion);
                 state.CurrentVersion = e.NewVersionNumber;
@@ -210,7 +214,9 @@ public class MenuItemDocumentGrain : JournaledGrain<MenuItemDocumentState, IMenu
             TrackInventory: command.TrackInventory,
             Locale: command.Locale,
             CreatedBy: command.CreatedBy,
-            PublishImmediately: command.PublishImmediately
+            PublishImmediately: command.PublishImmediately,
+            Nutrition: command.Nutrition,
+            TagIds: command.TagIds?.ToList()
         ));
 
         await ConfirmEvents();
@@ -244,7 +250,8 @@ public class MenuItemDocumentGrain : JournaledGrain<MenuItemDocumentState, IMenu
             Sku: command.Sku,
             TrackInventory: command.TrackInventory,
             ModifierBlockIds: command.ModifierBlockIds?.ToList(),
-            TagIds: command.TagIds?.ToList()
+            TagIds: command.TagIds?.ToList(),
+            Nutrition: command.Nutrition
         ));
 
         await ConfirmEvents();
@@ -556,7 +563,69 @@ public class MenuItemDocumentGrain : JournaledGrain<MenuItemDocumentState, IMenu
             TagIds: v.TagIds,
             Translations: v.Content.Translations.ToDictionary(
                 kvp => kvp.Key,
-                kvp => kvp.Value));
+                kvp => kvp.Value),
+            Nutrition: ToNutritionInfoData(v.Nutrition));
+    }
+
+    private static NutritionInfo? ToNutritionInfo(NutritionInfoData? data)
+    {
+        if (data == null) return null;
+        return new NutritionInfo
+        {
+            Calories = data.Calories,
+            CaloriesFromFat = data.CaloriesFromFat,
+            TotalFatGrams = data.TotalFatGrams,
+            SaturatedFatGrams = data.SaturatedFatGrams,
+            TransFatGrams = data.TransFatGrams,
+            CholesterolMg = data.CholesterolMg,
+            SodiumMg = data.SodiumMg,
+            TotalCarbohydratesGrams = data.TotalCarbohydratesGrams,
+            DietaryFiberGrams = data.DietaryFiberGrams,
+            SugarsGrams = data.SugarsGrams,
+            ProteinGrams = data.ProteinGrams,
+            ServingSize = data.ServingSize,
+            ServingSizeGrams = data.ServingSizeGrams
+        };
+    }
+
+    private static NutritionInfoData? ToNutritionInfoData(NutritionInfo? info)
+    {
+        if (info == null) return null;
+        return new NutritionInfoData(
+            Calories: info.Calories,
+            CaloriesFromFat: info.CaloriesFromFat,
+            TotalFatGrams: info.TotalFatGrams,
+            SaturatedFatGrams: info.SaturatedFatGrams,
+            TransFatGrams: info.TransFatGrams,
+            CholesterolMg: info.CholesterolMg,
+            SodiumMg: info.SodiumMg,
+            TotalCarbohydratesGrams: info.TotalCarbohydratesGrams,
+            DietaryFiberGrams: info.DietaryFiberGrams,
+            SugarsGrams: info.SugarsGrams,
+            ProteinGrams: info.ProteinGrams,
+            ServingSize: info.ServingSize,
+            ServingSizeGrams: info.ServingSizeGrams);
+    }
+
+    private static NutritionInfo? CloneNutrition(NutritionInfo? source)
+    {
+        if (source == null) return null;
+        return new NutritionInfo
+        {
+            Calories = source.Calories,
+            CaloriesFromFat = source.CaloriesFromFat,
+            TotalFatGrams = source.TotalFatGrams,
+            SaturatedFatGrams = source.SaturatedFatGrams,
+            TransFatGrams = source.TransFatGrams,
+            CholesterolMg = source.CholesterolMg,
+            SodiumMg = source.SodiumMg,
+            TotalCarbohydratesGrams = source.TotalCarbohydratesGrams,
+            DietaryFiberGrams = source.DietaryFiberGrams,
+            SugarsGrams = source.SugarsGrams,
+            ProteinGrams = source.ProteinGrams,
+            ServingSize = source.ServingSize,
+            ServingSizeGrams = source.ServingSizeGrams
+        };
     }
 
     private static LocalizedContent CloneContent(LocalizedContent source)
