@@ -1297,7 +1297,15 @@ public class RecipeRegistryGrain : Grain, IRecipeRegistryGrain
         _state = state;
     }
 
-    public async Task RegisterRecipeAsync(string documentId, string name, decimal costPerPortion, string? categoryId, int linkedMenuItemCount = 0)
+    public async Task RegisterRecipeAsync(
+        string documentId,
+        string name,
+        decimal costPerPortion,
+        string? categoryId,
+        int linkedMenuItemCount = 0,
+        RecipeType recipeType = RecipeType.MadeToOrder,
+        Guid? outputInventoryItemId = null,
+        int? shelfLifeHours = null)
     {
         await EnsureInitializedAsync();
 
@@ -1311,13 +1319,26 @@ public class RecipeRegistryGrain : Grain, IRecipeRegistryGrain
             IsArchived = false,
             PublishedVersion = 1,
             LastModified = DateTimeOffset.UtcNow,
-            LinkedMenuItemCount = linkedMenuItemCount
+            LinkedMenuItemCount = linkedMenuItemCount,
+            RecipeType = recipeType,
+            OutputInventoryItemId = outputInventoryItemId,
+            ShelfLifeHours = shelfLifeHours
         };
 
         await _state.WriteStateAsync();
     }
 
-    public async Task UpdateRecipeAsync(string documentId, string name, decimal costPerPortion, string? categoryId, bool hasDraft, bool isArchived, int linkedMenuItemCount)
+    public async Task UpdateRecipeAsync(
+        string documentId,
+        string name,
+        decimal costPerPortion,
+        string? categoryId,
+        bool hasDraft,
+        bool isArchived,
+        int linkedMenuItemCount,
+        RecipeType recipeType = RecipeType.MadeToOrder,
+        Guid? outputInventoryItemId = null,
+        int? shelfLifeHours = null)
     {
         await EnsureInitializedAsync();
 
@@ -1330,6 +1351,9 @@ public class RecipeRegistryGrain : Grain, IRecipeRegistryGrain
             entry.IsArchived = isArchived;
             entry.LastModified = DateTimeOffset.UtcNow;
             entry.LinkedMenuItemCount = linkedMenuItemCount;
+            entry.RecipeType = recipeType;
+            entry.OutputInventoryItemId = outputInventoryItemId;
+            entry.ShelfLifeHours = shelfLifeHours;
             await _state.WriteStateAsync();
         }
     }
@@ -1341,11 +1365,15 @@ public class RecipeRegistryGrain : Grain, IRecipeRegistryGrain
         await _state.WriteStateAsync();
     }
 
-    public Task<IReadOnlyList<RecipeDocumentSummary>> GetRecipesAsync(string? categoryId = null, bool includeArchived = false)
+    public Task<IReadOnlyList<RecipeDocumentSummary>> GetRecipesAsync(
+        string? categoryId = null,
+        bool includeArchived = false,
+        RecipeType? filterByType = null)
     {
         var recipes = State.Recipes.Values
             .Where(r => includeArchived || !r.IsArchived)
             .Where(r => categoryId == null || r.CategoryId == categoryId)
+            .Where(r => filterByType == null || r.RecipeType == filterByType)
             .OrderBy(r => r.Name)
             .Select(r => new RecipeDocumentSummary(
                 DocumentId: r.DocumentId,
@@ -1356,7 +1384,10 @@ public class RecipeRegistryGrain : Grain, IRecipeRegistryGrain
                 IsArchived: r.IsArchived,
                 PublishedVersion: r.PublishedVersion,
                 LastModified: r.LastModified,
-                LinkedMenuItemCount: r.LinkedMenuItemCount))
+                LinkedMenuItemCount: r.LinkedMenuItemCount,
+                RecipeType: r.RecipeType,
+                OutputInventoryItemId: r.OutputInventoryItemId,
+                ShelfLifeHours: r.ShelfLifeHours))
             .ToList();
 
         return Task.FromResult<IReadOnlyList<RecipeDocumentSummary>>(recipes);
@@ -1425,12 +1456,13 @@ public class RecipeRegistryGrain : Grain, IRecipeRegistryGrain
         return Task.FromResult<IReadOnlyList<RecipeCategoryDocumentSummary>>(categories);
     }
 
-    public Task<IReadOnlyList<RecipeDocumentSummary>> SearchRecipesAsync(string query, int take = 20)
+    public Task<IReadOnlyList<RecipeDocumentSummary>> SearchRecipesAsync(string query, int take = 20, RecipeType? filterByType = null)
     {
         var lowerQuery = query.ToLowerInvariant();
         var recipes = State.Recipes.Values
             .Where(r => !r.IsArchived)
             .Where(r => r.Name.ToLowerInvariant().Contains(lowerQuery))
+            .Where(r => filterByType == null || r.RecipeType == filterByType)
             .Take(take)
             .Select(r => new RecipeDocumentSummary(
                 DocumentId: r.DocumentId,
@@ -1441,7 +1473,58 @@ public class RecipeRegistryGrain : Grain, IRecipeRegistryGrain
                 IsArchived: r.IsArchived,
                 PublishedVersion: r.PublishedVersion,
                 LastModified: r.LastModified,
-                LinkedMenuItemCount: r.LinkedMenuItemCount))
+                LinkedMenuItemCount: r.LinkedMenuItemCount,
+                RecipeType: r.RecipeType,
+                OutputInventoryItemId: r.OutputInventoryItemId,
+                ShelfLifeHours: r.ShelfLifeHours))
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<RecipeDocumentSummary>>(recipes);
+    }
+
+    public Task<IReadOnlyList<RecipeDocumentSummary>> GetBatchPrepRecipesAsync(bool includeArchived = false)
+    {
+        var recipes = State.Recipes.Values
+            .Where(r => includeArchived || !r.IsArchived)
+            .Where(r => r.RecipeType == RecipeType.BatchPrep)
+            .OrderBy(r => r.Name)
+            .Select(r => new RecipeDocumentSummary(
+                DocumentId: r.DocumentId,
+                Name: r.Name,
+                CostPerPortion: r.CostPerPortion,
+                CategoryId: r.CategoryId,
+                HasDraft: r.HasDraft,
+                IsArchived: r.IsArchived,
+                PublishedVersion: r.PublishedVersion,
+                LastModified: r.LastModified,
+                LinkedMenuItemCount: r.LinkedMenuItemCount,
+                RecipeType: r.RecipeType,
+                OutputInventoryItemId: r.OutputInventoryItemId,
+                ShelfLifeHours: r.ShelfLifeHours))
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<RecipeDocumentSummary>>(recipes);
+    }
+
+    public Task<IReadOnlyList<RecipeDocumentSummary>> GetRecipesByOutputItemAsync(Guid outputInventoryItemId)
+    {
+        var recipes = State.Recipes.Values
+            .Where(r => !r.IsArchived)
+            .Where(r => r.OutputInventoryItemId == outputInventoryItemId)
+            .OrderBy(r => r.Name)
+            .Select(r => new RecipeDocumentSummary(
+                DocumentId: r.DocumentId,
+                Name: r.Name,
+                CostPerPortion: r.CostPerPortion,
+                CategoryId: r.CategoryId,
+                HasDraft: r.HasDraft,
+                IsArchived: r.IsArchived,
+                PublishedVersion: r.PublishedVersion,
+                LastModified: r.LastModified,
+                LinkedMenuItemCount: r.LinkedMenuItemCount,
+                RecipeType: r.RecipeType,
+                OutputInventoryItemId: r.OutputInventoryItemId,
+                ShelfLifeHours: r.ShelfLifeHours))
             .ToList();
 
         return Task.FromResult<IReadOnlyList<RecipeDocumentSummary>>(recipes);
