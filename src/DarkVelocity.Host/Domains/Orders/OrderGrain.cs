@@ -75,7 +75,9 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderEvent>, IOrderGrain
                     Status = OrderLineStatus.Pending,
                     CreatedAt = e.OccurredAt,
                     TaxRate = e.TaxRate,
-                    TaxAmount = e.TaxAmount
+                    TaxAmount = e.TaxAmount,
+                    IsBundle = e.IsBundle,
+                    BundleComponents = e.BundleComponents
                 });
                 state.RecalculateTotals();
                 state.UpdatedAt = e.OccurredAt;
@@ -368,6 +370,10 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderEvent>, IOrderGrain
         var modifierTotal = command.Modifiers?.Sum(m => m.Price * m.Quantity) ?? 0;
         lineTotal += modifierTotal;
 
+        // Add bundle component price adjustments (e.g., upgrade fees)
+        var bundleComponentTotal = command.BundleComponents?.Sum(c => c.PriceAdjustment * c.Quantity) ?? 0;
+        lineTotal += bundleComponentTotal;
+
         // Calculate tax amount for this line (tax rate is a percentage, e.g., 10.0 for 10%)
         var taxAmount = lineTotal * (command.TaxRate / 100m);
         var now = DateTime.UtcNow;
@@ -385,7 +391,9 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderEvent>, IOrderGrain
             Modifiers = command.Modifiers ?? [],
             OccurredAt = now,
             TaxRate = command.TaxRate,
-            TaxAmount = taxAmount
+            TaxAmount = taxAmount,
+            IsBundle = command.IsBundle,
+            BundleComponents = command.BundleComponents ?? []
         });
 
         await ConfirmEvents();

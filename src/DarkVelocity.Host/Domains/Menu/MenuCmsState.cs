@@ -132,6 +132,78 @@ public sealed class ScheduledChange
 }
 
 // ============================================================================
+// Bundle Component Definitions
+// ============================================================================
+
+/// <summary>
+/// Selection rule for bundle component slots (what the customer can choose).
+/// </summary>
+public enum BundleComponentSelectionRule
+{
+    /// <summary>Fixed component - automatically included, no choice.</summary>
+    Fixed,
+    /// <summary>Customer must choose exactly one item from options.</summary>
+    ChooseOne,
+    /// <summary>Customer can choose multiple items from options.</summary>
+    ChooseMany,
+    /// <summary>Customer must choose between min and max items.</summary>
+    ChooseRange
+}
+
+/// <summary>
+/// An item option within a bundle component slot.
+/// </summary>
+[GenerateSerializer]
+public sealed class BundleComponentOption
+{
+    /// <summary>Reference to the menu item document that can be selected.</summary>
+    [Id(0)] public string ItemDocumentId { get; set; } = string.Empty;
+
+    /// <summary>Price adjustment when this option is selected (can be negative for included, positive for upgrades).</summary>
+    [Id(1)] public decimal PriceAdjustment { get; set; }
+
+    /// <summary>Whether this option is the default selection.</summary>
+    [Id(2)] public bool IsDefault { get; set; }
+
+    /// <summary>Display order within the slot.</summary>
+    [Id(3)] public int DisplayOrder { get; set; }
+
+    /// <summary>Maximum quantity of this option that can be selected (for ChooseMany).</summary>
+    [Id(4)] public int MaxQuantity { get; set; } = 1;
+}
+
+/// <summary>
+/// A component slot within a bundle (e.g., "Choose your side", "Choose your drink").
+/// </summary>
+[GenerateSerializer]
+public sealed class BundleComponentSlot
+{
+    /// <summary>Unique identifier for this slot.</summary>
+    [Id(0)] public string SlotId { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Localized content for the slot (name, description).</summary>
+    [Id(1)] public LocalizedContent Content { get; set; } = new();
+
+    /// <summary>How the customer selects items in this slot.</summary>
+    [Id(2)] public BundleComponentSelectionRule SelectionRule { get; set; } = BundleComponentSelectionRule.Fixed;
+
+    /// <summary>Minimum selections required (for ChooseRange).</summary>
+    [Id(3)] public int MinSelections { get; set; }
+
+    /// <summary>Maximum selections allowed (for ChooseMany/ChooseRange).</summary>
+    [Id(4)] public int MaxSelections { get; set; } = 1;
+
+    /// <summary>Whether this slot must have a selection to complete the bundle.</summary>
+    [Id(5)] public bool IsRequired { get; set; } = true;
+
+    /// <summary>Available item options for this slot.</summary>
+    [Id(6)] public List<BundleComponentOption> Options { get; set; } = [];
+
+    /// <summary>Display order of this slot.</summary>
+    [Id(7)] public int DisplayOrder { get; set; }
+}
+
+// ============================================================================
 // Menu Item Document State
 // ============================================================================
 
@@ -165,6 +237,13 @@ public sealed class MenuItemVersionState
 
     // Nutrition
     [Id(15)] public NutritionInfo? Nutrition { get; set; }
+
+    // Bundle configuration
+    /// <summary>Whether this menu item is a bundle/combo containing other items.</summary>
+    [Id(16)] public bool IsBundle { get; set; }
+
+    /// <summary>Component slots for bundles (e.g., main, side, drink).</summary>
+    [Id(17)] public List<BundleComponentSlot> BundleComponents { get; set; } = [];
 }
 
 /// <summary>
@@ -489,6 +568,10 @@ public sealed class ResolvedMenuItem
     [Id(15)] public int DisplayOrder { get; set; }
     [Id(16)] public NutritionInfo? Nutrition { get; set; }
 
+    // Bundle support
+    [Id(17)] public bool IsBundle { get; set; }
+    [Id(18)] public List<ResolvedBundleComponentSlot> BundleComponents { get; set; } = [];
+
     /// <summary>
     /// Convenience property: allergen tags filtered from all tags.
     /// </summary>
@@ -498,6 +581,38 @@ public sealed class ResolvedMenuItem
     /// Convenience property: dietary tags filtered from all tags.
     /// </summary>
     public IEnumerable<ResolvedContentTag> DietaryInfo => Tags.Where(t => t.Category == TagCategory.Dietary);
+}
+
+/// <summary>
+/// A resolved bundle component option ready for consumption.
+/// </summary>
+[GenerateSerializer]
+public sealed class ResolvedBundleComponentOption
+{
+    [Id(0)] public string ItemDocumentId { get; set; } = string.Empty;
+    [Id(1)] public string Name { get; set; } = string.Empty;
+    [Id(2)] public decimal PriceAdjustment { get; set; }
+    [Id(3)] public bool IsDefault { get; set; }
+    [Id(4)] public int DisplayOrder { get; set; }
+    [Id(5)] public int MaxQuantity { get; set; } = 1;
+    [Id(6)] public decimal BasePrice { get; set; }
+}
+
+/// <summary>
+/// A resolved bundle component slot ready for consumption.
+/// </summary>
+[GenerateSerializer]
+public sealed class ResolvedBundleComponentSlot
+{
+    [Id(0)] public string SlotId { get; set; } = string.Empty;
+    [Id(1)] public string Name { get; set; } = string.Empty;
+    [Id(2)] public string? Description { get; set; }
+    [Id(3)] public BundleComponentSelectionRule SelectionRule { get; set; }
+    [Id(4)] public int MinSelections { get; set; }
+    [Id(5)] public int MaxSelections { get; set; }
+    [Id(6)] public bool IsRequired { get; set; }
+    [Id(7)] public List<ResolvedBundleComponentOption> Options { get; set; } = [];
+    [Id(8)] public int DisplayOrder { get; set; }
 }
 
 /// <summary>

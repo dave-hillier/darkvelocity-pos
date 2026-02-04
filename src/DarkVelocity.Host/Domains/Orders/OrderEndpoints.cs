@@ -1,6 +1,7 @@
 using DarkVelocity.Host.Authorization;
 using DarkVelocity.Host.Contracts;
 using DarkVelocity.Host.Grains;
+using DarkVelocity.Host.State;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DarkVelocity.Host.Endpoints;
@@ -65,8 +66,21 @@ public static class OrderEndpoints
             if (!await grain.ExistsAsync())
                 return Results.NotFound(Hal.Error("not_found", "Order not found"));
 
+            // Convert BundleComponentRequest to OrderLineBundleComponent
+            var bundleComponents = request.BundleComponents?.Select(c => new OrderLineBundleComponent
+            {
+                SlotId = c.SlotId,
+                SlotName = c.SlotName,
+                ItemDocumentId = c.ItemDocumentId,
+                ItemName = c.ItemName,
+                Quantity = c.Quantity,
+                PriceAdjustment = c.PriceAdjustment,
+                Modifiers = c.Modifiers ?? []
+            }).ToList();
+
             var result = await grain.AddLineAsync(new AddLineCommand(
-                request.MenuItemId, request.Name, request.Quantity, request.UnitPrice, request.Notes, request.Modifiers, request.TaxRate));
+                request.MenuItemId, request.Name, request.Quantity, request.UnitPrice, request.Notes, request.Modifiers, request.TaxRate,
+                request.IsBundle, bundleComponents));
 
             return Results.Created($"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/lines/{result.LineId}",
                 Hal.Resource(result, new Dictionary<string, object>

@@ -10,6 +10,18 @@ public record CreateOrderRequest(
     Guid? CustomerId = null,
     int GuestCount = 1);
 
+/// <summary>
+/// Request to add a bundle component selection.
+/// </summary>
+public record BundleComponentRequest(
+    string SlotId,
+    string SlotName,
+    string ItemDocumentId,
+    string ItemName,
+    int Quantity = 1,
+    decimal PriceAdjustment = 0,
+    List<OrderLineModifier>? Modifiers = null);
+
 public record AddLineRequest(
     Guid MenuItemId,
     string Name,
@@ -22,7 +34,15 @@ public record AddLineRequest(
     /// Should be set based on order type and menu item's contextual tax rates.
     /// Defaults to 0 (no tax) if not specified.
     /// </summary>
-    decimal TaxRate = 0);
+    decimal TaxRate = 0,
+    /// <summary>
+    /// Whether this line is a bundle/combo item.
+    /// </summary>
+    bool IsBundle = false,
+    /// <summary>
+    /// Selected components for bundle items.
+    /// </summary>
+    List<BundleComponentRequest>? BundleComponents = null);
 
 public record SendOrderRequest(Guid SentBy);
 public record CloseOrderRequest(Guid ClosedBy);
