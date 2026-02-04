@@ -46,6 +46,17 @@ public record OrderLine
     /// Varies by order type (dine-in, takeout, delivery) and item category.
     /// </summary>
     [Id(18)] public decimal TaxRate { get; init; }
+
+    /// <summary>
+    /// Whether this line is a bundle/combo item.
+    /// </summary>
+    [Id(19)] public bool IsBundle { get; init; }
+
+    /// <summary>
+    /// Selected components for bundle items (e.g., side, drink choices).
+    /// Empty for non-bundle items.
+    /// </summary>
+    [Id(20)] public List<OrderLineBundleComponent> BundleComponents { get; init; } = [];
 }
 
 public enum OrderLineStatus
@@ -65,6 +76,35 @@ public record OrderLineModifier
     [Id(1)] public string Name { get; init; } = string.Empty;
     [Id(2)] public decimal Price { get; init; }
     [Id(3)] public int Quantity { get; init; }
+}
+
+/// <summary>
+/// A selected component within a bundle order line.
+/// Tracks which item was chosen for a bundle slot.
+/// </summary>
+[GenerateSerializer]
+public record OrderLineBundleComponent
+{
+    /// <summary>The slot ID from the bundle definition.</summary>
+    [Id(0)] public string SlotId { get; init; } = string.Empty;
+
+    /// <summary>The slot name (e.g., "Choose your side").</summary>
+    [Id(1)] public string SlotName { get; init; } = string.Empty;
+
+    /// <summary>The selected menu item document ID.</summary>
+    [Id(2)] public string ItemDocumentId { get; init; } = string.Empty;
+
+    /// <summary>The selected item name.</summary>
+    [Id(3)] public string ItemName { get; init; } = string.Empty;
+
+    /// <summary>Quantity of this component selected.</summary>
+    [Id(4)] public int Quantity { get; init; } = 1;
+
+    /// <summary>Price adjustment for this selection (e.g., upgrade fee).</summary>
+    [Id(5)] public decimal PriceAdjustment { get; init; }
+
+    /// <summary>Modifiers applied to this specific component.</summary>
+    [Id(6)] public List<OrderLineModifier> Modifiers { get; init; } = [];
 }
 
 [GenerateSerializer]

@@ -49,6 +49,16 @@ public sealed record OrderLineAdded : IOrderEvent
     /// Calculated tax amount for this line.
     /// </summary>
     [Id(11)] public decimal TaxAmount { get; init; }
+
+    /// <summary>
+    /// Whether this line is a bundle/combo item.
+    /// </summary>
+    [Id(12)] public bool IsBundle { get; init; }
+
+    /// <summary>
+    /// Selected components for bundle items.
+    /// </summary>
+    [Id(13)] public List<OrderLineBundleComponent> BundleComponents { get; init; } = [];
 }
 
 [GenerateSerializer]

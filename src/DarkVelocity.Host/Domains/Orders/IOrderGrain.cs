@@ -26,7 +26,16 @@ public record AddLineCommand(
     /// Should be set based on order type and menu item's contextual tax rates.
     /// Defaults to 0 (no tax) if not specified.
     /// </summary>
-    [property: Id(6)] decimal TaxRate = 0);
+    [property: Id(6)] decimal TaxRate = 0,
+    /// <summary>
+    /// Whether this line is a bundle/combo item.
+    /// </summary>
+    [property: Id(7)] bool IsBundle = false,
+    /// <summary>
+    /// Selected components for bundle items (e.g., chosen side, drink).
+    /// Required for bundle items; ignored for regular items.
+    /// </summary>
+    [property: Id(8)] List<OrderLineBundleComponent>? BundleComponents = null);
 
 [GenerateSerializer]
 public record UpdateLineCommand(
