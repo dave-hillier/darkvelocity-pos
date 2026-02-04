@@ -7,6 +7,25 @@ namespace DarkVelocity.Host.Contracts;
 // ============================================================================
 
 /// <summary>
+/// Nutrition information request for creating/updating menu items.
+/// All values are per serving.
+/// </summary>
+public record NutritionInfoRequest(
+    decimal? Calories = null,
+    decimal? CaloriesFromFat = null,
+    decimal? TotalFatGrams = null,
+    decimal? SaturatedFatGrams = null,
+    decimal? TransFatGrams = null,
+    decimal? CholesterolMg = null,
+    decimal? SodiumMg = null,
+    decimal? TotalCarbohydratesGrams = null,
+    decimal? DietaryFiberGrams = null,
+    decimal? SugarsGrams = null,
+    decimal? ProteinGrams = null,
+    string? ServingSize = null,
+    decimal? ServingSizeGrams = null);
+
+/// <summary>
 /// Request to create a new menu item document.
 /// </summary>
 public record CreateMenuItemDocumentRequest(
@@ -20,7 +39,9 @@ public record CreateMenuItemDocumentRequest(
     string? Sku = null,
     bool TrackInventory = false,
     string Locale = "en-US",
-    bool PublishImmediately = false);
+    bool PublishImmediately = false,
+    NutritionInfoRequest? Nutrition = null,
+    IReadOnlyList<string>? TagIds = null);
 
 /// <summary>
 /// Request to create a draft of a menu item document.
@@ -37,7 +58,8 @@ public record CreateMenuItemDraftRequest(
     bool? TrackInventory = null,
     IReadOnlyList<string>? ModifierBlockIds = null,
     IReadOnlyList<string>? TagIds = null,
-    string? ChangeNote = null);
+    string? ChangeNote = null,
+    NutritionInfoRequest? Nutrition = null);
 
 /// <summary>
 /// Request to add a localized translation.
@@ -252,6 +274,24 @@ public record MenuItemDocumentResponse(
     int TotalVersions);
 
 /// <summary>
+/// Nutrition information response.
+/// </summary>
+public record NutritionInfoResponse(
+    decimal? Calories,
+    decimal? CaloriesFromFat,
+    decimal? TotalFatGrams,
+    decimal? SaturatedFatGrams,
+    decimal? TransFatGrams,
+    decimal? CholesterolMg,
+    decimal? SodiumMg,
+    decimal? TotalCarbohydratesGrams,
+    decimal? DietaryFiberGrams,
+    decimal? SugarsGrams,
+    decimal? ProteinGrams,
+    string? ServingSize,
+    decimal? ServingSizeGrams);
+
+/// <summary>
 /// Response containing a menu item version.
 /// </summary>
 public record MenuItemVersionResponse(
@@ -269,7 +309,8 @@ public record MenuItemVersionResponse(
     string? Sku,
     bool TrackInventory,
     IReadOnlyList<string> ModifierBlockIds,
-    IReadOnlyList<string> TagIds);
+    IReadOnlyList<string> TagIds,
+    NutritionInfoResponse? Nutrition);
 
 /// <summary>
 /// Response containing a scheduled change.
@@ -452,7 +493,10 @@ public record ResolvedMenuItemResponse(
     DateTimeOffset? SnoozedUntil,
     bool IsAvailable,
     string? Sku,
-    int DisplayOrder);
+    int DisplayOrder,
+    NutritionInfoResponse? Nutrition,
+    IReadOnlyList<ResolvedContentTagResponse> Allergens,
+    IReadOnlyList<ResolvedContentTagResponse> DietaryInfo);
 
 /// <summary>
 /// Response containing a resolved modifier block.

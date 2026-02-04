@@ -36,7 +36,9 @@ public static class MenuCmsEndpoints
                 TrackInventory: request.TrackInventory,
                 Locale: request.Locale,
                 CreatedBy: userId,
-                PublishImmediately: request.PublishImmediately);
+                PublishImmediately: request.PublishImmediately,
+                Nutrition: ToNutritionInfoData(request.Nutrition),
+                TagIds: request.TagIds);
 
             var result = await grain.CreateAsync(command);
 
@@ -122,7 +124,8 @@ public static class MenuCmsEndpoints
                 ModifierBlockIds: request.ModifierBlockIds,
                 TagIds: request.TagIds,
                 ChangeNote: request.ChangeNote,
-                CreatedBy: userId);
+                CreatedBy: userId,
+                Nutrition: ToNutritionInfoData(request.Nutrition));
 
             var result = await grain.CreateDraftAsync(command);
 
@@ -894,7 +897,8 @@ public static class MenuCmsEndpoints
         Sku: v.Sku,
         TrackInventory: v.TrackInventory,
         ModifierBlockIds: v.ModifierBlockIds,
-        TagIds: v.TagIds);
+        TagIds: v.TagIds,
+        Nutrition: ToNutritionInfoResponse(v.Nutrition));
 
     private static ScheduledChangeResponse ToScheduleResponse(ScheduledChange s) => new(
         ScheduleId: s.ScheduleId,
@@ -1046,6 +1050,76 @@ public static class MenuCmsEndpoints
             SnoozedUntil: i.SnoozedUntil,
             IsAvailable: i.IsAvailable,
             Sku: i.Sku,
-            DisplayOrder: i.DisplayOrder)).ToList(),
+            DisplayOrder: i.DisplayOrder,
+            Nutrition: ToNutritionInfoResponse(i.Nutrition),
+            Allergens: i.Allergens.Select(t => new ResolvedContentTagResponse(
+                TagId: t.TagId,
+                Name: t.Name,
+                Category: t.Category,
+                IconUrl: t.IconUrl,
+                BadgeColor: t.BadgeColor)).ToList(),
+            DietaryInfo: i.DietaryInfo.Select(t => new ResolvedContentTagResponse(
+                TagId: t.TagId,
+                Name: t.Name,
+                Category: t.Category,
+                IconUrl: t.IconUrl,
+                BadgeColor: t.BadgeColor)).ToList())).ToList(),
         ETag: menu.ETag);
+
+    private static NutritionInfoData? ToNutritionInfoData(NutritionInfoRequest? request)
+    {
+        if (request == null) return null;
+        return new NutritionInfoData(
+            Calories: request.Calories,
+            CaloriesFromFat: request.CaloriesFromFat,
+            TotalFatGrams: request.TotalFatGrams,
+            SaturatedFatGrams: request.SaturatedFatGrams,
+            TransFatGrams: request.TransFatGrams,
+            CholesterolMg: request.CholesterolMg,
+            SodiumMg: request.SodiumMg,
+            TotalCarbohydratesGrams: request.TotalCarbohydratesGrams,
+            DietaryFiberGrams: request.DietaryFiberGrams,
+            SugarsGrams: request.SugarsGrams,
+            ProteinGrams: request.ProteinGrams,
+            ServingSize: request.ServingSize,
+            ServingSizeGrams: request.ServingSizeGrams);
+    }
+
+    private static NutritionInfoResponse? ToNutritionInfoResponse(NutritionInfoData? data)
+    {
+        if (data == null) return null;
+        return new NutritionInfoResponse(
+            Calories: data.Calories,
+            CaloriesFromFat: data.CaloriesFromFat,
+            TotalFatGrams: data.TotalFatGrams,
+            SaturatedFatGrams: data.SaturatedFatGrams,
+            TransFatGrams: data.TransFatGrams,
+            CholesterolMg: data.CholesterolMg,
+            SodiumMg: data.SodiumMg,
+            TotalCarbohydratesGrams: data.TotalCarbohydratesGrams,
+            DietaryFiberGrams: data.DietaryFiberGrams,
+            SugarsGrams: data.SugarsGrams,
+            ProteinGrams: data.ProteinGrams,
+            ServingSize: data.ServingSize,
+            ServingSizeGrams: data.ServingSizeGrams);
+    }
+
+    private static NutritionInfoResponse? ToNutritionInfoResponse(NutritionInfo? info)
+    {
+        if (info == null) return null;
+        return new NutritionInfoResponse(
+            Calories: info.Calories,
+            CaloriesFromFat: info.CaloriesFromFat,
+            TotalFatGrams: info.TotalFatGrams,
+            SaturatedFatGrams: info.SaturatedFatGrams,
+            TransFatGrams: info.TransFatGrams,
+            CholesterolMg: info.CholesterolMg,
+            SodiumMg: info.SodiumMg,
+            TotalCarbohydratesGrams: info.TotalCarbohydratesGrams,
+            DietaryFiberGrams: info.DietaryFiberGrams,
+            SugarsGrams: info.SugarsGrams,
+            ProteinGrams: info.ProteinGrams,
+            ServingSize: info.ServingSize,
+            ServingSizeGrams: info.ServingSizeGrams);
+    }
 }

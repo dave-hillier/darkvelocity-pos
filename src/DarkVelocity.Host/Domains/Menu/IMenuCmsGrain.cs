@@ -23,7 +23,9 @@ public record CreateMenuItemDocumentCommand(
     [property: Id(8)] bool TrackInventory = false,
     [property: Id(9)] string Locale = "en-US",
     [property: Id(10)] Guid? CreatedBy = null,
-    [property: Id(11)] bool PublishImmediately = false);
+    [property: Id(11)] bool PublishImmediately = false,
+    [property: Id(12)] NutritionInfoData? Nutrition = null,
+    [property: Id(13)] IReadOnlyList<string>? TagIds = null);
 
 /// <summary>
 /// Command to create a draft version of a menu item document.
@@ -42,7 +44,8 @@ public record CreateMenuItemDraftCommand(
     [property: Id(9)] IReadOnlyList<string>? ModifierBlockIds = null,
     [property: Id(10)] IReadOnlyList<string>? TagIds = null,
     [property: Id(11)] string? ChangeNote = null,
-    [property: Id(12)] Guid? CreatedBy = null);
+    [property: Id(12)] Guid? CreatedBy = null,
+    [property: Id(13)] NutritionInfoData? Nutrition = null);
 
 /// <summary>
 /// Command to add a localized translation to a menu item.
@@ -74,7 +77,8 @@ public record MenuItemVersionSnapshot(
     [property: Id(12)] bool TrackInventory,
     [property: Id(13)] IReadOnlyList<string> ModifierBlockIds,
     [property: Id(14)] IReadOnlyList<string> TagIds,
-    [property: Id(15)] IReadOnlyDictionary<string, LocalizedStrings> Translations);
+    [property: Id(15)] IReadOnlyDictionary<string, LocalizedStrings> Translations,
+    [property: Id(16)] NutritionInfoData? Nutrition = null);
 
 /// <summary>
 /// Snapshot of a menu item document with full metadata.

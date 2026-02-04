@@ -61,6 +61,27 @@ public sealed class MediaInfo
 }
 
 /// <summary>
+/// Nutrition information for a menu item (per serving).
+/// </summary>
+[GenerateSerializer]
+public sealed class NutritionInfo
+{
+    [Id(0)] public decimal? Calories { get; set; }
+    [Id(1)] public decimal? CaloriesFromFat { get; set; }
+    [Id(2)] public decimal? TotalFatGrams { get; set; }
+    [Id(3)] public decimal? SaturatedFatGrams { get; set; }
+    [Id(4)] public decimal? TransFatGrams { get; set; }
+    [Id(5)] public decimal? CholesterolMg { get; set; }
+    [Id(6)] public decimal? SodiumMg { get; set; }
+    [Id(7)] public decimal? TotalCarbohydratesGrams { get; set; }
+    [Id(8)] public decimal? DietaryFiberGrams { get; set; }
+    [Id(9)] public decimal? SugarsGrams { get; set; }
+    [Id(10)] public decimal? ProteinGrams { get; set; }
+    [Id(11)] public string? ServingSize { get; set; }
+    [Id(12)] public decimal? ServingSizeGrams { get; set; }
+}
+
+/// <summary>
 /// Audit entry for tracking changes to documents.
 /// </summary>
 [GenerateSerializer]
@@ -141,6 +162,9 @@ public sealed class MenuItemVersionState
     [Id(12)] public string? Sku { get; set; }
     [Id(13)] public bool TrackInventory { get; set; }
     [Id(14)] public int DisplayOrder { get; set; }
+
+    // Nutrition
+    [Id(15)] public NutritionInfo? Nutrition { get; set; }
 }
 
 /// <summary>
@@ -463,6 +487,17 @@ public sealed class ResolvedMenuItem
     [Id(13)] public bool IsAvailable { get; set; } = true;
     [Id(14)] public string? Sku { get; set; }
     [Id(15)] public int DisplayOrder { get; set; }
+    [Id(16)] public NutritionInfo? Nutrition { get; set; }
+
+    /// <summary>
+    /// Convenience property: allergen tags filtered from all tags.
+    /// </summary>
+    public IEnumerable<ResolvedContentTag> Allergens => Tags.Where(t => t.Category == TagCategory.Allergen);
+
+    /// <summary>
+    /// Convenience property: dietary tags filtered from all tags.
+    /// </summary>
+    public IEnumerable<ResolvedContentTag> DietaryInfo => Tags.Where(t => t.Category == TagCategory.Dietary);
 }
 
 /// <summary>

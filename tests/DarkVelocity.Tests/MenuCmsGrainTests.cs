@@ -1,4 +1,5 @@
 using DarkVelocity.Host;
+using DarkVelocity.Host.Events;
 using DarkVelocity.Host.Grains;
 using DarkVelocity.Host.State;
 using FluentAssertions;
@@ -353,6 +354,108 @@ public class MenuItemDocumentGrainTests
         // Assert
         previewNow!.Name.Should().Be("Future"); // Current published is version 2
         previewFuture!.Name.Should().Be("Future"); // Scheduled version 2
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithNutritionInfo_ShouldStoreNutrition()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var documentId = Guid.NewGuid().ToString();
+        var grain = GetGrain(orgId, documentId);
+
+        var nutrition = new NutritionInfoData(
+            Calories: 450,
+            CaloriesFromFat: 180,
+            TotalFatGrams: 20,
+            SaturatedFatGrams: 8,
+            TransFatGrams: 0,
+            CholesterolMg: 75,
+            SodiumMg: 980,
+            TotalCarbohydratesGrams: 35,
+            DietaryFiberGrams: 3,
+            SugarsGrams: 6,
+            ProteinGrams: 28,
+            ServingSize: "1 burger (250g)",
+            ServingSizeGrams: 250);
+
+        // Act
+        var result = await grain.CreateAsync(new CreateMenuItemDocumentCommand(
+            Name: "Classic Burger",
+            Price: 14.99m,
+            Description: "Angus beef patty with lettuce, tomato, and our special sauce",
+            Nutrition: nutrition,
+            PublishImmediately: true));
+
+        // Assert
+        result.Published.Should().NotBeNull();
+        result.Published!.Nutrition.Should().NotBeNull();
+        result.Published.Nutrition!.Calories.Should().Be(450);
+        result.Published.Nutrition.ProteinGrams.Should().Be(28);
+        result.Published.Nutrition.ServingSize.Should().Be("1 burger (250g)");
+    }
+
+    [Fact]
+    public async Task CreateDraftAsync_WithNutritionInfo_ShouldUpdateNutrition()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var documentId = Guid.NewGuid().ToString();
+        var grain = GetGrain(orgId, documentId);
+
+        var initialNutrition = new NutritionInfoData(
+            Calories: 300, CaloriesFromFat: null, TotalFatGrams: 12,
+            SaturatedFatGrams: null, TransFatGrams: null, CholesterolMg: null,
+            SodiumMg: 500, TotalCarbohydratesGrams: 30, DietaryFiberGrams: null,
+            SugarsGrams: null, ProteinGrams: 20, ServingSize: null, ServingSizeGrams: null);
+
+        await grain.CreateAsync(new CreateMenuItemDocumentCommand(
+            Name: "Grilled Chicken",
+            Price: 12.99m,
+            Nutrition: initialNutrition,
+            PublishImmediately: true));
+
+        var updatedNutrition = new NutritionInfoData(
+            Calories: 280, CaloriesFromFat: 70, TotalFatGrams: 8,
+            SaturatedFatGrams: 2, TransFatGrams: 0, CholesterolMg: 85,
+            SodiumMg: 450, TotalCarbohydratesGrams: 25, DietaryFiberGrams: 2,
+            SugarsGrams: 3, ProteinGrams: 32, ServingSize: "1 breast (170g)", ServingSizeGrams: 170);
+
+        // Act
+        var draft = await grain.CreateDraftAsync(new CreateMenuItemDraftCommand(
+            Name: "Grilled Chicken Breast",
+            Nutrition: updatedNutrition,
+            ChangeNote: "Updated nutrition info with complete values"));
+
+        // Assert
+        draft.Nutrition.Should().NotBeNull();
+        draft.Nutrition!.Calories.Should().Be(280);
+        draft.Nutrition.ProteinGrams.Should().Be(32);
+        draft.Nutrition.ServingSize.Should().Be("1 breast (170g)");
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithTagIds_ShouldStoreTags()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var documentId = Guid.NewGuid().ToString();
+        var grain = GetGrain(orgId, documentId);
+
+        var tagIds = new List<string> { "tag-gluten-free", "tag-vegetarian" };
+
+        // Act
+        var result = await grain.CreateAsync(new CreateMenuItemDocumentCommand(
+            Name: "Garden Salad",
+            Price: 9.99m,
+            TagIds: tagIds,
+            PublishImmediately: true));
+
+        // Assert
+        result.Published.Should().NotBeNull();
+        result.Published!.TagIds.Should().HaveCount(2);
+        result.Published.TagIds.Should().Contain("tag-gluten-free");
+        result.Published.TagIds.Should().Contain("tag-vegetarian");
     }
 }
 
