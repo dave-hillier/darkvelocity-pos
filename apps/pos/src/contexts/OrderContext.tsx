@@ -26,6 +26,16 @@ interface OrderContextValue extends OrderState {
   sendOrder: () => void
   sendOrderAsync: () => Promise<void>
   voidOrderAsync: (reason: string) => Promise<void>
+  // Hold/Fire workflow functions
+  holdItemsAsync: (lineIds: string[], reason?: string) => Promise<void>
+  releaseItemsAsync: (lineIds: string[]) => Promise<void>
+  setItemCourseAsync: (lineIds: string[], courseNumber: number) => Promise<void>
+  fireItemsAsync: (lineIds: string[]) => Promise<void>
+  fireCourseAsync: (courseNumber: number) => Promise<void>
+  fireAllAsync: () => Promise<void>
+  holdSelectedItems: (reason?: string) => void
+  releaseSelectedItems: () => void
+  fireSelectedItems: () => void
   dispatch: React.Dispatch<OrderAction>
 }
 
@@ -220,6 +230,168 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     }
   }, [state.order, user])
 
+  // Hold/Fire workflow functions
+
+  const holdItemsAsync = useCallback(async (lineIds: string[], reason?: string) => {
+    const userId = user?.id || 'anonymous'
+    const heldAt = new Date().toISOString()
+
+    // Update local state first
+    dispatch({ type: 'ITEMS_HELD', payload: { lineIds, heldAt, heldBy: userId, reason } })
+
+    // Sync with backend
+    if (state.order?.id) {
+      try {
+        await orderApi.holdItems(state.order.id, {
+          lineIds,
+          heldBy: userId,
+          reason,
+        })
+      } catch (error) {
+        console.error('Failed to hold items on server:', error)
+      }
+    }
+  }, [state.order, user])
+
+  const releaseItemsAsync = useCallback(async (lineIds: string[]) => {
+    const userId = user?.id || 'anonymous'
+
+    // Update local state first
+    dispatch({ type: 'ITEMS_RELEASED', payload: { lineIds } })
+
+    // Sync with backend
+    if (state.order?.id) {
+      try {
+        await orderApi.releaseItems(state.order.id, {
+          lineIds,
+          releasedBy: userId,
+        })
+      } catch (error) {
+        console.error('Failed to release items on server:', error)
+      }
+    }
+  }, [state.order, user])
+
+  const setItemCourseAsync = useCallback(async (lineIds: string[], courseNumber: number) => {
+    const userId = user?.id || 'anonymous'
+
+    // Update local state first
+    dispatch({ type: 'ITEMS_COURSE_SET', payload: { lineIds, courseNumber } })
+
+    // Sync with backend
+    if (state.order?.id) {
+      try {
+        await orderApi.setItemCourse(state.order.id, {
+          lineIds,
+          courseNumber,
+          setBy: userId,
+        })
+      } catch (error) {
+        console.error('Failed to set item course on server:', error)
+      }
+    }
+  }, [state.order, user])
+
+  const fireItemsAsync = useCallback(async (lineIds: string[]) => {
+    const userId = user?.id || 'anonymous'
+    const firedAt = new Date().toISOString()
+
+    // Update local state first
+    dispatch({ type: 'ITEMS_FIRED', payload: { lineIds, firedAt, firedBy: userId } })
+
+    // Sync with backend
+    if (state.order?.id) {
+      try {
+        await orderApi.fireItems(state.order.id, {
+          lineIds,
+          firedBy: userId,
+        })
+      } catch (error) {
+        console.error('Failed to fire items on server:', error)
+      }
+    }
+  }, [state.order, user])
+
+  const fireCourseAsync = useCallback(async (courseNumber: number) => {
+    if (!state.order) return
+
+    const userId = user?.id || 'anonymous'
+    const firedAt = new Date().toISOString()
+
+    // Find lines in the specified course
+    const courseLineIds = state.order.lines
+      .filter(line => (line.courseNumber ?? 1) === courseNumber && !line.sentAt)
+      .map(line => line.id)
+
+    if (courseLineIds.length === 0) return
+
+    // Update local state first
+    dispatch({ type: 'COURSE_FIRED', payload: { courseNumber, firedLineIds: courseLineIds, firedAt, firedBy: userId } })
+
+    // Sync with backend
+    if (state.order?.id) {
+      try {
+        await orderApi.fireCourse(state.order.id, {
+          courseNumber,
+          firedBy: userId,
+        })
+      } catch (error) {
+        console.error('Failed to fire course on server:', error)
+      }
+    }
+  }, [state.order, user])
+
+  const fireAllAsync = useCallback(async () => {
+    if (!state.order) return
+
+    const userId = user?.id || 'anonymous'
+    const firedAt = new Date().toISOString()
+
+    // Find all pending lines
+    const pendingLineIds = state.order.lines
+      .filter(line => !line.sentAt)
+      .map(line => line.id)
+
+    if (pendingLineIds.length === 0) return
+
+    // Update local state first
+    dispatch({ type: 'ALL_ITEMS_FIRED', payload: { firedLineIds: pendingLineIds, firedAt, firedBy: userId } })
+
+    // Sync with backend
+    if (state.order?.id) {
+      try {
+        await orderApi.fireAll(state.order.id, {
+          firedBy: userId,
+        })
+      } catch (error) {
+        console.error('Failed to fire all items on server:', error)
+      }
+    }
+  }, [state.order, user])
+
+  // Local hold/fire operations for selected items
+  function holdSelectedItems(reason?: string) {
+    if (state.selectedLineIds.length > 0) {
+      const userId = user?.id || 'anonymous'
+      const heldAt = new Date().toISOString()
+      dispatch({ type: 'ITEMS_HELD', payload: { lineIds: state.selectedLineIds, heldAt, heldBy: userId, reason } })
+    }
+  }
+
+  function releaseSelectedItems() {
+    if (state.selectedLineIds.length > 0) {
+      dispatch({ type: 'ITEMS_RELEASED', payload: { lineIds: state.selectedLineIds } })
+    }
+  }
+
+  function fireSelectedItems() {
+    if (state.selectedLineIds.length > 0) {
+      const userId = user?.id || 'anonymous'
+      const firedAt = new Date().toISOString()
+      dispatch({ type: 'ITEMS_FIRED', payload: { lineIds: state.selectedLineIds, firedAt, firedBy: userId } })
+    }
+  }
+
   return (
     <OrderContext.Provider
       value={{
@@ -245,6 +417,15 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         sendOrder,
         sendOrderAsync,
         voidOrderAsync,
+        holdItemsAsync,
+        releaseItemsAsync,
+        setItemCourseAsync,
+        fireItemsAsync,
+        fireCourseAsync,
+        fireAllAsync,
+        holdSelectedItems,
+        releaseSelectedItems,
+        fireSelectedItems,
         dispatch,
       }}
     >

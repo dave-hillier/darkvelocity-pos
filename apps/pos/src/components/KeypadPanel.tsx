@@ -4,6 +4,7 @@ import { useOrder } from '../contexts/OrderContext'
 import ActionsMenu from './ActionsMenu'
 import DiscountModal from './DiscountModal'
 import QuickPayModal from './QuickPayModal'
+import HoldFireMenu from './HoldFireMenu'
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-GB', {
@@ -26,6 +27,7 @@ export default function KeypadPanel() {
 
   const [showActions, setShowActions] = useState(false)
   const [showDiscount, setShowDiscount] = useState(false)
+  const [showHoldFire, setShowHoldFire] = useState(false)
   const [quickPayMethod, setQuickPayMethod] = useState<'cash' | 'card' | null>(null)
 
   function handleDigit(digit: string) {
@@ -64,6 +66,7 @@ export default function KeypadPanel() {
 
   const canPay = order && order.lines.length > 0
   const unsentCount = order?.lines.filter((line) => !line.sentAt).length ?? 0
+  const heldCount = order?.lines.filter((line) => line.isHeld && !line.sentAt).length ?? 0
 
   return (
     <section className="keypad-panel">
@@ -75,7 +78,9 @@ export default function KeypadPanel() {
 
       <div className="keypad-grid">
         <button type="button" onClick={handleClear} className="secondary" aria-label="Clear">C</button>
-        <button type="button" disabled aria-label="Decimal">.</button>
+        <button type="button" onClick={() => setShowHoldFire(true)} disabled={!order || unsentCount === 0} className={heldCount > 0 ? 'hold-btn' : ''}>
+          Hold/Fire{heldCount > 0 ? ` (${heldCount})` : ''}
+        </button>
         <button type="button" onClick={handleBackspace} className="secondary" aria-label="Backspace">&larr;</button>
         <button type="button" onClick={enterEditMode} disabled={!order || order.lines.length === 0}>Edit order</button>
 
@@ -125,6 +130,10 @@ export default function KeypadPanel() {
 
       {showDiscount && (
         <DiscountModal onClose={() => setShowDiscount(false)} />
+      )}
+
+      {showHoldFire && (
+        <HoldFireMenu onClose={() => setShowHoldFire(false)} />
       )}
 
       {quickPayMethod && (

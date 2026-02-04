@@ -52,10 +52,18 @@ export function Ticket({ ticket, showRecall }: TicketProps) {
         </span>
         <span className="ticket-time">{formattedTime}</span>
         {ticket.isPrioritized && <span className="priority-badge">P</span>}
+        {ticket.isFireAll && <span className="fire-all-badge">FIRE</span>}
+        {ticket.courseNumber && ticket.courseNumber > 0 && (
+          <span className="course-badge">C{ticket.courseNumber}</span>
+        )}
       </header>
 
       {ticket.tableName && (
         <p className="table-name">{ticket.tableName}</p>
+      )}
+
+      {ticket.notes && (
+        <p className="ticket-notes">{ticket.notes}</p>
       )}
 
       <ul className="ticket-items">

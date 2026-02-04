@@ -269,8 +269,30 @@ public sealed record KitchenLineItem(
     [property: Id(3)] int Quantity,
     [property: Id(4)] List<string>? Modifiers = null,
     [property: Id(5)] string? SpecialInstructions = null,
-    [property: Id(6)] Guid? StationId = null
+    [property: Id(6)] Guid? StationId = null,
+    [property: Id(7)] int CourseNumber = 1
 );
+
+/// <summary>
+/// Published when specific items are fired (explicitly sent) to the kitchen.
+/// This is used for hold/fire workflow where items are held and then explicitly fired.
+/// Subscriber: Kitchen (ticket creation or item addition).
+/// </summary>
+[GenerateSerializer]
+public sealed record OrderItemsFiredToKitchenEvent(
+    [property: Id(0)] Guid OrderId,
+    [property: Id(1)] Guid SiteId,
+    [property: Id(2)] string OrderNumber,
+    [property: Id(3)] string OrderType,
+    [property: Id(4)] string? TableNumber,
+    [property: Id(5)] int? GuestCount,
+    [property: Id(6)] Guid? ServerId,
+    [property: Id(7)] string? ServerName,
+    [property: Id(8)] Guid FiredBy,
+    [property: Id(9)] List<KitchenLineItem> Lines,
+    [property: Id(10)] int? CourseNumber = null,
+    [property: Id(11)] bool IsFireAll = false
+) : StreamEvent;
 
 /// <summary>
 /// Published when an order is voided.

@@ -22,6 +22,10 @@ export interface TicketLineItem {
   modifiers: string[]
   status: LineItemStatus
   completedAt?: string
+  // Course number for coursed dining (1 = appetizer, 2 = main, 3 = dessert)
+  courseNumber?: number
+  // Special instructions from the order
+  specialInstructions?: string
 }
 
 export interface Ticket {
@@ -35,4 +39,10 @@ export interface Ticket {
   createdAt: string
   completedAt?: string
   isPrioritized: boolean
+  // Course number when the ticket is for a specific course
+  courseNumber?: number
+  // Whether this is a "fire all" ticket
+  isFireAll?: boolean
+  // Optional notes (e.g., "FIRE ALL", "Course 2")
+  notes?: string
 }

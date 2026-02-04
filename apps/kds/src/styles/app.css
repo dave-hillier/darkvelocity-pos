@@ -278,12 +278,48 @@ html, body, #root {
   font-size: 0.875rem;
 }
 
+.fire-all-badge {
+  padding: 0.125rem 0.5rem;
+  background: #ff5722;
+  color: white;
+  border-radius: 0.25rem;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.course-badge {
+  padding: 0.125rem 0.5rem;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 0.25rem;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
 /* Table Name */
 .table-name {
   margin: 0;
   padding: 0.375rem 0.75rem;
   font-size: 0.875rem;
   color: var(--pico-muted-color);
+  border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+/* Ticket Notes */
+.ticket-notes {
+  margin: 0;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ff5722;
+  background: rgba(255, 87, 34, 0.1);
   border-bottom: 1px solid var(--pico-muted-border-color);
 }
 

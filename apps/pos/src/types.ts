@@ -72,6 +72,14 @@ export interface OrderLine {
   discountReason?: string
   lineTotal: number
   sentAt?: string
+  // Hold/Fire workflow fields
+  isHeld?: boolean
+  heldAt?: string
+  heldBy?: string
+  holdReason?: string
+  courseNumber?: number
+  firedAt?: string
+  firedBy?: string
 }
 
 export interface OrderDiscount {
@@ -143,6 +151,55 @@ export interface ApplyDiscountRequest {
   discountId?: string
   reason?: string
   approvedBy?: string
+}
+
+// Hold/Fire workflow request types
+export interface HoldItemsRequest {
+  lineIds: string[]
+  heldBy: string
+  reason?: string
+}
+
+export interface ReleaseItemsRequest {
+  lineIds: string[]
+  releasedBy: string
+}
+
+export interface SetItemCourseRequest {
+  lineIds: string[]
+  courseNumber: number
+  setBy: string
+}
+
+export interface FireItemsRequest {
+  lineIds: string[]
+  firedBy: string
+}
+
+export interface FireCourseRequest {
+  courseNumber: number
+  firedBy: string
+}
+
+export interface FireAllRequest {
+  firedBy: string
+}
+
+// Hold/Fire workflow response types
+export interface FireResult {
+  firedCount: number
+  firedLineIds: string[]
+  firedAt: string
+}
+
+export interface HoldSummary {
+  totalHeldCount: number
+  heldByCourseCounts: Record<number, number>
+  heldLineIds: string[]
+}
+
+export interface CourseSummary {
+  itemCountByCourse: Record<number, number>
 }
 
 // HAL types

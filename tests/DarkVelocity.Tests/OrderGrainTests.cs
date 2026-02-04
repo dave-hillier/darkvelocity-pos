@@ -1071,4 +1071,325 @@ public class OrderGrainTests
         lines[0].IsBundle.Should().BeFalse();
         lines[0].BundleComponents.Should().BeEmpty();
     }
+
+    // Hold/Fire Workflow Tests
+
+    [Fact]
+    public async Task HoldItemsAsync_ShouldMarkItemsAsHeld()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var grain = GetOrderGrain(orgId, siteId, orderId);
+
+        await grain.CreateAsync(new CreateOrderCommand(orgId, siteId, userId, OrderType.DineIn));
+        var line1 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Appetizer", 1, 10.00m));
+        var line2 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Main Course", 1, 25.00m));
+
+        // Act
+        await grain.HoldItemsAsync(new HoldItemsCommand(
+            new List<Guid> { line2.LineId },
+            userId,
+            "Wait for appetizer"));
+
+        // Assert
+        var state = await grain.GetStateAsync();
+        state.Lines[0].IsHeld.Should().BeFalse();
+        state.Lines[1].IsHeld.Should().BeTrue();
+        state.Lines[1].HoldReason.Should().Be("Wait for appetizer");
+        state.Lines[1].HeldBy.Should().Be(userId);
+        state.Lines[1].HeldAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task ReleaseItemsAsync_ShouldUnholdItems()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var grain = GetOrderGrain(orgId, siteId, orderId);
+
+        await grain.CreateAsync(new CreateOrderCommand(orgId, siteId, userId, OrderType.DineIn));
+        var line1 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Main Course", 1, 25.00m));
+        await grain.HoldItemsAsync(new HoldItemsCommand(new List<Guid> { line1.LineId }, userId, "Wait"));
+
+        // Act
+        await grain.ReleaseItemsAsync(new ReleaseItemsCommand(new List<Guid> { line1.LineId }, userId));
+
+        // Assert
+        var state = await grain.GetStateAsync();
+        state.Lines[0].IsHeld.Should().BeFalse();
+        state.Lines[0].HoldReason.Should().BeNull();
+        state.Lines[0].HeldAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SetItemCourseAsync_ShouldSetCourseNumber()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var grain = GetOrderGrain(orgId, siteId, orderId);
+
+        await grain.CreateAsync(new CreateOrderCommand(orgId, siteId, userId, OrderType.DineIn));
+        var line1 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Soup", 1, 8.00m));
+        var line2 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Steak", 1, 35.00m));
+
+        // Act
+        await grain.SetItemCourseAsync(new SetItemCourseCommand(
+            new List<Guid> { line1.LineId },
+            1,
+            userId));
+        await grain.SetItemCourseAsync(new SetItemCourseCommand(
+            new List<Guid> { line2.LineId },
+            2,
+            userId));
+
+        // Assert
+        var state = await grain.GetStateAsync();
+        state.Lines[0].CourseNumber.Should().Be(1);
+        state.Lines[1].CourseNumber.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task FireItemsAsync_ShouldMarkItemsAsSent()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var grain = GetOrderGrain(orgId, siteId, orderId);
+
+        await grain.CreateAsync(new CreateOrderCommand(orgId, siteId, userId, OrderType.DineIn));
+        var line1 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Appetizer", 1, 10.00m));
+        await grain.HoldItemsAsync(new HoldItemsCommand(new List<Guid> { line1.LineId }, userId, "Wait"));
+
+        // Act
+        var result = await grain.FireItemsAsync(new FireItemsCommand(
+            new List<Guid> { line1.LineId },
+            userId));
+
+        // Assert
+        result.FiredCount.Should().Be(1);
+        result.FiredLineIds.Should().Contain(line1.LineId);
+
+        var state = await grain.GetStateAsync();
+        state.Lines[0].IsHeld.Should().BeFalse();
+        state.Lines[0].FiredAt.Should().NotBeNull();
+        state.Lines[0].SentAt.Should().NotBeNull();
+        state.Lines[0].Status.Should().Be(OrderLineStatus.Sent);
+        state.Status.Should().Be(OrderStatus.Sent);
+    }
+
+    [Fact]
+    public async Task FireCourseAsync_ShouldFireAllItemsInCourse()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var grain = GetOrderGrain(orgId, siteId, orderId);
+
+        await grain.CreateAsync(new CreateOrderCommand(orgId, siteId, userId, OrderType.DineIn));
+        var line1 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Soup", 1, 8.00m));
+        var line2 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Salad", 1, 10.00m));
+        var line3 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Steak", 1, 35.00m));
+
+        // Set courses
+        await grain.SetItemCourseAsync(new SetItemCourseCommand(
+            new List<Guid> { line1.LineId, line2.LineId },
+            1,
+            userId));
+        await grain.SetItemCourseAsync(new SetItemCourseCommand(
+            new List<Guid> { line3.LineId },
+            2,
+            userId));
+
+        // Act - Fire course 1
+        var result = await grain.FireCourseAsync(new FireCourseCommand(1, userId));
+
+        // Assert
+        result.FiredCount.Should().Be(2);
+        result.FiredLineIds.Should().Contain(line1.LineId);
+        result.FiredLineIds.Should().Contain(line2.LineId);
+
+        var state = await grain.GetStateAsync();
+        state.Lines[0].Status.Should().Be(OrderLineStatus.Sent);
+        state.Lines[1].Status.Should().Be(OrderLineStatus.Sent);
+        state.Lines[2].Status.Should().Be(OrderLineStatus.Pending); // Course 2 not fired
+    }
+
+    [Fact]
+    public async Task FireAllAsync_ShouldFireAllPendingItems()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var grain = GetOrderGrain(orgId, siteId, orderId);
+
+        await grain.CreateAsync(new CreateOrderCommand(orgId, siteId, userId, OrderType.DineIn));
+        var line1 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Appetizer", 1, 10.00m));
+        var line2 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Main", 1, 25.00m));
+        var line3 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Dessert", 1, 8.00m));
+
+        // Hold some items
+        await grain.HoldItemsAsync(new HoldItemsCommand(
+            new List<Guid> { line2.LineId, line3.LineId },
+            userId,
+            "Wait"));
+
+        // Act
+        var result = await grain.FireAllAsync(userId);
+
+        // Assert
+        result.FiredCount.Should().Be(3);
+        result.FiredLineIds.Should().HaveCount(3);
+
+        var state = await grain.GetStateAsync();
+        state.Lines.Should().AllSatisfy(l =>
+        {
+            l.Status.Should().Be(OrderLineStatus.Sent);
+            l.IsHeld.Should().BeFalse();
+            l.FiredAt.Should().NotBeNull();
+        });
+    }
+
+    [Fact]
+    public async Task GetHoldSummaryAsync_ShouldReturnHeldItemsCounts()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var grain = GetOrderGrain(orgId, siteId, orderId);
+
+        await grain.CreateAsync(new CreateOrderCommand(orgId, siteId, userId, OrderType.DineIn));
+        var line1 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Appetizer", 1, 10.00m));
+        var line2 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Main", 1, 25.00m));
+        var line3 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Dessert", 1, 8.00m));
+
+        // Set courses and hold
+        await grain.SetItemCourseAsync(new SetItemCourseCommand(
+            new List<Guid> { line1.LineId },
+            1,
+            userId));
+        await grain.SetItemCourseAsync(new SetItemCourseCommand(
+            new List<Guid> { line2.LineId, line3.LineId },
+            2,
+            userId));
+        await grain.HoldItemsAsync(new HoldItemsCommand(
+            new List<Guid> { line2.LineId, line3.LineId },
+            userId));
+
+        // Act
+        var summary = await grain.GetHoldSummaryAsync();
+
+        // Assert
+        summary.TotalHeldCount.Should().Be(2);
+        summary.HeldByCourseCounts.Should().ContainKey(2);
+        summary.HeldByCourseCounts[2].Should().Be(2);
+        summary.HeldLineIds.Should().Contain(line2.LineId);
+        summary.HeldLineIds.Should().Contain(line3.LineId);
+    }
+
+    [Fact]
+    public async Task GetCourseSummaryAsync_ShouldReturnItemCountsByCourse()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var grain = GetOrderGrain(orgId, siteId, orderId);
+
+        await grain.CreateAsync(new CreateOrderCommand(orgId, siteId, userId, OrderType.DineIn));
+        var line1 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Soup", 1, 8.00m));
+        var line2 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Salad", 1, 10.00m));
+        var line3 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Steak", 1, 35.00m));
+        var line4 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Dessert", 1, 12.00m));
+
+        // Set courses
+        await grain.SetItemCourseAsync(new SetItemCourseCommand(
+            new List<Guid> { line1.LineId, line2.LineId },
+            1,
+            userId));
+        await grain.SetItemCourseAsync(new SetItemCourseCommand(
+            new List<Guid> { line3.LineId },
+            2,
+            userId));
+        await grain.SetItemCourseAsync(new SetItemCourseCommand(
+            new List<Guid> { line4.LineId },
+            3,
+            userId));
+
+        // Act
+        var courses = await grain.GetCourseSummaryAsync();
+
+        // Assert
+        courses.Should().HaveCount(3);
+        courses[1].Should().Be(2); // 2 items in course 1
+        courses[2].Should().Be(1); // 1 item in course 2
+        courses[3].Should().Be(1); // 1 item in course 3
+    }
+
+    [Fact]
+    public async Task HoldItemsAsync_ShouldFailForClosedOrder()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var grain = GetOrderGrain(orgId, siteId, orderId);
+
+        await grain.CreateAsync(new CreateOrderCommand(orgId, siteId, userId, OrderType.DineIn));
+        var line1 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Item", 1, 10.00m));
+        var totals = await grain.GetTotalsAsync();
+        await grain.RecordPaymentAsync(Guid.NewGuid(), totals.GrandTotal, 0m, "Cash");
+        await grain.CloseAsync(userId);
+
+        // Act
+        var act = () => grain.HoldItemsAsync(new HoldItemsCommand(
+            new List<Guid> { line1.LineId },
+            userId));
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*closed or voided*");
+    }
+
+    [Fact]
+    public async Task FireItemsAsync_ShouldFailWhenNoValidItemsToFire()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var grain = GetOrderGrain(orgId, siteId, orderId);
+
+        await grain.CreateAsync(new CreateOrderCommand(orgId, siteId, userId, OrderType.DineIn));
+        var line1 = await grain.AddLineAsync(new AddLineCommand(Guid.NewGuid(), "Item", 1, 10.00m));
+        await grain.SendAsync(userId); // Send the item first
+
+        // Act
+        var act = () => grain.FireItemsAsync(new FireItemsCommand(
+            new List<Guid> { line1.LineId },
+            userId));
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*No valid items to fire*");
+    }
 }

@@ -86,3 +86,43 @@ public record SplitShareResponse(
     decimal Tax,
     decimal Total,
     string? Label);
+
+// Hold/Fire Workflow Requests
+public record HoldItemsRequest(
+    List<Guid> LineIds,
+    Guid HeldBy,
+    string? Reason = null);
+
+public record ReleaseItemsRequest(
+    List<Guid> LineIds,
+    Guid ReleasedBy);
+
+public record SetItemCourseRequest(
+    List<Guid> LineIds,
+    int CourseNumber,
+    Guid SetBy);
+
+public record FireItemsRequest(
+    List<Guid> LineIds,
+    Guid FiredBy);
+
+public record FireCourseRequest(
+    int CourseNumber,
+    Guid FiredBy);
+
+public record FireAllRequest(
+    Guid FiredBy);
+
+// Hold/Fire Workflow Responses
+public record FireResultResponse(
+    int FiredCount,
+    List<Guid> FiredLineIds,
+    DateTime FiredAt);
+
+public record HoldSummaryResponse(
+    int TotalHeldCount,
+    Dictionary<int, int> HeldByCourseCounts,
+    List<Guid> HeldLineIds);
+
+public record CourseSummaryResponse(
+    Dictionary<int, int> ItemCountByCourse);
