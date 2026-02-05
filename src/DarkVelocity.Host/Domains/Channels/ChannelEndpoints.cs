@@ -642,8 +642,8 @@ public static class ChannelEndpoints
             ["locationId"] = loc.LocationId,
             ["externalStoreId"] = loc.ExternalStoreId,
             ["isActive"] = loc.IsActive,
-            ["menuId"] = loc.MenuId,
-            ["operatingHoursOverride"] = loc.OperatingHoursOverride
+            ["menuId"] = loc.MenuId!,
+            ["operatingHoursOverride"] = loc.OperatingHoursOverride!
         }).ToList();
 
         return new Dictionary<string, object>
@@ -655,14 +655,14 @@ public static class ChannelEndpoints
             ["integrationType"] = snapshot.IntegrationType.ToString(),
             ["name"] = snapshot.Name,
             ["status"] = snapshot.Status.ToString(),
-            ["externalChannelId"] = snapshot.ExternalChannelId,
-            ["connectedAt"] = snapshot.ConnectedAt,
-            ["lastSyncAt"] = snapshot.LastSyncAt,
-            ["lastOrderAt"] = snapshot.LastOrderAt,
-            ["lastHeartbeatAt"] = snapshot.LastHeartbeatAt,
+            ["externalChannelId"] = snapshot.ExternalChannelId!,
+            ["connectedAt"] = snapshot.ConnectedAt!,
+            ["lastSyncAt"] = snapshot.LastSyncAt!,
+            ["lastOrderAt"] = snapshot.LastOrderAt!,
+            ["lastHeartbeatAt"] = snapshot.LastHeartbeatAt!,
             ["totalOrdersToday"] = snapshot.TotalOrdersToday,
             ["totalRevenueToday"] = snapshot.TotalRevenueToday,
-            ["lastErrorMessage"] = snapshot.LastErrorMessage
+            ["lastErrorMessage"] = snapshot.LastErrorMessage!
         };
     }
 }

@@ -304,7 +304,7 @@ public static class ExpenseEndpoints
         // State-conditional action links
         switch (status)
         {
-            case ExpenseStatus.Draft:
+            case ExpenseStatus.Pending:
             case null:
                 links["approve"] = new { href = $"{basePath}/approve" };
                 links["reject"] = new { href = $"{basePath}/reject" };

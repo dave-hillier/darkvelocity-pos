@@ -32,7 +32,7 @@ public static class AuthEndpoints
             var authResult = await userGrain.VerifyPinAsync(request.Pin);
 
             if (!authResult.Success)
-                return Results.BadRequest(Hal.Error("invalid_pin", authResult.Error));
+                return Results.BadRequest(Hal.Error("invalid_pin", authResult.Error ?? "Authentication failed"));
 
             var sessionId = Guid.NewGuid();
             var sessionGrain = grainFactory.GetGrain<ISessionGrain>(GrainKeys.Session(request.OrganizationId, sessionId));
@@ -107,7 +107,7 @@ public static class AuthEndpoints
             var result = await sessionGrain.RefreshAsync(request.RefreshToken);
 
             if (!result.Success)
-                return Results.BadRequest(Hal.Error("invalid_token", result.Error));
+                return Results.BadRequest(Hal.Error("invalid_token", result.Error ?? "Token refresh failed"));
 
             return Results.Ok(Hal.Resource(new RefreshTokenResponse(
                 result.Tokens!.AccessToken,
