@@ -1,5 +1,7 @@
 using DarkVelocity.Host.Contracts;
 using DarkVelocity.Host.Grains;
+using DarkVelocity.Host.Hal;
+using DarkVelocity.Host.State;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DarkVelocity.Host.Endpoints;
@@ -20,15 +22,14 @@ public static class InventoryEndpoints
             await grain.InitializeAsync(new InitializeInventoryCommand(
                 orgId, siteId, request.IngredientId, request.IngredientName, request.Sku, request.Unit, request.Category, request.ReorderPoint, request.ParLevel));
 
-            return Results.Created($"/api/orgs/{orgId}/sites/{siteId}/inventory/{request.IngredientId}", Hal.Resource(new
-            {
-                ingredientId = request.IngredientId,
-                ingredientName = request.IngredientName
-            }, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{request.IngredientId}" },
-                ["receive"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{request.IngredientId}/receive" }
-            }));
+            var createdState = await grain.GetStateAsync();
+            return Results.Created(
+                $"/api/orgs/{orgId}/sites/{siteId}/inventory/{request.IngredientId}",
+                Hal.Resource(new
+                {
+                    ingredientId = request.IngredientId,
+                    ingredientName = request.IngredientName
+                }, BuildInventoryLinks(orgId, siteId, request.IngredientId, createdState)));
         });
 
         group.MapGet("/{ingredientId}", async (Guid orgId, Guid siteId, Guid ingredientId, IGrainFactory grainFactory) =>
@@ -38,13 +39,7 @@ public static class InventoryEndpoints
                 return Results.NotFound(Hal.Error("not_found", "Inventory item not found"));
 
             var state = await grain.GetStateAsync();
-            return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}" },
-                ["receive"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}/receive" },
-                ["consume"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}/consume" },
-                ["adjust"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}/adjust" }
-            }));
+            return Results.Ok(Hal.Resource(state, BuildInventoryLinks(orgId, siteId, ingredientId, state)));
         });
 
         group.MapPost("/{ingredientId}/receive", async (
@@ -113,5 +108,77 @@ public static class InventoryEndpoints
         });
 
         return app;
+    }
+
+    /// <summary>
+    /// Builds HAL links for an inventory resource with cross-domain relationships.
+    /// </summary>
+    private static Dictionary<string, object> BuildInventoryLinks(
+        Guid orgId,
+        Guid siteId,
+        Guid ingredientId,
+        InventoryState? state = null)
+    {
+        var basePath = $"/api/orgs/{orgId}/sites/{siteId}/inventory/{ingredientId}";
+
+        var links = new Dictionary<string, object>
+        {
+            // Core resource links
+            ["self"] = new HalLink(basePath),
+            ["site"] = new HalLink($"/api/orgs/{orgId}/sites/{siteId}"),
+
+            // Action links for inventory operations
+            ["receive"] = new HalLink($"{basePath}/receive", Title: "Receive stock into inventory"),
+            ["consume"] = new HalLink($"{basePath}/consume", Title: "Consume stock from inventory"),
+            ["adjust"] = new HalLink($"{basePath}/adjust", Title: "Adjust inventory quantity"),
+
+            // Cross-domain links (templated where appropriate)
+            ["ingredient"] = new HalLink(
+                $"/api/orgs/{orgId}/ingredients/{ingredientId}",
+                Title: "Organization-level ingredient definition"),
+            ["recipe-usages"] = new HalLink(
+                $"/api/orgs/{orgId}/inventory/{ingredientId}/recipes",
+                Title: "Recipes using this ingredient"),
+            ["purchase-orders"] = new HalLink(
+                $"/api/orgs/{orgId}/sites/{siteId}/purchases{{?ingredientId}}",
+                Title: "Purchase orders containing this ingredient",
+                Templated: true)
+        };
+
+        // Add supplier links if any batch has a supplier
+        if (state?.Batches != null)
+        {
+            var supplierIds = state.Batches
+                .Where(b => b.SupplierId.HasValue)
+                .Select(b => b.SupplierId!.Value)
+                .Distinct()
+                .ToList();
+
+            if (supplierIds.Count == 1)
+            {
+                // Single supplier - add direct link
+                links["supplier"] = new HalLink(
+                    $"/api/orgs/{orgId}/suppliers/{supplierIds[0]}",
+                    Title: "Supplier for this inventory item");
+            }
+            else if (supplierIds.Count > 1)
+            {
+                // Multiple suppliers - add templated link and list individual suppliers
+                links["suppliers"] = new HalLink(
+                    $"/api/orgs/{orgId}/suppliers{{?ids}}",
+                    Title: "Suppliers for this inventory item",
+                    Templated: true);
+
+                // Add individual supplier links with relation names
+                for (int i = 0; i < supplierIds.Count; i++)
+                {
+                    links[$"supplier:{supplierIds[i]}"] = new HalLink(
+                        $"/api/orgs/{orgId}/suppliers/{supplierIds[i]}",
+                        Title: $"Supplier {i + 1}");
+                }
+            }
+        }
+
+        return links;
     }
 }

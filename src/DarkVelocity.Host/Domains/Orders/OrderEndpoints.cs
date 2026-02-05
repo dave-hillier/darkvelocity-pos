@@ -45,14 +45,8 @@ public static class OrderEndpoints
                 return Results.NotFound(Hal.Error("not_found", "Order not found"));
 
             var state = await grain.GetStateAsync();
-            return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" },
-                ["site"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}" },
-                ["lines"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/lines" },
-                ["send"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/send" },
-                ["close"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/close" }
-            }));
+            var links = BuildOrderLinks(orgId, siteId, orderId, state);
+            return Results.Ok(Hal.Resource(state, links));
         }).WithMetadata(new RequirePermissionAttribute(ResourceTypes.Site, Permissions.View, isSiteScoped: true));
 
         group.MapPost("/{orderId}/lines", async (
@@ -458,5 +452,67 @@ public static class OrderEndpoints
         }).WithMetadata(new RequirePermissionAttribute(ResourceTypes.Site, Permissions.View, isSiteScoped: true));
 
         return app;
+    }
+
+    /// <summary>
+    /// Builds HATEOAS links for an order resource, including conditional cross-domain links
+    /// and action links based on order state.
+    /// </summary>
+    private static Dictionary<string, object> BuildOrderLinks(Guid orgId, Guid siteId, Guid orderId, OrderState state)
+    {
+        var links = new Dictionary<string, object>
+        {
+            // Core resource links
+            ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" },
+            ["site"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}" },
+            ["lines"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/lines" },
+            ["payments"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/payments" }
+        };
+
+        // Conditional cross-domain links based on associated resources
+        if (state.CustomerId.HasValue)
+        {
+            links["customer"] = new { href = $"/api/orgs/{orgId}/customers/{state.CustomerId}" };
+        }
+
+        if (state.TableId.HasValue)
+        {
+            links["table"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/tables/{state.TableId}" };
+        }
+
+        if (state.BookingId.HasValue)
+        {
+            links["booking"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings/{state.BookingId}" };
+        }
+
+        // Kitchen tickets link - available when order has been sent
+        if (state.Status != OrderStatus.Open)
+        {
+            links["kitchen-tickets"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/kitchen-tickets" };
+        }
+
+        // Action links based on order state
+        switch (state.Status)
+        {
+            case OrderStatus.Open:
+                links["send"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/send" };
+                links["void"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/void" };
+                links["cancel"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/cancel" };
+                break;
+
+            case OrderStatus.Sent:
+            case OrderStatus.PartiallyPaid:
+                links["close"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/close" };
+                links["void"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/void" };
+                break;
+
+            case OrderStatus.Paid:
+                links["close"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/close" };
+                break;
+
+            // Closed and Voided orders have no action links
+        }
+
+        return links;
     }
 }

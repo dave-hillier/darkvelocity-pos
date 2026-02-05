@@ -48,13 +48,7 @@ public static class MenuCmsEndpoints
             await registryGrain.RegisterItemAsync(documentId, request.Name, request.Price, request.CategoryId?.ToString());
 
             return Results.Created($"/api/orgs/{orgId}/menu/cms/items/{documentId}",
-                Hal.Resource(ToResponse(result), new Dictionary<string, object>
-                {
-                    ["self"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}" },
-                    ["draft"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}/draft" },
-                    ["publish"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}/publish" },
-                    ["versions"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}/versions" }
-                }));
+                Hal.Resource(ToResponse(result), BuildMenuItemDocumentLinks(orgId, documentId, result)));
         });
 
         group.MapGet("/items", async (
@@ -92,13 +86,7 @@ public static class MenuCmsEndpoints
                 return Results.NotFound();
 
             var snapshot = await grain.GetSnapshotAsync();
-            return Results.Ok(Hal.Resource(ToResponse(snapshot), new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}" },
-                ["draft"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}/draft" },
-                ["publish"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}/publish" },
-                ["versions"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}/versions" }
-            }));
+            return Results.Ok(Hal.Resource(ToResponse(snapshot), BuildMenuItemDocumentLinks(orgId, documentId, snapshot)));
         });
 
         group.MapPost("/items/{documentId}/draft", async (
@@ -142,11 +130,7 @@ public static class MenuCmsEndpoints
                 hasDraft: true,
                 isArchived: snapshot.IsArchived);
 
-            return Results.Ok(Hal.Resource(ToVersionResponse(result), new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}/draft" },
-                ["publish"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}/publish" }
-            }));
+            return Results.Ok(Hal.Resource(ToVersionResponse(result), BuildMenuItemVersionLinks(orgId, documentId, result, isDraft: true)));
         });
 
         group.MapGet("/items/{documentId}/draft", async (
@@ -162,10 +146,7 @@ public static class MenuCmsEndpoints
             if (draft == null)
                 return Results.NotFound(new { message = "No draft exists" });
 
-            return Results.Ok(Hal.Resource(ToVersionResponse(draft), new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}/draft" }
-            }));
+            return Results.Ok(Hal.Resource(ToVersionResponse(draft), BuildMenuItemVersionLinks(orgId, documentId, draft, isDraft: true)));
         });
 
         group.MapDelete("/items/{documentId}/draft", async (
@@ -215,10 +196,7 @@ public static class MenuCmsEndpoints
                 documentId, published.Name, published.Price, published.CategoryId?.ToString(),
                 hasDraft: false, isArchived: snapshot.IsArchived);
 
-            return Results.Ok(Hal.Resource(ToResponse(snapshot), new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}" }
-            }));
+            return Results.Ok(Hal.Resource(ToResponse(snapshot), BuildMenuItemDocumentLinks(orgId, documentId, snapshot)));
         });
 
         group.MapGet("/items/{documentId}/versions", async (
@@ -265,10 +243,7 @@ public static class MenuCmsEndpoints
                 documentId, published.Name, published.Price, published.CategoryId?.ToString(),
                 hasDraft: false, isArchived: snapshot.IsArchived);
 
-            return Results.Ok(Hal.Resource(ToResponse(snapshot), new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}" }
-            }));
+            return Results.Ok(Hal.Resource(ToResponse(snapshot), BuildMenuItemDocumentLinks(orgId, documentId, snapshot)));
         });
 
         group.MapPost("/items/{documentId}/translations", async (
@@ -1122,5 +1097,103 @@ public static class MenuCmsEndpoints
             ProteinGrams: info.ProteinGrams,
             ServingSize: info.ServingSize,
             ServingSizeGrams: info.ServingSizeGrams);
+    }
+
+    // ========================================================================
+    // HATEOAS Link Building Helpers
+    // ========================================================================
+
+    /// <summary>
+    /// Builds HATEOAS links for a menu item document, including cross-domain links
+    /// to related resources like recipes, categories, and modifier blocks.
+    /// </summary>
+    private static Dictionary<string, object> BuildMenuItemDocumentLinks(
+        Guid orgId,
+        string documentId,
+        MenuItemDocumentSnapshot snapshot)
+    {
+        var links = new Dictionary<string, object>
+        {
+            ["self"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}" },
+            ["draft"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}/draft" },
+            ["publish"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}/publish" },
+            ["versions"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}/versions" }
+        };
+
+        // Use the published version if available, otherwise the draft
+        var activeVersion = snapshot.Published ?? snapshot.Draft;
+        if (activeVersion != null)
+        {
+            AddVersionRelatedLinks(links, orgId, activeVersion);
+        }
+
+        return links;
+    }
+
+    /// <summary>
+    /// Builds HATEOAS links for a menu item version (draft or published),
+    /// including cross-domain links to related resources.
+    /// </summary>
+    private static Dictionary<string, object> BuildMenuItemVersionLinks(
+        Guid orgId,
+        string documentId,
+        MenuItemVersionSnapshot version,
+        bool isDraft)
+    {
+        var links = new Dictionary<string, object>
+        {
+            ["self"] = new { href = isDraft
+                ? $"/api/orgs/{orgId}/menu/cms/items/{documentId}/draft"
+                : $"/api/orgs/{orgId}/menu/cms/items/{documentId}" },
+            ["document"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}" }
+        };
+
+        if (isDraft)
+        {
+            links["publish"] = new { href = $"/api/orgs/{orgId}/menu/cms/items/{documentId}/publish" };
+        }
+
+        AddVersionRelatedLinks(links, orgId, version);
+
+        return links;
+    }
+
+    /// <summary>
+    /// Adds cross-domain and related resource links based on version data.
+    /// </summary>
+    private static void AddVersionRelatedLinks(
+        Dictionary<string, object> links,
+        Guid orgId,
+        MenuItemVersionSnapshot version)
+    {
+        // Cross-domain link to recipe if set
+        if (version.RecipeId.HasValue)
+        {
+            links["recipe"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/{version.RecipeId.Value}" };
+        }
+
+        // Link to parent category if set
+        if (version.CategoryId.HasValue)
+        {
+            links["category"] = new { href = $"/api/orgs/{orgId}/menu/cms/categories/{version.CategoryId.Value}" };
+        }
+
+        // Links to modifier blocks if any
+        if (version.ModifierBlockIds.Count > 0)
+        {
+            links["modifiers"] = version.ModifierBlockIds.Select(blockId => new
+            {
+                href = $"/api/orgs/{orgId}/menu/cms/modifier-blocks/{blockId}"
+            }).ToArray();
+        }
+
+        // Links to content tags if any
+        if (version.TagIds.Count > 0)
+        {
+            links["tags"] = version.TagIds.Select(tagId => new
+            {
+                href = $"/api/orgs/{orgId}/menu/cms/tags/{tagId}"
+            }).ToArray();
+        }
     }
 }

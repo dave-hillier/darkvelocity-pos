@@ -1,5 +1,6 @@
 using DarkVelocity.Host.Contracts;
 using DarkVelocity.Host.Grains;
+using DarkVelocity.Host.State;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DarkVelocity.Host.Endpoints;
@@ -22,7 +23,11 @@ public static class ChannelEndpoints
 
             var items = channels.Select(c => Hal.Resource(c, new Dictionary<string, object>
             {
-                ["self"] = new { href = $"/api/orgs/{orgId}/channels/{c.ChannelId}" }
+                ["self"] = new { href = $"/api/orgs/{orgId}/channels/{c.ChannelId}" },
+                ["organization"] = new { href = $"/api/orgs/{orgId}" },
+                ["external-orders"] = new { href = $"/api/orgs/{orgId}/channels/{c.ChannelId}/external-orders" },
+                ["locations"] = new { href = $"/api/orgs/{orgId}/channels/{c.ChannelId}/locations" },
+                ["status-mappings"] = new { href = $"/api/orgs/{orgId}/status-mappings/{c.PlatformType}" }
             }));
 
             return Results.Ok(Hal.Collection($"/api/orgs/{orgId}/channels", items, channels.Count));
@@ -40,7 +45,11 @@ public static class ChannelEndpoints
 
             var items = channels.Select(c => Hal.Resource(c, new Dictionary<string, object>
             {
-                ["self"] = new { href = $"/api/orgs/{orgId}/channels/{c.ChannelId}" }
+                ["self"] = new { href = $"/api/orgs/{orgId}/channels/{c.ChannelId}" },
+                ["organization"] = new { href = $"/api/orgs/{orgId}" },
+                ["external-orders"] = new { href = $"/api/orgs/{orgId}/channels/{c.ChannelId}/external-orders" },
+                ["locations"] = new { href = $"/api/orgs/{orgId}/channels/{c.ChannelId}/locations" },
+                ["status-mappings"] = new { href = $"/api/orgs/{orgId}/status-mappings/{c.PlatformType}" }
             }));
 
             return Results.Ok(Hal.Collection($"/api/orgs/{orgId}/channels/by-type/{integrationType}", items, channels.Count));
@@ -58,7 +67,11 @@ public static class ChannelEndpoints
 
             var items = channels.Select(c => Hal.Resource(c, new Dictionary<string, object>
             {
-                ["self"] = new { href = $"/api/orgs/{orgId}/channels/{c.ChannelId}" }
+                ["self"] = new { href = $"/api/orgs/{orgId}/channels/{c.ChannelId}" },
+                ["organization"] = new { href = $"/api/orgs/{orgId}" },
+                ["external-orders"] = new { href = $"/api/orgs/{orgId}/channels/{c.ChannelId}/external-orders" },
+                ["locations"] = new { href = $"/api/orgs/{orgId}/channels/{c.ChannelId}/locations" },
+                ["status-mappings"] = new { href = $"/api/orgs/{orgId}/status-mappings/{c.PlatformType}" }
             }));
 
             return Results.Ok(Hal.Collection($"/api/orgs/{orgId}/channels/by-platform/{platformType}", items, channels.Count));
@@ -78,7 +91,7 @@ public static class ChannelEndpoints
             var channelId = Guid.NewGuid();
             var grain = grainFactory.GetGrain<IChannelGrain>(GrainKeys.Channel(orgId, channelId));
 
-            var result = await grain.ConnectAsync(new ConnectChannelCommand(
+            await grain.ConnectAsync(new ConnectChannelCommand(
                 request.PlatformType,
                 request.IntegrationType,
                 request.Name,
@@ -91,14 +104,10 @@ public static class ChannelEndpoints
             var registry = grainFactory.GetGrain<IChannelRegistryGrain>(GrainKeys.ChannelRegistry(orgId));
             await registry.RegisterChannelAsync(channelId, request.PlatformType, request.IntegrationType, request.Name);
 
-            return Results.Created($"/api/orgs/{orgId}/channels/{channelId}", Hal.Resource(result, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/channels/{channelId}" },
-                ["organization"] = new { href = $"/api/orgs/{orgId}" },
-                ["locations"] = new { href = $"/api/orgs/{orgId}/channels/{channelId}/locations" },
-                ["pause"] = new { href = $"/api/orgs/{orgId}/channels/{channelId}/pause" },
-                ["resume"] = new { href = $"/api/orgs/{orgId}/channels/{channelId}/resume" }
-            }));
+            // Fetch the full snapshot to build response with all links
+            var snapshot = await grain.GetSnapshotAsync();
+
+            return Results.Created($"/api/orgs/{orgId}/channels/{channelId}", BuildChannelResponse(orgId, channelId, snapshot));
         })
         .WithName("ConnectChannel")
         .WithSummary("Connect a new delivery/order channel");
@@ -111,14 +120,7 @@ public static class ChannelEndpoints
             if (snapshot.ChannelId == Guid.Empty)
                 return Results.NotFound(Hal.Error("not_found", "Channel not found"));
 
-            return Results.Ok(Hal.Resource(snapshot, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/channels/{channelId}" },
-                ["organization"] = new { href = $"/api/orgs/{orgId}" },
-                ["locations"] = new { href = $"/api/orgs/{orgId}/channels/{channelId}/locations" },
-                ["pause"] = new { href = $"/api/orgs/{orgId}/channels/{channelId}/pause" },
-                ["resume"] = new { href = $"/api/orgs/{orgId}/channels/{channelId}/resume" }
-            }));
+            return Results.Ok(BuildChannelResponse(orgId, channelId, snapshot));
         })
         .WithName("GetChannel")
         .WithSummary("Get channel details");
@@ -133,17 +135,17 @@ public static class ChannelEndpoints
 
             try
             {
-                var result = await grain.UpdateAsync(new UpdateChannelCommand(
+                await grain.UpdateAsync(new UpdateChannelCommand(
                     request.Name,
                     request.Status,
                     request.ApiCredentialsEncrypted,
                     request.WebhookSecret,
                     request.Settings));
 
-                return Results.Ok(Hal.Resource(result, new Dictionary<string, object>
-                {
-                    ["self"] = new { href = $"/api/orgs/{orgId}/channels/{channelId}" }
-                }));
+                // Fetch the full snapshot to build response with all links
+                var snapshot = await grain.GetSnapshotAsync();
+
+                return Results.Ok(BuildChannelResponse(orgId, channelId, snapshot));
             }
             catch (InvalidOperationException)
             {
@@ -210,6 +212,36 @@ public static class ChannelEndpoints
         // Channel Location Mapping Endpoints
         // ============================================================================
 
+        channelGroup.MapGet("/{channelId}/locations", async (
+            Guid orgId,
+            Guid channelId,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IChannelGrain>(GrainKeys.Channel(orgId, channelId));
+            var snapshot = await grain.GetSnapshotAsync();
+
+            if (snapshot.ChannelId == Guid.Empty)
+                return Results.NotFound(Hal.Error("not_found", "Channel not found"));
+
+            var items = snapshot.Locations.Select(loc => Hal.Resource(new
+            {
+                locationId = loc.LocationId,
+                externalStoreId = loc.ExternalStoreId,
+                isActive = loc.IsActive,
+                menuId = loc.MenuId,
+                operatingHoursOverride = loc.OperatingHoursOverride
+            }, new Dictionary<string, object>
+            {
+                ["self"] = new { href = $"/api/orgs/{orgId}/channels/{channelId}/locations/{loc.LocationId}" },
+                ["site"] = new { href = $"/api/orgs/{orgId}/sites/{loc.LocationId}" },
+                ["channel"] = new { href = $"/api/orgs/{orgId}/channels/{channelId}" }
+            }));
+
+            return Results.Ok(Hal.Collection($"/api/orgs/{orgId}/channels/{channelId}/locations", items, snapshot.Locations.Count));
+        })
+        .WithName("ListChannelLocations")
+        .WithSummary("List all locations mapped to this channel");
+
         channelGroup.MapPost("/{channelId}/locations", async (
             Guid orgId,
             Guid channelId,
@@ -226,7 +258,19 @@ public static class ChannelEndpoints
                 request.OperatingHoursOverride));
 
             return Results.Created($"/api/orgs/{orgId}/channels/{channelId}/locations/{request.LocationId}",
-                new { locationId = request.LocationId, externalStoreId = request.ExternalStoreId });
+                Hal.Resource(new
+                {
+                    locationId = request.LocationId,
+                    externalStoreId = request.ExternalStoreId,
+                    isActive = request.IsActive,
+                    menuId = request.MenuId,
+                    operatingHoursOverride = request.OperatingHoursOverride
+                }, new Dictionary<string, object>
+                {
+                    ["self"] = new { href = $"/api/orgs/{orgId}/channels/{channelId}/locations/{request.LocationId}" },
+                    ["site"] = new { href = $"/api/orgs/{orgId}/sites/{request.LocationId}" },
+                    ["channel"] = new { href = $"/api/orgs/{orgId}/channels/{channelId}" }
+                }));
         })
         .WithName("AddChannelLocation")
         .WithSummary("Map a location to this channel");
@@ -323,7 +367,9 @@ public static class ChannelEndpoints
 
             return Results.Created($"/api/orgs/{orgId}/status-mappings/{platformType}", Hal.Resource(result, new Dictionary<string, object>
             {
-                ["self"] = new { href = $"/api/orgs/{orgId}/status-mappings/{platformType}" }
+                ["self"] = new { href = $"/api/orgs/{orgId}/status-mappings/{platformType}" },
+                ["organization"] = new { href = $"/api/orgs/{orgId}" },
+                ["channels"] = new { href = $"/api/orgs/{orgId}/channels/by-platform/{platformType}" }
             }));
         })
         .WithName("ConfigureStatusMapping")
@@ -339,7 +385,9 @@ public static class ChannelEndpoints
 
             return Results.Ok(Hal.Resource(snapshot, new Dictionary<string, object>
             {
-                ["self"] = new { href = $"/api/orgs/{orgId}/status-mappings/{platformType}" }
+                ["self"] = new { href = $"/api/orgs/{orgId}/status-mappings/{platformType}" },
+                ["organization"] = new { href = $"/api/orgs/{orgId}" },
+                ["channels"] = new { href = $"/api/orgs/{orgId}/channels/by-platform/{platformType}" }
             }));
         })
         .WithName("GetStatusMapping")
@@ -503,6 +551,81 @@ public static class ChannelEndpoints
         .WithSummary("Set busy mode for a location on this channel");
 
         return app;
+    }
+
+    /// <summary>
+    /// Builds HAL links for a channel resource with cross-domain relationships.
+    /// </summary>
+    private static Dictionary<string, object> BuildChannelLinks(
+        Guid orgId,
+        Guid channelId,
+        ChannelState state)
+    {
+        var basePath = $"/api/orgs/{orgId}/channels/{channelId}";
+
+        var links = new Dictionary<string, object>
+        {
+            ["self"] = new { href = basePath },
+            ["organization"] = new { href = $"/api/orgs/{orgId}" },
+            ["external-orders"] = new { href = $"{basePath}/external-orders" },
+            ["locations"] = new { href = $"{basePath}/locations" },
+            ["status-mappings"] = new { href = $"/api/orgs/{orgId}/status-mappings/{state.PlatformType}" },
+            ["pause"] = new { href = $"{basePath}/pause" },
+            ["resume"] = new { href = $"{basePath}/resume" },
+            ["menu-sync"] = new { href = $"{basePath}/menu-sync" }
+        };
+
+        return links;
+    }
+
+    /// <summary>
+    /// Builds a channel response with embedded locations including site links.
+    /// </summary>
+    private static object BuildChannelResponse(
+        Guid orgId,
+        Guid channelId,
+        ChannelState state)
+    {
+        var links = BuildChannelLinks(orgId, channelId, state);
+
+        // Build embedded locations with their own links
+        var embeddedLocations = state.Locations.Select(loc => new Dictionary<string, object>
+        {
+            ["_links"] = new Dictionary<string, object>
+            {
+                ["self"] = new { href = $"/api/orgs/{orgId}/channels/{channelId}/locations/{loc.LocationId}" },
+                ["site"] = new { href = $"/api/orgs/{orgId}/sites/{loc.LocationId}" }
+            },
+            ["locationId"] = loc.LocationId,
+            ["externalStoreId"] = loc.ExternalStoreId,
+            ["isActive"] = loc.IsActive,
+            ["menuId"] = loc.MenuId,
+            ["operatingHoursOverride"] = loc.OperatingHoursOverride
+        }).ToList();
+
+        return new Dictionary<string, object>
+        {
+            ["_links"] = links,
+            ["_embedded"] = new { locations = embeddedLocations },
+            ["orgId"] = state.OrgId,
+            ["channelId"] = state.ChannelId,
+            ["platformType"] = state.PlatformType.ToString(),
+            ["integrationType"] = state.IntegrationType.ToString(),
+            ["name"] = state.Name,
+            ["status"] = state.Status.ToString(),
+            ["externalChannelId"] = state.ExternalChannelId,
+            ["settings"] = state.Settings,
+            ["connectedAt"] = state.ConnectedAt,
+            ["lastSyncAt"] = state.LastSyncAt,
+            ["lastOrderAt"] = state.LastOrderAt,
+            ["lastHeartbeatAt"] = state.LastHeartbeatAt,
+            ["totalOrdersToday"] = state.TotalOrdersToday,
+            ["totalRevenueToday"] = state.TotalRevenueToday,
+            ["todayDate"] = state.TodayDate,
+            ["lastErrorMessage"] = state.LastErrorMessage,
+            ["pauseReason"] = state.PauseReason,
+            ["version"] = state.Version
+        };
     }
 }
 

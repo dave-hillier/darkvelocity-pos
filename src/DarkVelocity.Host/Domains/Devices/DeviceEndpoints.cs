@@ -132,10 +132,10 @@ public static class DeviceEndpoints
         {
             var grain = grainFactory.GetGrain<IDeviceGrain>(GrainKeys.Device(orgId, deviceId));
             if (!await grain.ExistsAsync())
-                return Results.NotFound();
+                return Results.NotFound(Hal.Error("not_found", "Device not found"));
 
             var snapshot = await grain.GetSnapshotAsync();
-            return Results.Ok(snapshot);
+            return Results.Ok(Hal.Resource(snapshot, BuildDeviceLinks(snapshot)));
         });
 
         group.MapPost("/{orgId}/{deviceId}/heartbeat", async (
@@ -146,7 +146,7 @@ public static class DeviceEndpoints
         {
             var grain = grainFactory.GetGrain<IDeviceGrain>(GrainKeys.Device(orgId, deviceId));
             if (!await grain.ExistsAsync())
-                return Results.NotFound();
+                return Results.NotFound(Hal.Error("not_found", "Device not found"));
 
             await grain.RecordHeartbeatAsync(request.AppVersion);
             return Results.Ok();
@@ -160,10 +160,11 @@ public static class DeviceEndpoints
         {
             var grain = grainFactory.GetGrain<IDeviceGrain>(GrainKeys.Device(orgId, deviceId));
             if (!await grain.ExistsAsync())
-                return Results.NotFound();
+                return Results.NotFound(Hal.Error("not_found", "Device not found"));
 
             await grain.SuspendAsync(request.Reason);
-            return Results.Ok(new { message = "Device suspended" });
+            var snapshot = await grain.GetSnapshotAsync();
+            return Results.Ok(Hal.Resource(snapshot, BuildDeviceLinks(snapshot)));
         });
 
         group.MapPost("/{orgId}/{deviceId}/revoke", async (
@@ -174,11 +175,68 @@ public static class DeviceEndpoints
         {
             var grain = grainFactory.GetGrain<IDeviceGrain>(GrainKeys.Device(orgId, deviceId));
             if (!await grain.ExistsAsync())
-                return Results.NotFound();
+                return Results.NotFound(Hal.Error("not_found", "Device not found"));
 
             await grain.RevokeAsync(request.Reason);
-            return Results.Ok(new { message = "Device revoked" });
+            var snapshot = await grain.GetSnapshotAsync();
+            return Results.Ok(Hal.Resource(snapshot, BuildDeviceLinks(snapshot)));
         });
+
+        group.MapPost("/{orgId}/{deviceId}/reactivate", async (
+            Guid orgId,
+            Guid deviceId,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IDeviceGrain>(GrainKeys.Device(orgId, deviceId));
+            if (!await grain.ExistsAsync())
+                return Results.NotFound(Hal.Error("not_found", "Device not found"));
+
+            await grain.ReactivateAsync();
+            var snapshot = await grain.GetSnapshotAsync();
+            return Results.Ok(Hal.Resource(snapshot, BuildDeviceLinks(snapshot)));
+        });
+    }
+
+    private static Dictionary<string, object> BuildDeviceLinks(DeviceSnapshot snapshot)
+    {
+        var orgId = snapshot.OrganizationId;
+        var deviceId = snapshot.Id;
+        var basePath = $"/api/devices/{orgId}/{deviceId}";
+
+        var links = new Dictionary<string, object>
+        {
+            ["self"] = new { href = basePath },
+            ["organization"] = new { href = $"/api/orgs/{orgId}" },
+            ["sessions"] = new { href = $"{basePath}/sessions" }
+        };
+
+        // Add site link if device is assigned to a site
+        if (snapshot.SiteId != Guid.Empty)
+        {
+            links["site"] = new { href = $"/api/orgs/{orgId}/sites/{snapshot.SiteId}" };
+        }
+
+        // Add current user link if a user is logged in on this device
+        if (snapshot.CurrentUserId.HasValue)
+        {
+            links["current-user"] = new { href = $"/api/orgs/{orgId}/users/{snapshot.CurrentUserId.Value}" };
+        }
+
+        // Add action links based on device status
+        switch (snapshot.Status)
+        {
+            case DeviceStatus.Authorized:
+                links["suspend"] = new { href = $"{basePath}/suspend", method = "POST" };
+                links["revoke"] = new { href = $"{basePath}/revoke", method = "POST" };
+                break;
+            case DeviceStatus.Suspended:
+                links["reactivate"] = new { href = $"{basePath}/reactivate", method = "POST" };
+                links["revoke"] = new { href = $"{basePath}/revoke", method = "POST" };
+                break;
+            // Revoked devices have no action links - they cannot be reactivated
+        }
+
+        return links;
     }
 
     // ============================================================================
