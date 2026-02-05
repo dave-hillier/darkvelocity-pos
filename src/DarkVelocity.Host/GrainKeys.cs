@@ -364,6 +364,31 @@ public static class GrainKeys
     public static string InventoryCount(Guid orgId, Guid countId) => OrgEntity(orgId, "inventorycount", countId);
 
     /// <summary>
+    /// Creates a key for a stock take grain.
+    /// </summary>
+    public static string StockTake(Guid orgId, Guid siteId, Guid stockTakeId) => SiteEntity(orgId, siteId, "stocktake", stockTakeId);
+
+    /// <summary>
+    /// Creates a key for an inventory transfer grain.
+    /// </summary>
+    public static string InventoryTransfer(Guid orgId, Guid transferId) => OrgEntity(orgId, "inventorytransfer", transferId);
+
+    /// <summary>
+    /// Creates a key for an expiry monitor grain (one per site).
+    /// </summary>
+    public static string ExpiryMonitor(Guid orgId, Guid siteId) => $"{orgId}:{siteId}:expirymonitor";
+
+    /// <summary>
+    /// Creates a key for an ABC classification grain (one per site).
+    /// </summary>
+    public static string AbcClassification(Guid orgId, Guid siteId) => $"{orgId}:{siteId}:abcclassification";
+
+    /// <summary>
+    /// Creates a key for a reorder suggestion grain (one per site).
+    /// </summary>
+    public static string ReorderSuggestion(Guid orgId, Guid siteId) => $"{orgId}:{siteId}:reordersuggestion";
+
+    /// <summary>
     /// Creates a key for a device grain.
     /// </summary>
     public static string Device(Guid orgId, Guid deviceId) => OrgEntity(orgId, "device", deviceId);
@@ -577,6 +602,20 @@ public static class GrainKeys
     /// </summary>
     public static string RecipeRegistry(Guid orgId) => $"{orgId}:reciperegistry";
 
+    // ============================================================================
+    // Ingredient Grains
+    // ============================================================================
+
+    /// <summary>
+    /// Creates a key for an ingredient grain.
+    /// </summary>
+    public static string Ingredient(Guid orgId, Guid ingredientId) => $"{orgId}:ingredient:{ingredientId}";
+
+    /// <summary>
+    /// Creates a key for the ingredient registry grain (one per org).
+    /// </summary>
+    public static string IngredientRegistry(Guid orgId) => $"{orgId}:ingredientregistry";
+
     /// <summary>
     /// Creates a key for a purchase document grain (invoice or receipt).
     /// </summary>
@@ -721,6 +760,21 @@ public static class GrainKeys
     public static string PaymentBatch(Guid orgId, Guid siteId) => $"{orgId}:{siteId}:paymentbatch";
 
     /// <summary>
+    /// Creates a key for an offline payment queue grain (singleton per site).
+    /// </summary>
+    public static string OfflinePaymentQueue(Guid orgId, Guid siteId) => $"{orgId}:{siteId}:offlinepaymentqueue";
+
+    /// <summary>
+    /// Creates a key for a chargeback grain.
+    /// </summary>
+    public static string Chargeback(Guid orgId, Guid chargebackId) => OrgEntity(orgId, "chargeback", chargebackId);
+
+    /// <summary>
+    /// Creates a key for a customer house account grain.
+    /// </summary>
+    public static string CustomerAccount(Guid orgId, Guid customerId) => OrgEntity(orgId, "customeraccount", customerId);
+
+    /// <summary>
     /// Generates a random user code for device authorization (8 alphanumeric chars).
     /// </summary>
     public static string GenerateUserCode()
@@ -807,4 +861,32 @@ public static class GrainKeys
     /// </summary>
     public static string DSFinVKExportRegistry(Guid orgId, Guid siteId)
         => $"{orgId}:{siteId}:dsfinvkregistry";
+
+    // ============================================================================
+    // Advanced Reporting Grains
+    // ============================================================================
+
+    /// <summary>
+    /// Creates a key for a daypart analysis grain (one per site per day).
+    /// </summary>
+    public static string DaypartAnalysis(Guid orgId, Guid siteId, DateOnly date)
+        => $"{orgId}:{siteId}:daypart:{date:yyyy-MM-dd}";
+
+    /// <summary>
+    /// Creates a key for a labor report grain (one per site per period).
+    /// </summary>
+    public static string LaborReport(Guid orgId, Guid siteId, DateOnly periodStart)
+        => $"{orgId}:{siteId}:labor:{periodStart:yyyy-MM-dd}";
+
+    /// <summary>
+    /// Creates a key for a product mix grain (one per site per day).
+    /// </summary>
+    public static string ProductMix(Guid orgId, Guid siteId, DateOnly date)
+        => $"{orgId}:{siteId}:productmix:{date:yyyy-MM-dd}";
+
+    /// <summary>
+    /// Creates a key for a payment reconciliation grain (one per site per day).
+    /// </summary>
+    public static string PaymentReconciliation(Guid orgId, Guid siteId, DateOnly date)
+        => $"{orgId}:{siteId}:reconciliation:{date:yyyy-MM-dd}";
 }
