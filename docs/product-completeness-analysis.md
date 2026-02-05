@@ -319,7 +319,6 @@ Phase 2 (Advanced - 4-6 weeks):
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
 | Auto-86 from Inventory | High | 3-5 days | Manual snooze only, no inventory integration |
-| Dynamic Pricing | High | 1 week | Availability exists but no time-based price changes |
 | Upsell Prompts | Medium | 3-5 days | No cross-sell or upsell suggestions |
 | Price Tiers | Medium | 1 week | No VIP/staff/loyalty pricing |
 | Menu Engineering Integration | Medium | 3-5 days | Grain exists but not integrated in resolution |
@@ -328,9 +327,8 @@ Phase 2 (Advanced - 4-6 weeks):
 #### Recommended Actions
 
 ```
-Phase 1 (Essential - 2 weeks):
+Phase 1 (Essential - 1 week):
 ├── Integrate inventory for auto-snoozing
-├── Implement dynamic pricing rules
 └── Connect menu engineering data to resolution
 
 Phase 2 (Enhanced - 1.5 weeks):
@@ -340,7 +338,7 @@ Phase 2 (Enhanced - 1.5 weeks):
 └── Enhance media support (gallery, video)
 ```
 
-**Total Effort to 95%:** 3-4 weeks
+**Total Effort to 95%:** 2.5-3 weeks
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Menu/MenuCmsState.cs`
