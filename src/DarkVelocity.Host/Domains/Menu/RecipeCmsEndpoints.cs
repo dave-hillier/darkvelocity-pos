@@ -1,5 +1,6 @@
 using DarkVelocity.Host.Contracts;
 using DarkVelocity.Host.Grains;
+using DarkVelocity.Host.Hal;
 using DarkVelocity.Host.State;
 using Microsoft.AspNetCore.Mvc;
 
@@ -60,13 +61,7 @@ public static class RecipeCmsEndpoints
             await registryGrain.RegisterRecipeAsync(documentId, request.Name, result.Published?.CostPerPortion ?? result.Draft?.CostPerPortion ?? 0, request.CategoryId?.ToString());
 
             return Results.Created($"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}",
-                Hal.Resource(ToResponse(result), new Dictionary<string, object>
-                {
-                    ["self"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}" },
-                    ["draft"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}/draft" },
-                    ["publish"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}/publish" },
-                    ["versions"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}/versions" }
-                }));
+                Hal.Resource(ToResponse(result), BuildRecipeLinks(orgId, documentId, result)));
         });
 
         group.MapGet("/recipes", async (
@@ -105,13 +100,60 @@ public static class RecipeCmsEndpoints
                 return Results.NotFound();
 
             var snapshot = await grain.GetSnapshotAsync();
-            return Results.Ok(Hal.Resource(ToResponse(snapshot), new Dictionary<string, object>
+            return Results.Ok(Hal.Resource(ToResponse(snapshot), BuildRecipeLinks(orgId, documentId, snapshot)));
+        });
+
+        // Get linked menu items for a recipe (cross-domain link)
+        group.MapGet("/recipes/{documentId}/menu-items", async (
+            Guid orgId,
+            string documentId,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IRecipeDocumentGrain>(GrainKeys.RecipeDocument(orgId, documentId));
+            if (!await grain.ExistsAsync())
+                return Results.NotFound();
+
+            var snapshot = await grain.GetSnapshotAsync();
+            var linkedMenuItemIds = snapshot.LinkedMenuItemIds;
+
+            // Fetch each linked menu item to build the response
+            var menuItems = new List<object>();
+            foreach (var menuItemDocumentId in linkedMenuItemIds)
             {
-                ["self"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}" },
-                ["draft"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}/draft" },
-                ["publish"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}/publish" },
-                ["versions"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}/versions" }
-            }));
+                var menuItemGrain = grainFactory.GetGrain<IMenuItemDocumentGrain>(
+                    GrainKeys.MenuItemDocument(orgId, menuItemDocumentId));
+
+                if (await menuItemGrain.ExistsAsync())
+                {
+                    var menuItemSnapshot = await menuItemGrain.GetSnapshotAsync();
+                    var published = menuItemSnapshot.Published;
+                    if (published != null)
+                    {
+                        menuItems.Add(new
+                        {
+                            documentId = menuItemDocumentId,
+                            name = published.Name,
+                            price = published.Price,
+                            _links = new Dictionary<string, object>
+                            {
+                                ["self"] = new HalLink($"/api/orgs/{orgId}/menu/cms/items/{menuItemDocumentId}")
+                            }
+                        });
+                    }
+                }
+            }
+
+            return Results.Ok(Hal.Collection(
+                menuItems,
+                new Dictionary<string, object>
+                {
+                    ["self"] = new HalLink($"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}/menu-items"),
+                    ["recipe"] = new HalLink($"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}")
+                },
+                new Dictionary<string, object>
+                {
+                    ["count"] = menuItems.Count
+                }));
         });
 
         group.MapPost("/recipes/{documentId}/draft", async (
@@ -241,10 +283,7 @@ public static class RecipeCmsEndpoints
                 documentId, published.Name, published.CostPerPortion, published.CategoryId?.ToString(),
                 hasDraft: false, isArchived: snapshot.IsArchived, linkedMenuItemCount: snapshot.LinkedMenuItemIds.Count);
 
-            return Results.Ok(Hal.Resource(ToResponse(snapshot), new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}" }
-            }));
+            return Results.Ok(Hal.Resource(ToResponse(snapshot), BuildRecipeLinks(orgId, documentId, snapshot)));
         });
 
         group.MapGet("/recipes/{documentId}/versions", async (
@@ -291,10 +330,7 @@ public static class RecipeCmsEndpoints
                 documentId, published.Name, published.CostPerPortion, published.CategoryId?.ToString(),
                 hasDraft: false, isArchived: snapshot.IsArchived, linkedMenuItemCount: snapshot.LinkedMenuItemIds.Count);
 
-            return Results.Ok(Hal.Resource(ToResponse(snapshot), new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}" }
-            }));
+            return Results.Ok(Hal.Resource(ToResponse(snapshot), BuildRecipeLinks(orgId, documentId, snapshot)));
         });
 
         group.MapPost("/recipes/{documentId}/translations", async (
@@ -774,4 +810,54 @@ public static class RecipeCmsEndpoints
         IconUrl: v.IconUrl,
         DisplayOrder: v.DisplayOrder,
         RecipeDocumentIds: v.RecipeDocumentIds);
+
+    // ========================================================================
+    // HAL Link Builder Helpers
+    // ========================================================================
+
+    /// <summary>
+    /// Builds HAL links for a recipe document response, including cross-domain links
+    /// to related resources (menu items, inventory).
+    /// </summary>
+    private static Dictionary<string, object> BuildRecipeLinks(
+        Guid orgId,
+        string documentId,
+        RecipeDocumentSnapshot? snapshot = null)
+    {
+        var links = new Dictionary<string, object>
+        {
+            ["self"] = new HalLink($"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}"),
+            ["draft"] = new HalLink($"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}/draft"),
+            ["publish"] = new HalLink($"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}/publish"),
+            ["versions"] = new HalLink($"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}/versions"),
+            ["linked-menu-items"] = new HalLink(
+                $"/api/orgs/{orgId}/recipes/cms/recipes/{documentId}/menu-items",
+                Title: "Menu items using this recipe")
+        };
+
+        // Add templated link for ingredient inventory lookups (site-scoped)
+        links["ingredient-inventory"] = new HalLink(
+            $"/api/orgs/{orgId}/sites/{{siteId}}/inventory/{{ingredientId}}",
+            Title: "Inventory for ingredient at a specific site",
+            Templated: true);
+
+        // Add individual ingredient links if we have snapshot data with ingredients
+        if (snapshot != null)
+        {
+            var version = snapshot.Published ?? snapshot.Draft;
+            if (version?.Ingredients != null)
+            {
+                foreach (var ingredient in version.Ingredients)
+                {
+                    // Link to specific ingredient's inventory (templated by site)
+                    links[$"ingredient:{ingredient.IngredientId}:inventory"] = new HalLink(
+                        $"/api/orgs/{orgId}/sites/{{siteId}}/inventory/{ingredient.IngredientId}",
+                        Title: $"Inventory for {ingredient.IngredientName}",
+                        Templated: true);
+                }
+            }
+        }
+
+        return links;
+    }
 }

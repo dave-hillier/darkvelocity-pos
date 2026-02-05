@@ -9,6 +9,83 @@ namespace DarkVelocity.Host.Endpoints;
 /// </summary>
 public static class ExternalOrderEndpoints
 {
+    /// <summary>
+    /// Builds HAL links for an external order resource with cross-domain relationships.
+    /// </summary>
+    private static Dictionary<string, object> BuildExternalOrderLinks(
+        Guid orgId,
+        ExternalOrderSnapshot snapshot,
+        bool includeChannelPath = false)
+    {
+        var externalOrderId = snapshot.ExternalOrderId;
+        var channelId = snapshot.DeliveryPlatformId;
+        var locationId = snapshot.LocationId;
+
+        // Self link - support both URL patterns
+        var selfPath = includeChannelPath
+            ? $"/api/orgs/{orgId}/channels/{channelId}/external-orders/{externalOrderId}"
+            : $"/api/orgs/{orgId}/external-orders/{externalOrderId}";
+
+        var links = new Dictionary<string, object>
+        {
+            ["self"] = new { href = selfPath },
+            ["channel"] = new { href = $"/api/orgs/{orgId}/channels/{channelId}" },
+            ["site"] = new { href = $"/api/orgs/{orgId}/sites/{locationId}" },
+            ["organization"] = new { href = $"/api/orgs/{orgId}" }
+        };
+
+        // Add internal-order link if linked to a POS order
+        if (snapshot.InternalOrderId.HasValue)
+        {
+            links["internal-order"] = new { href = $"/api/orgs/{orgId}/sites/{locationId}/orders/{snapshot.InternalOrderId}" };
+        }
+
+        // Add action links based on current status
+        var basePath = $"/api/orgs/{orgId}/external-orders/{externalOrderId}";
+
+        switch (snapshot.Status)
+        {
+            case ExternalOrderStatus.Pending:
+                links["accept"] = new { href = $"{basePath}/accept" };
+                links["reject"] = new { href = $"{basePath}/reject" };
+                break;
+            case ExternalOrderStatus.Accepted:
+                links["preparing"] = new { href = $"{basePath}/status", method = "POST", body = new { status = "Preparing" } };
+                links["reject"] = new { href = $"{basePath}/reject" };
+                break;
+            case ExternalOrderStatus.Preparing:
+                links["ready"] = new { href = $"{basePath}/status", method = "POST", body = new { status = "Ready" } };
+                break;
+            case ExternalOrderStatus.Ready:
+                links["picked-up"] = new { href = $"{basePath}/status", method = "POST", body = new { status = "PickedUp" } };
+                break;
+            case ExternalOrderStatus.PickedUp:
+                links["delivered"] = new { href = $"{basePath}/status", method = "POST", body = new { status = "Delivered" } };
+                break;
+        }
+
+        // Add link action if not yet linked to internal order
+        if (!snapshot.InternalOrderId.HasValue && snapshot.Status != ExternalOrderStatus.Rejected &&
+            snapshot.Status != ExternalOrderStatus.Cancelled && snapshot.Status != ExternalOrderStatus.Failed)
+        {
+            links["link"] = new { href = $"{basePath}/link" };
+        }
+
+        return links;
+    }
+
+    /// <summary>
+    /// Builds a full external order HAL response with all links.
+    /// </summary>
+    private static object BuildExternalOrderResponse(
+        Guid orgId,
+        ExternalOrderSnapshot snapshot,
+        bool includeChannelPath = false)
+    {
+        var links = BuildExternalOrderLinks(orgId, snapshot, includeChannelPath);
+        return Hal.Resource(snapshot, links);
+    }
+
     public static WebApplication MapExternalOrderEndpoints(this WebApplication app)
     {
         var ordersGroup = app.MapGroup("/api/orgs/{orgId}/external-orders").WithTags("External Orders");
@@ -45,15 +122,7 @@ public static class ExternalOrderEndpoints
             try
             {
                 var snapshot = await grain.GetSnapshotAsync();
-
-                return Results.Ok(Hal.Resource(snapshot, new Dictionary<string, object>
-                {
-                    ["self"] = new { href = $"/api/orgs/{orgId}/external-orders/{externalOrderId}" },
-                    ["organization"] = new { href = $"/api/orgs/{orgId}" },
-                    ["accept"] = new { href = $"/api/orgs/{orgId}/external-orders/{externalOrderId}/accept" },
-                    ["reject"] = new { href = $"/api/orgs/{orgId}/external-orders/{externalOrderId}/reject" },
-                    ["status"] = new { href = $"/api/orgs/{orgId}/external-orders/{externalOrderId}/status" }
-                }));
+                return Results.Ok(BuildExternalOrderResponse(orgId, snapshot));
             }
             catch (InvalidOperationException)
             {
@@ -95,16 +164,7 @@ public static class ExternalOrderEndpoints
                     }
                 }
 
-                return Results.Ok(Hal.Resource(new
-                {
-                    externalOrderId,
-                    status = snapshot.Status.ToString(),
-                    acceptedAt = snapshot.AcceptedAt,
-                    estimatedPickupAt = snapshot.EstimatedPickupAt
-                }, new Dictionary<string, object>
-                {
-                    ["self"] = new { href = $"/api/orgs/{orgId}/external-orders/{externalOrderId}" }
-                }));
+                return Results.Ok(BuildExternalOrderResponse(orgId, snapshot));
             }
             catch (InvalidOperationException ex)
             {
@@ -145,15 +205,7 @@ public static class ExternalOrderEndpoints
                     }
                 }
 
-                return Results.Ok(Hal.Resource(new
-                {
-                    externalOrderId,
-                    status = snapshot.Status.ToString(),
-                    reason = request.Reason
-                }, new Dictionary<string, object>
-                {
-                    ["self"] = new { href = $"/api/orgs/{orgId}/external-orders/{externalOrderId}" }
-                }));
+                return Results.Ok(BuildExternalOrderResponse(orgId, snapshot));
             }
             catch (InvalidOperationException ex)
             {
@@ -216,15 +268,7 @@ public static class ExternalOrderEndpoints
                     }
                 }
 
-                return Results.Ok(Hal.Resource(new
-                {
-                    externalOrderId,
-                    status = snapshot.Status.ToString(),
-                    updatedAt = DateTime.UtcNow
-                }, new Dictionary<string, object>
-                {
-                    ["self"] = new { href = $"/api/orgs/{orgId}/external-orders/{externalOrderId}" }
-                }));
+                return Results.Ok(BuildExternalOrderResponse(orgId, snapshot));
             }
             catch (InvalidOperationException ex)
             {
@@ -247,16 +291,7 @@ public static class ExternalOrderEndpoints
                 await grain.LinkInternalOrderAsync(request.InternalOrderId);
                 var snapshot = await grain.GetSnapshotAsync();
 
-                return Results.Ok(Hal.Resource(new
-                {
-                    externalOrderId,
-                    internalOrderId = request.InternalOrderId,
-                    linked = true
-                }, new Dictionary<string, object>
-                {
-                    ["self"] = new { href = $"/api/orgs/{orgId}/external-orders/{externalOrderId}" },
-                    ["internalOrder"] = new { href = $"/api/orgs/{orgId}/sites/{snapshot.LocationId}/orders/{request.InternalOrderId}" }
-                }));
+                return Results.Ok(BuildExternalOrderResponse(orgId, snapshot));
             }
             catch (InvalidOperationException ex)
             {

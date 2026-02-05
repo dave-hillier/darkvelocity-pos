@@ -1,5 +1,6 @@
 using DarkVelocity.Host.Contracts;
 using DarkVelocity.Host.Grains;
+using DarkVelocity.Host.State;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DarkVelocity.Host.Endpoints;
@@ -40,10 +41,8 @@ public static class PaymentEndpoints
                 return Results.NotFound(Hal.Error("not_found", "Payment not found"));
 
             var state = await grain.GetStateAsync();
-            return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}" }
-            }));
+            var links = BuildPaymentLinks(orgId, siteId, paymentId, state);
+            return Results.Ok(Hal.Resource(state, links));
         });
 
         group.MapPost("/{paymentId}/complete-cash", async (
@@ -119,5 +118,49 @@ public static class PaymentEndpoints
         });
 
         return app;
+    }
+
+    /// <summary>
+    /// Builds HATEOAS links for a payment resource, including conditional cross-domain links
+    /// and action links based on payment state.
+    /// </summary>
+    private static Dictionary<string, object> BuildPaymentLinks(Guid orgId, Guid siteId, Guid paymentId, PaymentState state)
+    {
+        var links = new Dictionary<string, object>
+        {
+            // Core resource links
+            ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}" },
+            ["site"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}" },
+            ["order"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{state.OrderId}" }
+        };
+
+        // Conditional cross-domain links based on associated resources
+        if (state.CustomerId.HasValue)
+        {
+            links["customer"] = new { href = $"/api/orgs/{orgId}/customers/{state.CustomerId}" };
+        }
+
+        // Action links based on payment state
+        switch (state.Status)
+        {
+            case PaymentStatus.Initiated:
+                links["complete-cash"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}/complete-cash" };
+                links["complete-card"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}/complete-card" };
+                links["void"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}/void" };
+                break;
+
+            case PaymentStatus.Completed:
+                links["refund"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}/refund" };
+                links["void"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}/void" };
+                break;
+
+            case PaymentStatus.PartiallyRefunded:
+                links["refund"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/payments/{paymentId}/refund" };
+                break;
+
+            // Voided, Refunded, Declined statuses have no action links
+        }
+
+        return links;
     }
 }

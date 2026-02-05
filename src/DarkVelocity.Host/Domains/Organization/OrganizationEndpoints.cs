@@ -6,6 +6,28 @@ namespace DarkVelocity.Host.Endpoints;
 
 public static class OrganizationEndpoints
 {
+    /// <summary>
+    /// Builds comprehensive HATEOAS links for an organization resource.
+    /// </summary>
+    private static Dictionary<string, object> BuildOrgLinks(Guid orgId)
+    {
+        return new Dictionary<string, object>
+        {
+            ["self"] = new { href = $"/api/orgs/{orgId}" },
+            ["sites"] = new { href = $"/api/orgs/{orgId}/sites" },
+            ["channels"] = new { href = $"/api/orgs/{orgId}/channels" },
+            ["customers"] = new { href = $"/api/orgs/{orgId}/customers" },
+            ["employees"] = new { href = $"/api/orgs/{orgId}/employees" },
+            ["menu"] = new { href = $"/api/orgs/{orgId}/menu" },
+            ["menu:categories"] = new { href = $"/api/orgs/{orgId}/menu/categories" },
+            ["menu:items"] = new { href = $"/api/orgs/{orgId}/menu/items" },
+            ["menu:cms"] = new { href = $"/api/orgs/{orgId}/menu/cms" },
+            ["recipes"] = new { href = $"/api/orgs/{orgId}/recipes/cms" },
+            ["webhooks"] = new { href = $"/api/orgs/{orgId}/webhooks" },
+            ["search"] = new { href = $"/api/orgs/{orgId}/search" }
+        };
+    }
+
     public static WebApplication MapOrganizationEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/orgs").WithTags("Organizations");
@@ -24,11 +46,7 @@ public static class OrganizationEndpoints
                 slug = result.Slug,
                 name = request.Name,
                 createdAt = result.CreatedAt
-            }, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}" },
-                ["sites"] = new { href = $"/api/orgs/{orgId}/sites" }
-            }));
+            }, BuildOrgLinks(orgId)));
         });
 
         group.MapGet("/{orgId}", async (Guid orgId, IGrainFactory grainFactory) =>
@@ -38,11 +56,7 @@ public static class OrganizationEndpoints
                 return Results.NotFound(Hal.Error("not_found", "Organization not found"));
 
             var state = await grain.GetStateAsync();
-            return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}" },
-                ["sites"] = new { href = $"/api/orgs/{orgId}/sites" }
-            }));
+            return Results.Ok(Hal.Resource(state, BuildOrgLinks(orgId)));
         });
 
         group.MapPatch("/{orgId}", async (
@@ -57,10 +71,7 @@ public static class OrganizationEndpoints
             var result = await grain.UpdateAsync(new UpdateOrganizationCommand(request.Name, request.Settings));
             var state = await grain.GetStateAsync();
 
-            return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}" }
-            }));
+            return Results.Ok(Hal.Resource(state, BuildOrgLinks(orgId)));
         });
 
         group.MapPost("/{orgId}/suspend", async (

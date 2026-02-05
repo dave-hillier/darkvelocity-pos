@@ -29,13 +29,7 @@ public static class SiteEndpoints
                 code = result.Code,
                 name = request.Name,
                 createdAt = result.CreatedAt
-            }, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}" },
-                ["organization"] = new { href = $"/api/orgs/{orgId}" },
-                ["orders"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders" },
-                ["menu"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/menu" }
-            }));
+            }, BuildSiteLinks(orgId, siteId)));
         });
 
         group.MapGet("/", async (Guid orgId, IGrainFactory grainFactory) =>
@@ -53,10 +47,7 @@ public static class SiteEndpoints
                 if (await siteGrain.ExistsAsync())
                 {
                     var state = await siteGrain.GetStateAsync();
-                    sites.Add(Hal.Resource(state, new Dictionary<string, object>
-                    {
-                        ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}" }
-                    }));
+                    sites.Add(Hal.Resource(state, BuildSiteLinks(orgId, siteId)));
                 }
             }
 
@@ -70,16 +61,7 @@ public static class SiteEndpoints
                 return Results.NotFound(Hal.Error("not_found", "Site not found"));
 
             var state = await grain.GetStateAsync();
-            return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}" },
-                ["organization"] = new { href = $"/api/orgs/{orgId}" },
-                ["orders"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders" },
-                ["menu"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/menu" },
-                ["customers"] = new { href = $"/api/orgs/{orgId}/customers" },
-                ["inventory"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/inventory" },
-                ["bookings"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings" }
-            }));
+            return Results.Ok(Hal.Resource(state, BuildSiteLinks(orgId, siteId)));
         });
 
         group.MapPatch("/{siteId}", async (
@@ -95,10 +77,7 @@ public static class SiteEndpoints
             await grain.UpdateAsync(new UpdateSiteCommand(request.Name, request.Address, request.OperatingHours, request.Settings));
             var state = await grain.GetStateAsync();
 
-            return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}" }
-            }));
+            return Results.Ok(Hal.Resource(state, BuildSiteLinks(orgId, siteId)));
         });
 
         group.MapPost("/{siteId}/open", async (Guid orgId, Guid siteId, IGrainFactory grainFactory) =>
@@ -122,5 +101,26 @@ public static class SiteEndpoints
         });
 
         return app;
+    }
+
+    private static Dictionary<string, object> BuildSiteLinks(Guid orgId, Guid siteId)
+    {
+        var basePath = $"/api/orgs/{orgId}/sites/{siteId}";
+        return new Dictionary<string, object>
+        {
+            ["self"] = new { href = basePath },
+            ["organization"] = new { href = $"/api/orgs/{orgId}" },
+            ["orders"] = new { href = $"{basePath}/orders" },
+            ["tables"] = new { href = $"{basePath}/tables" },
+            ["floor-plans"] = new { href = $"{basePath}/floor-plans" },
+            ["inventory"] = new { href = $"{basePath}/inventory" },
+            ["bookings"] = new { href = $"{basePath}/bookings" },
+            ["availability"] = new { href = $"{basePath}/availability" },
+            ["waitlist"] = new { href = $"{basePath}/waitlist" },
+            ["expenses"] = new { href = $"{basePath}/expenses" },
+            ["purchases"] = new { href = $"{basePath}/purchases" },
+            ["menu:effective"] = new { href = $"{basePath}/menu/effective" },
+            ["customers"] = new { href = $"/api/orgs/{orgId}/customers" }
+        };
     }
 }

@@ -73,6 +73,20 @@ public static class MenuEndpoints
             var categoryGrain = grainFactory.GetGrain<IMenuCategoryGrain>(GrainKeys.MenuCategory(orgId, request.CategoryId));
             await categoryGrain.IncrementItemCountAsync();
 
+            var links = new Dictionary<string, object>
+            {
+                ["self"] = new { href = $"/api/orgs/{orgId}/menu/items/{itemId}" },
+                ["category"] = new { href = $"/api/orgs/{orgId}/menu/categories/{request.CategoryId}" },
+                ["modifiers"] = new { href = $"/api/orgs/{orgId}/menu/items/{itemId}/modifiers" },
+                ["variations"] = new { href = $"/api/orgs/{orgId}/menu/items/{itemId}/variations" }
+            };
+
+            // Cross-domain link to recipe if set
+            if (request.RecipeId.HasValue)
+            {
+                links["recipe"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/{request.RecipeId.Value}" };
+            }
+
             return Results.Created($"/api/orgs/{orgId}/menu/items/{itemId}", Hal.Resource(new
             {
                 id = itemId,
@@ -85,17 +99,27 @@ public static class MenuEndpoints
                 result.Sku,
                 result.IsActive,
                 result.TrackInventory
-            }, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/menu/items/{itemId}" },
-                ["category"] = new { href = $"/api/orgs/{orgId}/menu/categories/{request.CategoryId}" }
-            }));
+            }, links));
         });
 
         group.MapGet("/items/{itemId}", async (Guid orgId, Guid itemId, IGrainFactory grainFactory) =>
         {
             var grain = grainFactory.GetGrain<IMenuItemGrain>(GrainKeys.MenuItem(orgId, itemId));
             var snapshot = await grain.GetSnapshotAsync();
+
+            var links = new Dictionary<string, object>
+            {
+                ["self"] = new { href = $"/api/orgs/{orgId}/menu/items/{itemId}" },
+                ["category"] = new { href = $"/api/orgs/{orgId}/menu/categories/{snapshot.CategoryId}" },
+                ["modifiers"] = new { href = $"/api/orgs/{orgId}/menu/items/{itemId}/modifiers" },
+                ["variations"] = new { href = $"/api/orgs/{orgId}/menu/items/{itemId}/variations" }
+            };
+
+            // Cross-domain link to recipe if set
+            if (snapshot.RecipeId.HasValue)
+            {
+                links["recipe"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/{snapshot.RecipeId.Value}" };
+            }
 
             return Results.Ok(Hal.Resource(new
             {
@@ -109,11 +133,7 @@ public static class MenuEndpoints
                 snapshot.Sku,
                 snapshot.IsActive,
                 snapshot.TrackInventory
-            }, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/menu/items/{itemId}" },
-                ["category"] = new { href = $"/api/orgs/{orgId}/menu/categories/{snapshot.CategoryId}" }
-            }));
+            }, links));
         });
 
         group.MapPatch("/items/{itemId}", async (
@@ -127,6 +147,20 @@ public static class MenuEndpoints
                 request.CategoryId, request.AccountingGroupId, request.RecipeId, request.Name, request.Description,
                 request.Price, request.ImageUrl, request.Sku, request.IsActive, request.TrackInventory));
 
+            var links = new Dictionary<string, object>
+            {
+                ["self"] = new { href = $"/api/orgs/{orgId}/menu/items/{itemId}" },
+                ["category"] = new { href = $"/api/orgs/{orgId}/menu/categories/{result.CategoryId}" },
+                ["modifiers"] = new { href = $"/api/orgs/{orgId}/menu/items/{itemId}/modifiers" },
+                ["variations"] = new { href = $"/api/orgs/{orgId}/menu/items/{itemId}/variations" }
+            };
+
+            // Cross-domain link to recipe if set
+            if (result.RecipeId.HasValue)
+            {
+                links["recipe"] = new { href = $"/api/orgs/{orgId}/recipes/cms/recipes/{result.RecipeId.Value}" };
+            }
+
             return Results.Ok(Hal.Resource(new
             {
                 id = result.MenuItemId,
@@ -139,10 +173,7 @@ public static class MenuEndpoints
                 result.Sku,
                 result.IsActive,
                 result.TrackInventory
-            }, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/menu/items/{itemId}" }
-            }));
+            }, links));
         });
 
         return app;

@@ -1,5 +1,6 @@
 using DarkVelocity.Host.Contracts;
 using DarkVelocity.Host.Grains;
+using DarkVelocity.Host.State;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DarkVelocity.Host.Endpoints;
@@ -20,16 +21,15 @@ public static class CustomerEndpoints
             var result = await grain.CreateAsync(new CreateCustomerCommand(
                 orgId, request.FirstName, request.LastName, request.Email, request.Phone, request.Source));
 
+            var state = await grain.GetStateAsync();
+            var links = await BuildCustomerLinksAsync(orgId, customerId, state, grainFactory);
+
             return Results.Created($"/api/orgs/{orgId}/customers/{customerId}", Hal.Resource(new
             {
                 id = result.Id,
                 displayName = result.DisplayName,
                 createdAt = result.CreatedAt
-            }, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}" },
-                ["loyalty"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}/loyalty" }
-            }));
+            }, links));
         });
 
         group.MapGet("/{customerId}", async (Guid orgId, Guid customerId, IGrainFactory grainFactory) =>
@@ -39,12 +39,9 @@ public static class CustomerEndpoints
                 return Results.NotFound(Hal.Error("not_found", "Customer not found"));
 
             var state = await grain.GetStateAsync();
-            return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}" },
-                ["loyalty"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}/loyalty" },
-                ["rewards"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}/rewards" }
-            }));
+            var links = await BuildCustomerLinksAsync(orgId, customerId, state, grainFactory);
+
+            return Results.Ok(Hal.Resource(state, links));
         });
 
         group.MapPatch("/{customerId}", async (
@@ -60,11 +57,9 @@ public static class CustomerEndpoints
             await grain.UpdateAsync(new UpdateCustomerCommand(
                 request.FirstName, request.LastName, request.Email, request.Phone, request.DateOfBirth, request.Preferences));
             var state = await grain.GetStateAsync();
+            var links = await BuildCustomerLinksAsync(orgId, customerId, state, grainFactory);
 
-            return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/customers/{customerId}" }
-            }));
+            return Results.Ok(Hal.Resource(state, links));
         });
 
         group.MapPost("/{customerId}/loyalty/enroll", async (
@@ -222,5 +217,53 @@ public static class CustomerEndpoints
         });
 
         return app;
+    }
+
+    /// <summary>
+    /// Builds HAL links for a customer resource with cross-domain relationships.
+    /// </summary>
+    private static async Task<Dictionary<string, object>> BuildCustomerLinksAsync(
+        Guid orgId,
+        Guid customerId,
+        CustomerState state,
+        IGrainFactory grainFactory)
+    {
+        var basePath = $"/api/orgs/{orgId}/customers/{customerId}";
+
+        var links = new Dictionary<string, object>
+        {
+            ["self"] = new { href = basePath },
+            ["organization"] = new { href = $"/api/orgs/{orgId}" },
+            // Orders are site-scoped, so use templated link with siteId parameter
+            ["orders"] = new { href = $"{basePath}/orders{{?siteId}}", templated = true },
+            ["bookings"] = new { href = $"{basePath}/bookings" },
+            ["visits"] = new { href = $"{basePath}/visits" },
+            ["preferences"] = new { href = $"{basePath}/preferences" },
+            ["tags"] = new { href = $"{basePath}/tags" },
+            ["rewards"] = new { href = $"{basePath}/rewards" }
+        };
+
+        // Add loyalty link if customer is enrolled in a loyalty program
+        if (state.Loyalty != null)
+        {
+            links["loyalty"] = new { href = $"{basePath}/loyalty" };
+            links["loyalty:earn"] = new { href = $"{basePath}/loyalty/earn" };
+            links["loyalty:redeem"] = new { href = $"{basePath}/loyalty/redeem" };
+        }
+        else
+        {
+            // Link to enroll in loyalty
+            links["loyalty:enroll"] = new { href = $"{basePath}/loyalty/enroll" };
+        }
+
+        // Check if spend projection exists and add link
+        var spendGrain = grainFactory.GetGrain<ICustomerSpendProjectionGrain>(
+            GrainKeys.CustomerSpendProjection(orgId, customerId));
+        if (await spendGrain.ExistsAsync())
+        {
+            links["spend-history"] = new { href = $"{basePath}/spend" };
+        }
+
+        return links;
     }
 }

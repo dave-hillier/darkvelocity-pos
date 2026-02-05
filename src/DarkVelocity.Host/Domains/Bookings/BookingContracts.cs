@@ -17,3 +17,4 @@ public record ConfirmBookingRequest(DateTime? ConfirmedTime = null);
 public record CancelBookingRequest(string Reason, Guid CancelledBy);
 public record CheckInRequest(Guid CheckedInBy);
 public record SeatGuestRequest(Guid TableId, string TableNumber, Guid SeatedBy);
+public record CompleteBookingRequest(Guid? OrderId = null);

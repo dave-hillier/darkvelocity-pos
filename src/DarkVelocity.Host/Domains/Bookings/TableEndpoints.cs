@@ -1,5 +1,6 @@
 using DarkVelocity.Host.Contracts;
 using DarkVelocity.Host.Grains;
+using DarkVelocity.Host.State;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DarkVelocity.Host.Endpoints;
@@ -22,16 +23,15 @@ public static class TableEndpoints
                 orgId, siteId, request.Number, request.MinCapacity, request.MaxCapacity,
                 request.Name, request.Shape, request.FloorPlanId));
 
+            var state = await grain.GetStateAsync();
+            var links = BuildTableLinks(orgId, siteId, tableId, state);
+
             return Results.Created($"/api/orgs/{orgId}/sites/{siteId}/tables/{tableId}", Hal.Resource(new
             {
                 id = result.Id,
                 number = result.Number,
                 createdAt = result.CreatedAt
-            }, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/tables/{tableId}" },
-                ["site"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}" }
-            }));
+            }, links));
         });
 
         group.MapGet("/{tableId}", async (Guid orgId, Guid siteId, Guid tableId, IGrainFactory grainFactory) =>
@@ -41,12 +41,9 @@ public static class TableEndpoints
                 return Results.NotFound(Hal.Error("not_found", "Table not found"));
 
             var state = await grain.GetStateAsync();
-            return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/tables/{tableId}" },
-                ["seat"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/tables/{tableId}/seat" },
-                ["clear"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/tables/{tableId}/clear" }
-            }));
+            var links = BuildTableLinks(orgId, siteId, tableId, state);
+
+            return Results.Ok(Hal.Resource(state, links));
         });
 
         group.MapPatch("/{tableId}", async (
@@ -62,11 +59,9 @@ public static class TableEndpoints
                 request.Number, request.Name, request.MinCapacity, request.MaxCapacity,
                 request.Shape, request.Position, request.IsCombinable, request.SortOrder));
             var state = await grain.GetStateAsync();
+            var links = BuildTableLinks(orgId, siteId, tableId, state);
 
-            return Results.Ok(Hal.Resource(state, new Dictionary<string, object>
-            {
-                ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/tables/{tableId}" }
-            }));
+            return Results.Ok(Hal.Resource(state, links));
         });
 
         group.MapPost("/{tableId}/seat", async (
@@ -80,12 +75,9 @@ public static class TableEndpoints
 
             await grain.SeatAsync(new SeatTableCommand(request.BookingId, request.OrderId, request.GuestName, request.GuestCount, request.ServerId));
             var state = await grain.GetStateAsync();
+            var links = BuildTableLinks(orgId, siteId, tableId, state);
 
-            return Results.Ok(Hal.Resource(new { status = state.Status, occupancy = state.CurrentOccupancy }, new Dictionary<string, object>
-            {
-                ["table"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/tables/{tableId}" },
-                ["clear"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/tables/{tableId}/clear" }
-            }));
+            return Results.Ok(Hal.Resource(new { status = state.Status, occupancy = state.CurrentOccupancy }, links));
         });
 
         group.MapPost("/{tableId}/clear", async (Guid orgId, Guid siteId, Guid tableId, IGrainFactory grainFactory) =>
@@ -122,5 +114,62 @@ public static class TableEndpoints
         });
 
         return app;
+    }
+
+    /// <summary>
+    /// Builds HAL links for a table resource with cross-domain relationships.
+    /// </summary>
+    private static Dictionary<string, object> BuildTableLinks(
+        Guid orgId,
+        Guid siteId,
+        Guid tableId,
+        TableState state)
+    {
+        var basePath = $"/api/orgs/{orgId}/sites/{siteId}/tables/{tableId}";
+        var sitePath = $"/api/orgs/{orgId}/sites/{siteId}";
+
+        var links = new Dictionary<string, object>
+        {
+            ["self"] = new { href = basePath },
+            ["site"] = new { href = sitePath }
+        };
+
+        // Add floor-plan link if the table is assigned to a floor plan
+        if (state.FloorPlanId.HasValue)
+        {
+            links["floor-plan"] = new { href = $"{sitePath}/floor-plans/{state.FloorPlanId.Value}" };
+        }
+
+        // Add current-order link if table is occupied with an order
+        if (state.CurrentOccupancy?.OrderId.HasValue == true)
+        {
+            links["current-order"] = new { href = $"{sitePath}/orders/{state.CurrentOccupancy.OrderId.Value}" };
+        }
+
+        // Add current-booking link if table has an active booking
+        if (state.CurrentOccupancy?.BookingId.HasValue == true)
+        {
+            links["current-booking"] = new { href = $"{sitePath}/bookings/{state.CurrentOccupancy.BookingId.Value}" };
+        }
+
+        // Add action links based on table status
+        switch (state.Status)
+        {
+            case TableStatus.Available:
+            case TableStatus.Reserved:
+            case TableStatus.Dirty:
+                // Table can be assigned to a booking/order
+                links["assign"] = new { href = $"{basePath}/seat" };
+                break;
+
+            case TableStatus.Occupied:
+                // Table can be released
+                links["release"] = new { href = $"{basePath}/clear" };
+                break;
+
+            // Blocked and OutOfService tables don't have action links
+        }
+
+        return links;
     }
 }
