@@ -1684,3 +1684,334 @@ public class FiskalyRegionTests
         config.GetBaseUrl().Should().NotBeNullOrEmpty();
     }
 }
+
+// ============================================================================
+// Fiskaly Config Grain Tests
+// ============================================================================
+
+[Collection(ClusterCollection.Name)]
+[Trait("Category", "Integration")]
+public class FiskalyConfigGrainTests
+{
+    private readonly TestClusterFixture _fixture;
+
+    public FiskalyConfigGrainTests(TestClusterFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    private IFiskalyConfigGrain GetGrain(Guid orgId)
+    {
+        var key = $"{orgId}:fiskaly:config";
+        return _fixture.Cluster.GrainFactory.GetGrain<IFiskalyConfigGrain>(key);
+    }
+
+    [Fact]
+    public async Task GetConfigAsync_WhenNew_ReturnsDefaultConfig()
+    {
+        var orgId = Guid.NewGuid();
+        var grain = GetGrain(orgId);
+
+        var config = await grain.GetConfigAsync();
+
+        config.TenantId.Should().Be(orgId);
+        config.Enabled.Should().BeFalse();
+        config.HasCredentials.Should().BeFalse();
+        config.Region.Should().Be(FiskalyRegion.Germany); // Default
+    }
+
+    [Fact]
+    public async Task UpdateConfigAsync_UpdatesAllFields()
+    {
+        var orgId = Guid.NewGuid();
+        var grain = GetGrain(orgId);
+
+        var result = await grain.UpdateConfigAsync(new UpdateFiskalyTenantConfigCommand(
+            Enabled: true,
+            Region: FiskalyRegion.Austria,
+            Environment: FiskalyEnvironment.Production,
+            ApiKey: "test-api-key",
+            ApiSecret: "test-api-secret",
+            TssId: null,
+            ClientId: "register-001",
+            OrganizationId: "org-001",
+            ForwardAllEvents: true,
+            RequireExternalSignature: false));
+
+        result.Enabled.Should().BeTrue();
+        result.Region.Should().Be(FiskalyRegion.Austria);
+        result.Environment.Should().Be(FiskalyEnvironment.Production);
+        result.HasCredentials.Should().BeTrue();
+        result.ClientId.Should().Be("register-001");
+        result.OrganizationId.Should().Be("org-001");
+        result.ForwardAllEvents.Should().BeTrue();
+        result.RequireExternalSignature.Should().BeFalse();
+        result.LastUpdatedAt.Should().NotBeNull();
+        result.Version.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task EnableAsync_EnablesConfig()
+    {
+        var orgId = Guid.NewGuid();
+        var grain = GetGrain(orgId);
+
+        await grain.UpdateConfigAsync(new UpdateFiskalyTenantConfigCommand(
+            Enabled: false,
+            Region: FiskalyRegion.Germany,
+            Environment: FiskalyEnvironment.Test,
+            ApiKey: "key",
+            ApiSecret: "secret",
+            TssId: "tss",
+            ClientId: "client",
+            OrganizationId: null,
+            ForwardAllEvents: true,
+            RequireExternalSignature: true));
+
+        var result = await grain.EnableAsync();
+
+        result.Enabled.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task DisableAsync_DisablesConfig()
+    {
+        var orgId = Guid.NewGuid();
+        var grain = GetGrain(orgId);
+
+        await grain.UpdateConfigAsync(new UpdateFiskalyTenantConfigCommand(
+            Enabled: true,
+            Region: FiskalyRegion.Germany,
+            Environment: FiskalyEnvironment.Test,
+            ApiKey: "key",
+            ApiSecret: "secret",
+            TssId: "tss",
+            ClientId: "client",
+            OrganizationId: null,
+            ForwardAllEvents: true,
+            RequireExternalSignature: true));
+
+        var result = await grain.DisableAsync();
+
+        result.Enabled.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ValidateAsync_WithMissingApiKey_ReturnsError()
+    {
+        var orgId = Guid.NewGuid();
+        var grain = GetGrain(orgId);
+
+        await grain.UpdateConfigAsync(new UpdateFiskalyTenantConfigCommand(
+            Enabled: true,
+            Region: FiskalyRegion.Germany,
+            Environment: FiskalyEnvironment.Test,
+            ApiKey: null,
+            ApiSecret: "secret",
+            TssId: "tss",
+            ClientId: "client",
+            OrganizationId: null,
+            ForwardAllEvents: true,
+            RequireExternalSignature: true));
+
+        var result = await grain.ValidateAsync();
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.Contains("API Key"));
+    }
+
+    [Fact]
+    public async Task ValidateAsync_WithMissingTssIdForGermany_ReturnsError()
+    {
+        var orgId = Guid.NewGuid();
+        var grain = GetGrain(orgId);
+
+        await grain.UpdateConfigAsync(new UpdateFiskalyTenantConfigCommand(
+            Enabled: true,
+            Region: FiskalyRegion.Germany,
+            Environment: FiskalyEnvironment.Test,
+            ApiKey: "key",
+            ApiSecret: "secret",
+            TssId: null,
+            ClientId: "client",
+            OrganizationId: null,
+            ForwardAllEvents: true,
+            RequireExternalSignature: true));
+
+        var result = await grain.ValidateAsync();
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.Contains("TSS ID"));
+    }
+
+    [Fact]
+    public async Task ValidateAsync_WithValidConfig_ReturnsValid()
+    {
+        var orgId = Guid.NewGuid();
+        var grain = GetGrain(orgId);
+
+        await grain.UpdateConfigAsync(new UpdateFiskalyTenantConfigCommand(
+            Enabled: true,
+            Region: FiskalyRegion.Germany,
+            Environment: FiskalyEnvironment.Production,
+            ApiKey: "key",
+            ApiSecret: "secret",
+            TssId: "tss-123",
+            ClientId: "client-123",
+            OrganizationId: null,
+            ForwardAllEvents: true,
+            RequireExternalSignature: true));
+
+        var result = await grain.ValidateAsync();
+
+        result.IsValid.Should().BeTrue();
+        result.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ValidateAsync_WithTestEnvironment_ReturnsWarning()
+    {
+        var orgId = Guid.NewGuid();
+        var grain = GetGrain(orgId);
+
+        await grain.UpdateConfigAsync(new UpdateFiskalyTenantConfigCommand(
+            Enabled: true,
+            Region: FiskalyRegion.Germany,
+            Environment: FiskalyEnvironment.Test,
+            ApiKey: "key",
+            ApiSecret: "secret",
+            TssId: "tss-123",
+            ClientId: "client-123",
+            OrganizationId: null,
+            ForwardAllEvents: true,
+            RequireExternalSignature: true));
+
+        var result = await grain.ValidateAsync();
+
+        result.IsValid.Should().BeTrue();
+        result.Warnings.Should().Contain(w => w.Contains("Test environment"));
+    }
+
+    [Fact]
+    public async Task GetFiskalyConfigurationAsync_WhenEnabled_ReturnsConfig()
+    {
+        var orgId = Guid.NewGuid();
+        var grain = GetGrain(orgId);
+
+        await grain.UpdateConfigAsync(new UpdateFiskalyTenantConfigCommand(
+            Enabled: true,
+            Region: FiskalyRegion.Austria,
+            Environment: FiskalyEnvironment.Production,
+            ApiKey: "my-api-key",
+            ApiSecret: "my-api-secret",
+            TssId: null,
+            ClientId: "register-123",
+            OrganizationId: "org-456",
+            ForwardAllEvents: true,
+            RequireExternalSignature: true));
+
+        var config = await grain.GetFiskalyConfigurationAsync();
+
+        config.Should().NotBeNull();
+        config!.Enabled.Should().BeTrue();
+        config.Region.Should().Be(FiskalyRegion.Austria);
+        config.Environment.Should().Be(FiskalyEnvironment.Production);
+        config.ApiKey.Should().Be("my-api-key");
+        config.ApiSecret.Should().Be("my-api-secret");
+        config.ClientId.Should().Be("register-123");
+    }
+
+    [Fact]
+    public async Task GetFiskalyConfigurationAsync_WhenDisabled_ReturnsNull()
+    {
+        var orgId = Guid.NewGuid();
+        var grain = GetGrain(orgId);
+
+        await grain.UpdateConfigAsync(new UpdateFiskalyTenantConfigCommand(
+            Enabled: false,
+            Region: FiskalyRegion.Germany,
+            Environment: FiskalyEnvironment.Test,
+            ApiKey: "key",
+            ApiSecret: "secret",
+            TssId: "tss",
+            ClientId: "client",
+            OrganizationId: null,
+            ForwardAllEvents: true,
+            RequireExternalSignature: true));
+
+        var config = await grain.GetFiskalyConfigurationAsync();
+
+        config.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetFiskalyConfigurationAsync_WithMissingCredentials_ReturnsNull()
+    {
+        var orgId = Guid.NewGuid();
+        var grain = GetGrain(orgId);
+
+        await grain.UpdateConfigAsync(new UpdateFiskalyTenantConfigCommand(
+            Enabled: true,
+            Region: FiskalyRegion.Germany,
+            Environment: FiskalyEnvironment.Test,
+            ApiKey: null,
+            ApiSecret: null,
+            TssId: "tss",
+            ClientId: "client",
+            OrganizationId: null,
+            ForwardAllEvents: true,
+            RequireExternalSignature: true));
+
+        var config = await grain.GetFiskalyConfigurationAsync();
+
+        config.Should().BeNull();
+    }
+}
+
+// ============================================================================
+// Fiskaly Options Tests
+// ============================================================================
+
+public class FiskalyOptionsTests
+{
+    [Fact]
+    public void FiskalyOptions_HasCorrectDefaults()
+    {
+        var options = new FiskalyOptions();
+
+        options.Enabled.Should().BeFalse();
+        options.DefaultRegion.Should().Be("Germany");
+        options.DefaultEnvironment.Should().Be("Test");
+        options.HttpTimeoutSeconds.Should().Be(30);
+        options.RetryAttempts.Should().Be(3);
+        options.RetryDelayMs.Should().Be(1000);
+        options.UseExponentialBackoff.Should().BeTrue();
+        options.AutoSubscribeToEvents.Should().BeTrue();
+        options.TokenRefreshBufferMinutes.Should().Be(5);
+    }
+
+    [Fact]
+    public void FiskalyRegionOptions_HasCorrectDefaultUrls()
+    {
+        var options = new FiskalyRegionOptions();
+
+        options.Germany.TestUrl.Should().Be("https://kassensichv-middleware.fiskaly.com/api/v2");
+        options.Germany.ProductionUrl.Should().Be("https://kassensichv-middleware.fiskaly.com/api/v2");
+        options.Austria.TestUrl.Should().Be("https://rksv.fiskaly.com/api/v1");
+        options.Austria.ProductionUrl.Should().Be("https://rksv.fiskaly.com/api/v1");
+        options.Italy.TestUrl.Should().Be("https://rt.fiskaly.com/api/v1");
+        options.Italy.ProductionUrl.Should().Be("https://rt.fiskaly.com/api/v1");
+    }
+
+    [Fact]
+    public void FiskalyTenantOptions_HasCorrectDefaults()
+    {
+        var options = new FiskalyTenantOptions();
+
+        options.Enabled.Should().BeFalse();
+        options.Region.Should().Be("Germany");
+        options.Environment.Should().Be("Test");
+        options.ForwardAllEvents.Should().BeTrue();
+        options.RequireExternalSignature.Should().BeTrue();
+    }
+}

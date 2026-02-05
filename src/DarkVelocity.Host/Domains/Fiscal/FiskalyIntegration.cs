@@ -460,6 +460,7 @@ public sealed class FiskalyIntegrationState
 /// <summary>
 /// Manages Fiskaly integration for a tenant.
 /// Subscribes to TSE events and forwards transactions to Fiskaly API.
+/// Configuration-driven: loads settings from FiskalyConfigGrain.
 /// </summary>
 public sealed class FiskalyIntegrationGrain : Grain, IFiskalyIntegrationGrain, IAsyncObserver<IntegrationEvent>
 {
@@ -468,6 +469,7 @@ public sealed class FiskalyIntegrationGrain : Grain, IFiskalyIntegrationGrain, I
     private readonly IFiskalyClient _fiskalyClient;
     private StreamSubscriptionHandle<IntegrationEvent>? _subscription;
     private IAsyncStream<IntegrationEvent>? _outboundStream;
+    private FiskalyConfiguration? _cachedConfig;
 
     public FiskalyIntegrationGrain(
         [PersistentState("fiskaly", "OrleansStorage")]
@@ -482,20 +484,55 @@ public sealed class FiskalyIntegrationGrain : Grain, IFiskalyIntegrationGrain, I
 
     public override async Task OnActivateAsync(CancellationToken cancellationToken)
     {
-        if (_state.State.Enabled && _state.State.Configuration != null)
+        var key = this.GetPrimaryKeyString();
+        var parts = key.Split(':');
+        var orgId = Guid.Parse(parts[0]);
+        _state.State.OrgId = orgId;
+
+        // Load configuration from config grain
+        await RefreshConfigurationAsync();
+
+        // Auto-subscribe if enabled
+        if (_state.State.Enabled && _cachedConfig != null)
         {
             await SubscribeToTseEventsAsync();
         }
+
         await base.OnActivateAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Refresh configuration from the FiskalyConfigGrain
+    /// </summary>
+    private async Task RefreshConfigurationAsync()
+    {
+        var configGrain = _grainFactory.GetGrain<IFiskalyConfigGrain>($"{_state.State.OrgId}:fiskaly:config");
+        _cachedConfig = await configGrain.GetFiskalyConfigurationAsync();
+
+        if (_cachedConfig != null)
+        {
+            _state.State.Enabled = _cachedConfig.Enabled;
+            _state.State.Configuration = _cachedConfig;
+        }
+    }
+
+    /// <summary>
+    /// Get current effective configuration, refreshing if needed
+    /// </summary>
+    private async Task<FiskalyConfiguration?> GetEffectiveConfigurationAsync()
+    {
+        if (_cachedConfig == null)
+        {
+            await RefreshConfigurationAsync();
+        }
+        return _cachedConfig;
     }
 
     public async Task<FiskalyIntegrationSnapshot> ConfigureAsync(ConfigureFiskalyCommand command)
     {
-        var key = this.GetPrimaryKeyString();
-        var parts = key.Split(':');
-        var orgId = Guid.Parse(parts[0]);
-
-        var config = new FiskalyConfiguration(
+        // Update config through the config grain for centralized management
+        var configGrain = _grainFactory.GetGrain<IFiskalyConfigGrain>($"{_state.State.OrgId}:fiskaly:config");
+        await configGrain.UpdateConfigAsync(new UpdateFiskalyTenantConfigCommand(
             Enabled: true,
             Region: command.Region,
             Environment: command.Environment,
@@ -503,7 +540,14 @@ public sealed class FiskalyIntegrationGrain : Grain, IFiskalyIntegrationGrain, I
             ApiSecret: command.ApiSecret,
             TssId: command.TssId,
             ClientId: command.ClientId,
-            OrganizationId: command.OrganizationId);
+            OrganizationId: command.OrganizationId,
+            ForwardAllEvents: true,
+            RequireExternalSignature: true));
+
+        // Refresh our cached config
+        await RefreshConfigurationAsync();
+
+        var config = _cachedConfig!;
 
         // Test connection and get TSS info
         try
@@ -526,8 +570,10 @@ public sealed class FiskalyIntegrationGrain : Grain, IFiskalyIntegrationGrain, I
             throw;
         }
 
-        _state.State.OrgId = orgId;
-        _state.State.IntegrationId = Guid.NewGuid();
+        if (_state.State.IntegrationId == Guid.Empty)
+        {
+            _state.State.IntegrationId = Guid.NewGuid();
+        }
         _state.State.Enabled = true;
         _state.State.Configuration = config;
         _state.State.Version++;
@@ -538,7 +584,7 @@ public sealed class FiskalyIntegrationGrain : Grain, IFiskalyIntegrationGrain, I
         // Publish configuration event
         await PublishEventAsync(new FiskalyIntegrationConfigured(
             IntegrationId: _state.State.IntegrationId,
-            TenantId: orgId,
+            TenantId: _state.State.OrgId,
             Region: command.Region.ToString(),
             Environment: command.Environment.ToString(),
             TssId: command.TssId,
@@ -549,7 +595,12 @@ public sealed class FiskalyIntegrationGrain : Grain, IFiskalyIntegrationGrain, I
 
     public async Task DisableAsync()
     {
+        // Update config grain to disable
+        var configGrain = _grainFactory.GetGrain<IFiskalyConfigGrain>($"{_state.State.OrgId}:fiskaly:config");
+        await configGrain.DisableAsync();
+
         _state.State.Enabled = false;
+        _cachedConfig = null;
         _state.State.Version++;
         await _state.WriteStateAsync();
 
@@ -565,19 +616,22 @@ public sealed class FiskalyIntegrationGrain : Grain, IFiskalyIntegrationGrain, I
             DisabledAt: DateTime.UtcNow));
     }
 
-    public Task<FiskalyIntegrationSnapshot> GetSnapshotAsync()
+    public async Task<FiskalyIntegrationSnapshot> GetSnapshotAsync()
     {
-        return Task.FromResult(CreateSnapshot());
+        // Refresh config in case it changed
+        await RefreshConfigurationAsync();
+        return CreateSnapshot();
     }
 
     public async Task<bool> TestConnectionAsync()
     {
-        if (_state.State.Configuration == null)
+        var config = await GetEffectiveConfigurationAsync();
+        if (config == null)
             return false;
 
         try
         {
-            var auth = await _fiskalyClient.AuthenticateAsync(_state.State.Configuration);
+            var auth = await _fiskalyClient.AuthenticateAsync(config);
             _state.State.AccessToken = auth.AccessToken;
             _state.State.TokenExpiresAt = DateTimeOffset.FromUnixTimeSeconds(auth.ExpiresAt).UtcDateTime;
             _state.State.LastError = null;
@@ -612,7 +666,8 @@ public sealed class FiskalyIntegrationGrain : Grain, IFiskalyIntegrationGrain, I
 
     public async Task HandleTseTransactionStartedAsync(TseTransactionStarted evt)
     {
-        if (!_state.State.Enabled || _state.State.Configuration == null)
+        var config = await GetEffectiveConfigurationAsync();
+        if (config == null || !config.Enabled)
             return;
 
         await EnsureTokenValidAsync();
@@ -622,10 +677,10 @@ public sealed class FiskalyIntegrationGrain : Grain, IFiskalyIntegrationGrain, I
             var fiskalyTxId = Guid.NewGuid().ToString();
             _state.State.PendingTransactions[evt.TseTransactionId] = fiskalyTxId;
 
-            if (_state.State.Configuration.Region == FiskalyRegion.Germany)
+            if (config.Region == FiskalyRegion.Germany)
             {
                 var response = await _fiskalyClient.StartTransactionAsync(
-                    _state.State.Configuration,
+                    config,
                     _state.State.AccessToken!,
                     fiskalyTxId);
 
@@ -656,7 +711,8 @@ public sealed class FiskalyIntegrationGrain : Grain, IFiskalyIntegrationGrain, I
 
     public async Task HandleTseTransactionFinishedAsync(TseTransactionFinished evt)
     {
-        if (!_state.State.Enabled || _state.State.Configuration == null)
+        var config = await GetEffectiveConfigurationAsync();
+        if (config == null || !config.Enabled)
             return;
 
         await EnsureTokenValidAsync();
@@ -671,12 +727,12 @@ public sealed class FiskalyIntegrationGrain : Grain, IFiskalyIntegrationGrain, I
 
             FiskalyTransactionResponse? response = null;
 
-            switch (_state.State.Configuration.Region)
+            switch (config.Region)
             {
                 case FiskalyRegion.Germany:
                     var receipt = ParseProcessDataToReceipt(evt.ProcessType, evt.ProcessData);
                     response = await _fiskalyClient.FinishTransactionAsync(
-                        _state.State.Configuration,
+                        config,
                         _state.State.AccessToken!,
                         fiskalyTxId,
                         receipt);
@@ -685,7 +741,7 @@ public sealed class FiskalyIntegrationGrain : Grain, IFiskalyIntegrationGrain, I
                 case FiskalyRegion.Austria:
                     var rksvReceipt = ParseProcessDataToRksvReceipt(evt.ProcessType, evt.ProcessData);
                     response = await _fiskalyClient.SignReceiptAsync(
-                        _state.State.Configuration,
+                        config,
                         _state.State.AccessToken!,
                         rksvReceipt);
                     break;
