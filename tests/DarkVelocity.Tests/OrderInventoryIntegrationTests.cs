@@ -43,18 +43,19 @@ public class OrderInventoryIntegrationTests
     }
 
     [Fact]
-    public async Task Inventory_ConsumeForOrder_WithInsufficientStock_ShouldThrow()
+    public async Task Inventory_ConsumeForOrder_WithInsufficientStock_ShouldAllowNegative()
     {
-        // Arrange
+        // Arrange - Per design: "Negative stock is the default"
         var (inventory, _) = await CreateInventoryWithStockAsync(5m);
         var orderId = Guid.NewGuid();
 
-        // Act
-        var act = () => inventory.ConsumeForOrderAsync(orderId, 10m, Guid.NewGuid());
+        // Act - Consume more than available (5 - 10 = -5)
+        var result = await inventory.ConsumeForOrderAsync(orderId, 10m, Guid.NewGuid());
 
-        // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*Insufficient stock*");
+        // Assert - Stock goes negative, flagging a discrepancy for reconciliation
+        result.QuantityConsumed.Should().Be(10m);
+        var levelInfo = await inventory.GetLevelInfoAsync();
+        levelInfo.QuantityOnHand.Should().Be(-5m);
     }
 
     [Fact]

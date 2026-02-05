@@ -1,0 +1,38 @@
+name: PR Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Start infrastructure services
+        run: |
+          cd docker
+          docker compose up -d azurite postgres zookeeper kafka spicedb-migrate spicedb
+          # Wait for services to be ready
+          echo "Waiting for Azurite..."
+          timeout 30 bash -c 'until nc -z localhost 10002; do sleep 1; done' || true
+          echo "Waiting for PostgreSQL..."
+          timeout 60 bash -c 'until docker exec darkvelocity-postgres pg_isready -U darkvelocity; do sleep 1; done' || true
+          echo "Waiting for SpiceDB..."
+          timeout 30 bash -c 'until nc -z localhost 50051; do sleep 1; done' || true
+          echo "Infrastructure ready"
+
+      - name: Build solution
+        run: dotnet build --configuration Release
+
+      - name: Run tests
+        run: dotnet test --configuration Release --no-build --verbosity normal
+
+      - name: Stop infrastructure services
+        if: always()
+        run: |
+          cd docker
+          docker compose down || true

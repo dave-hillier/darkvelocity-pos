@@ -115,9 +115,9 @@ public class InventoryGrainTests
     }
 
     [Fact]
-    public async Task ConsumeAsync_InsufficientStock_ShouldThrow()
+    public async Task ConsumeAsync_BeyondAvailable_ShouldAllowNegativeStock()
     {
-        // Arrange
+        // Arrange - Per design: "Negative stock is the default - service doesn't stop for inventory discrepancies"
         var orgId = Guid.NewGuid();
         var siteId = Guid.NewGuid();
         var ingredientId = Guid.NewGuid();
@@ -125,12 +125,12 @@ public class InventoryGrainTests
 
         await grain.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH001", 50, 5.00m));
 
-        // Act
-        var act = () => grain.ConsumeAsync(new ConsumeStockCommand(100, "Production"));
+        // Act - Consume more than available (50 - 100 = -50)
+        await grain.ConsumeAsync(new ConsumeStockCommand(100, "Production"));
 
-        // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("Insufficient stock");
+        // Assert - Stock goes negative, flagging a discrepancy for reconciliation
+        var level = await grain.GetLevelInfoAsync();
+        level.QuantityOnHand.Should().Be(-50);
     }
 
     [Fact]
