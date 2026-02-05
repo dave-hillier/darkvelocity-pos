@@ -15,7 +15,7 @@ jobs:
       - name: Start infrastructure services
         run: |
           cd docker
-          docker compose up -d azurite postgres zookeeper kafka spicedb-migrate spicedb
+          docker compose up -d azurite postgres spicedb-migrate spicedb
           # Wait for services to be ready
           echo "Waiting for Azurite..."
           timeout 30 bash -c 'until nc -z localhost 10002; do sleep 1; done' || true
