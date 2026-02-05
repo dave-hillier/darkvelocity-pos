@@ -292,6 +292,139 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderEvent>, IOrderGrain
                 }
                 state.RecalculateTotals();
                 break;
+
+            // Hold/Fire workflow events
+            case OrderItemsHeld e:
+                foreach (var lineId in e.LineIds)
+                {
+                    var line = state.Lines.FirstOrDefault(l => l.Id == lineId);
+                    if (line != null)
+                    {
+                        var index = state.Lines.FindIndex(l => l.Id == lineId);
+                        state.Lines[index] = line with
+                        {
+                            IsHeld = true,
+                            HeldAt = e.OccurredAt,
+                            HeldBy = e.HeldBy,
+                            HoldReason = e.Reason
+                        };
+                    }
+                }
+                state.UpdatedAt = e.OccurredAt;
+                break;
+
+            case OrderItemsReleased e:
+                foreach (var lineId in e.LineIds)
+                {
+                    var line = state.Lines.FirstOrDefault(l => l.Id == lineId);
+                    if (line != null)
+                    {
+                        var index = state.Lines.FindIndex(l => l.Id == lineId);
+                        state.Lines[index] = line with
+                        {
+                            IsHeld = false,
+                            HeldAt = null,
+                            HeldBy = null,
+                            HoldReason = null
+                        };
+                    }
+                }
+                state.UpdatedAt = e.OccurredAt;
+                break;
+
+            case OrderItemsCourseSet e:
+                foreach (var lineId in e.LineIds)
+                {
+                    var line = state.Lines.FirstOrDefault(l => l.Id == lineId);
+                    if (line != null)
+                    {
+                        var index = state.Lines.FindIndex(l => l.Id == lineId);
+                        state.Lines[index] = line with { CourseNumber = e.CourseNumber };
+                    }
+                }
+                state.UpdatedAt = e.OccurredAt;
+                break;
+
+            case OrderItemsFired e:
+                foreach (var lineId in e.LineIds)
+                {
+                    var line = state.Lines.FirstOrDefault(l => l.Id == lineId);
+                    if (line != null)
+                    {
+                        var index = state.Lines.FindIndex(l => l.Id == lineId);
+                        state.Lines[index] = line with
+                        {
+                            Status = OrderLineStatus.Sent,
+                            IsHeld = false,
+                            HeldAt = null,
+                            HeldBy = null,
+                            HoldReason = null,
+                            FiredAt = e.OccurredAt,
+                            FiredBy = e.FiredBy,
+                            SentAt = e.OccurredAt,
+                            SentBy = e.FiredBy
+                        };
+                    }
+                }
+                if (state.Status == OrderStatus.Open)
+                    state.Status = OrderStatus.Sent;
+                state.SentAt ??= e.OccurredAt;
+                state.UpdatedAt = e.OccurredAt;
+                break;
+
+            case OrderCourseFired e:
+                foreach (var lineId in e.FiredLineIds)
+                {
+                    var line = state.Lines.FirstOrDefault(l => l.Id == lineId);
+                    if (line != null)
+                    {
+                        var index = state.Lines.FindIndex(l => l.Id == lineId);
+                        state.Lines[index] = line with
+                        {
+                            Status = OrderLineStatus.Sent,
+                            IsHeld = false,
+                            HeldAt = null,
+                            HeldBy = null,
+                            HoldReason = null,
+                            FiredAt = e.OccurredAt,
+                            FiredBy = e.FiredBy,
+                            SentAt = e.OccurredAt,
+                            SentBy = e.FiredBy
+                        };
+                    }
+                }
+                if (state.Status == OrderStatus.Open)
+                    state.Status = OrderStatus.Sent;
+                state.SentAt ??= e.OccurredAt;
+                state.UpdatedAt = e.OccurredAt;
+                break;
+
+            case OrderAllItemsFired e:
+                foreach (var lineId in e.FiredLineIds)
+                {
+                    var line = state.Lines.FirstOrDefault(l => l.Id == lineId);
+                    if (line != null)
+                    {
+                        var index = state.Lines.FindIndex(l => l.Id == lineId);
+                        state.Lines[index] = line with
+                        {
+                            Status = OrderLineStatus.Sent,
+                            IsHeld = false,
+                            HeldAt = null,
+                            HeldBy = null,
+                            HoldReason = null,
+                            FiredAt = e.OccurredAt,
+                            FiredBy = e.FiredBy,
+                            SentAt = e.OccurredAt,
+                            SentBy = e.FiredBy
+                        };
+                    }
+                }
+                if (state.Status == OrderStatus.Open)
+                    state.Status = OrderStatus.Sent;
+                state.SentAt ??= e.OccurredAt;
+                state.UpdatedAt = e.OccurredAt;
+                break;
         }
     }
 
@@ -1051,6 +1184,280 @@ public class OrderGrain : JournaledGrain<OrderState, IOrderEvent>, IOrderGrain
             shares,
             isValid));
     }
+
+    #region Hold/Fire Implementation
+
+    public async Task HoldItemsAsync(HoldItemsCommand command)
+    {
+        EnsureExists();
+        EnsureNotClosed();
+
+        if (command.LineIds == null || command.LineIds.Count == 0)
+            throw new ArgumentException("At least one line must be specified", nameof(command));
+
+        // Validate all lines exist and are pending
+        var linesToHold = State.Lines
+            .Where(l => command.LineIds.Contains(l.Id) && l.Status == OrderLineStatus.Pending)
+            .ToList();
+
+        if (linesToHold.Count == 0)
+            throw new InvalidOperationException("No valid pending items to hold");
+
+        var validLineIds = linesToHold.Select(l => l.Id).ToList();
+
+        RaiseEvent(new OrderItemsHeld
+        {
+            OrderId = State.Id,
+            LineIds = validLineIds,
+            HeldBy = command.HeldBy,
+            Reason = command.Reason,
+            OccurredAt = DateTime.UtcNow
+        });
+
+        await ConfirmEvents();
+    }
+
+    public async Task ReleaseItemsAsync(ReleaseItemsCommand command)
+    {
+        EnsureExists();
+        EnsureNotClosed();
+
+        if (command.LineIds == null || command.LineIds.Count == 0)
+            throw new ArgumentException("At least one line must be specified", nameof(command));
+
+        // Validate all lines exist and are held
+        var linesToRelease = State.Lines
+            .Where(l => command.LineIds.Contains(l.Id) && l.IsHeld)
+            .ToList();
+
+        if (linesToRelease.Count == 0)
+            throw new InvalidOperationException("No valid held items to release");
+
+        var validLineIds = linesToRelease.Select(l => l.Id).ToList();
+
+        RaiseEvent(new OrderItemsReleased
+        {
+            OrderId = State.Id,
+            LineIds = validLineIds,
+            ReleasedBy = command.ReleasedBy,
+            OccurredAt = DateTime.UtcNow
+        });
+
+        await ConfirmEvents();
+    }
+
+    public async Task SetItemCourseAsync(SetItemCourseCommand command)
+    {
+        EnsureExists();
+        EnsureNotClosed();
+
+        if (command.LineIds == null || command.LineIds.Count == 0)
+            throw new ArgumentException("At least one line must be specified", nameof(command));
+
+        if (command.CourseNumber < 1)
+            throw new ArgumentException("Course number must be at least 1", nameof(command));
+
+        // Validate all lines exist
+        var linesToUpdate = State.Lines
+            .Where(l => command.LineIds.Contains(l.Id) && l.Status != OrderLineStatus.Voided)
+            .ToList();
+
+        if (linesToUpdate.Count == 0)
+            throw new InvalidOperationException("No valid items to set course");
+
+        var validLineIds = linesToUpdate.Select(l => l.Id).ToList();
+
+        RaiseEvent(new OrderItemsCourseSet
+        {
+            OrderId = State.Id,
+            LineIds = validLineIds,
+            CourseNumber = command.CourseNumber,
+            SetBy = command.SetBy,
+            OccurredAt = DateTime.UtcNow
+        });
+
+        await ConfirmEvents();
+    }
+
+    public async Task<FireResult> FireItemsAsync(FireItemsCommand command)
+    {
+        EnsureExists();
+        EnsureNotClosed();
+
+        if (command.LineIds == null || command.LineIds.Count == 0)
+            throw new ArgumentException("At least one line must be specified", nameof(command));
+
+        // Get items that can be fired (pending or held, not already sent)
+        var linesToFire = State.Lines
+            .Where(l => command.LineIds.Contains(l.Id) &&
+                       l.Status == OrderLineStatus.Pending &&
+                       l.Status != OrderLineStatus.Voided)
+            .ToList();
+
+        if (linesToFire.Count == 0)
+            throw new InvalidOperationException("No valid items to fire");
+
+        var validLineIds = linesToFire.Select(l => l.Id).ToList();
+        var now = DateTime.UtcNow;
+
+        RaiseEvent(new OrderItemsFired
+        {
+            OrderId = State.Id,
+            LineIds = validLineIds,
+            FiredBy = command.FiredBy,
+            OccurredAt = now
+        });
+
+        await ConfirmEvents();
+
+        // Publish to kitchen
+        await PublishItemsFiredToKitchenAsync(linesToFire, command.FiredBy);
+
+        return new FireResult(validLineIds.Count, validLineIds, now);
+    }
+
+    public async Task<FireResult> FireCourseAsync(FireCourseCommand command)
+    {
+        EnsureExists();
+        EnsureNotClosed();
+
+        if (command.CourseNumber < 1)
+            throw new ArgumentException("Course number must be at least 1", nameof(command));
+
+        // Get all pending items in the specified course
+        var linesToFire = State.Lines
+            .Where(l => l.CourseNumber == command.CourseNumber &&
+                       l.Status == OrderLineStatus.Pending &&
+                       l.Status != OrderLineStatus.Voided)
+            .ToList();
+
+        if (linesToFire.Count == 0)
+            throw new InvalidOperationException($"No pending items in course {command.CourseNumber}");
+
+        var lineIds = linesToFire.Select(l => l.Id).ToList();
+        var now = DateTime.UtcNow;
+
+        RaiseEvent(new OrderCourseFired
+        {
+            OrderId = State.Id,
+            CourseNumber = command.CourseNumber,
+            FiredLineIds = lineIds,
+            FiredBy = command.FiredBy,
+            OccurredAt = now
+        });
+
+        await ConfirmEvents();
+
+        // Publish to kitchen
+        await PublishItemsFiredToKitchenAsync(linesToFire, command.FiredBy);
+
+        return new FireResult(lineIds.Count, lineIds, now);
+    }
+
+    public async Task<FireResult> FireAllAsync(Guid firedBy)
+    {
+        EnsureExists();
+        EnsureNotClosed();
+
+        // Get all pending items (held or not)
+        var linesToFire = State.Lines
+            .Where(l => l.Status == OrderLineStatus.Pending &&
+                       l.Status != OrderLineStatus.Voided)
+            .ToList();
+
+        if (linesToFire.Count == 0)
+            throw new InvalidOperationException("No pending items to fire");
+
+        var lineIds = linesToFire.Select(l => l.Id).ToList();
+        var now = DateTime.UtcNow;
+
+        RaiseEvent(new OrderAllItemsFired
+        {
+            OrderId = State.Id,
+            FiredLineIds = lineIds,
+            FiredBy = firedBy,
+            OccurredAt = now
+        });
+
+        await ConfirmEvents();
+
+        // Publish to kitchen
+        await PublishItemsFiredToKitchenAsync(linesToFire, firedBy);
+
+        return new FireResult(lineIds.Count, lineIds, now);
+    }
+
+    public Task<HoldSummary> GetHoldSummaryAsync()
+    {
+        EnsureExists();
+
+        var heldItems = State.Lines
+            .Where(l => l.IsHeld && l.Status == OrderLineStatus.Pending)
+            .ToList();
+
+        var heldByCourseCounts = heldItems
+            .GroupBy(l => l.CourseNumber)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        return Task.FromResult(new HoldSummary(
+            heldItems.Count,
+            heldByCourseCounts,
+            heldItems.Select(l => l.Id).ToList()));
+    }
+
+    public Task<IReadOnlyList<OrderLine>> GetHeldItemsAsync()
+    {
+        EnsureExists();
+
+        var heldItems = State.Lines
+            .Where(l => l.IsHeld && l.Status == OrderLineStatus.Pending)
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<OrderLine>>(heldItems);
+    }
+
+    public Task<Dictionary<int, int>> GetCourseSummaryAsync()
+    {
+        EnsureExists();
+
+        var courseCounts = State.Lines
+            .Where(l => l.Status != OrderLineStatus.Voided)
+            .GroupBy(l => l.CourseNumber)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        return Task.FromResult(courseCounts);
+    }
+
+    private async Task PublishItemsFiredToKitchenAsync(List<OrderLine> lines, Guid firedBy)
+    {
+        if (OrderStream == null || lines.Count == 0)
+            return;
+
+        var kitchenLines = lines.Select(l => new KitchenLineItem(
+            LineId: l.Id,
+            MenuItemId: l.MenuItemId,
+            Name: l.Name,
+            Quantity: l.Quantity,
+            Modifiers: l.Modifiers?.Select(m => m.Name).ToList(),
+            SpecialInstructions: l.Notes)).ToList();
+
+        await OrderStream.OnNextAsync(new OrderItemsFiredToKitchenEvent(
+            OrderId: State.Id,
+            SiteId: State.SiteId,
+            OrderNumber: State.OrderNumber,
+            OrderType: State.Type.ToString(),
+            TableNumber: State.TableNumber,
+            GuestCount: State.GuestCount,
+            ServerId: State.ServerId,
+            ServerName: State.ServerName,
+            FiredBy: firedBy,
+            Lines: kitchenLines)
+        {
+            OrganizationId = State.OrganizationId
+        });
+    }
+
+    #endregion
 
     private void EnsureExists()
     {

@@ -9,6 +9,15 @@ import type {
   VoidOrderRequest,
   ApplyDiscountRequest,
   HalResource,
+  HoldItemsRequest,
+  ReleaseItemsRequest,
+  SetItemCourseRequest,
+  FireItemsRequest,
+  FireCourseRequest,
+  FireAllRequest,
+  FireResult,
+  HoldSummary,
+  CourseSummary,
 } from '../types'
 
 // Response types with HAL links
@@ -76,5 +85,53 @@ export async function applyDiscount(orderId: string, request: ApplyDiscountReque
 
 export async function getOrderTotals(orderId: string): Promise<OrderTotals & HalResource> {
   const endpoint = apiClient.buildOrgSitePath(`/orders/${orderId}/totals`)
+  return apiClient.get(endpoint)
+}
+
+// Hold/Fire workflow API functions
+
+export async function holdItems(orderId: string, request: HoldItemsRequest): Promise<HoldSummary & HalResource> {
+  const endpoint = apiClient.buildOrgSitePath(`/orders/${orderId}/hold`)
+  return apiClient.post(endpoint, request)
+}
+
+export async function releaseItems(orderId: string, request: ReleaseItemsRequest): Promise<HoldSummary & HalResource> {
+  const endpoint = apiClient.buildOrgSitePath(`/orders/${orderId}/release`)
+  return apiClient.post(endpoint, request)
+}
+
+export async function setItemCourse(orderId: string, request: SetItemCourseRequest): Promise<CourseSummary & HalResource> {
+  const endpoint = apiClient.buildOrgSitePath(`/orders/${orderId}/set-course`)
+  return apiClient.post(endpoint, request)
+}
+
+export async function fireItems(orderId: string, request: FireItemsRequest): Promise<FireResult & HalResource> {
+  const endpoint = apiClient.buildOrgSitePath(`/orders/${orderId}/fire`)
+  return apiClient.post(endpoint, request)
+}
+
+export async function fireCourse(orderId: string, request: FireCourseRequest): Promise<FireResult & HalResource> {
+  const endpoint = apiClient.buildOrgSitePath(`/orders/${orderId}/fire-course`)
+  return apiClient.post(endpoint, request)
+}
+
+export async function fireAll(orderId: string, request: FireAllRequest): Promise<FireResult & HalResource> {
+  const endpoint = apiClient.buildOrgSitePath(`/orders/${orderId}/fire-all`)
+  return apiClient.post(endpoint, request)
+}
+
+export async function getHoldSummary(orderId: string): Promise<HoldSummary & HalResource> {
+  const endpoint = apiClient.buildOrgSitePath(`/orders/${orderId}/hold-summary`)
+  return apiClient.get(endpoint)
+}
+
+export async function getHeldItems(orderId: string): Promise<OrderLine[]> {
+  const endpoint = apiClient.buildOrgSitePath(`/orders/${orderId}/held-items`)
+  const response = await apiClient.get<{ _embedded?: { items: OrderLine[] } }>(endpoint)
+  return response._embedded?.items ?? []
+}
+
+export async function getCourseSummary(orderId: string): Promise<CourseSummary & HalResource> {
+  const endpoint = apiClient.buildOrgSitePath(`/orders/${orderId}/courses`)
   return apiClient.get(endpoint)
 }

@@ -57,6 +57,44 @@ public record OrderLine
     /// Empty for non-bundle items.
     /// </summary>
     [Id(20)] public List<OrderLineBundleComponent> BundleComponents { get; init; } = [];
+
+    // Hold/Fire workflow fields
+
+    /// <summary>
+    /// Whether this item is on hold (not to be sent to kitchen yet).
+    /// </summary>
+    [Id(21)] public bool IsHeld { get; init; }
+
+    /// <summary>
+    /// When the item was placed on hold.
+    /// </summary>
+    [Id(22)] public DateTime? HeldAt { get; init; }
+
+    /// <summary>
+    /// Who placed the item on hold.
+    /// </summary>
+    [Id(23)] public Guid? HeldBy { get; init; }
+
+    /// <summary>
+    /// Reason for holding the item (e.g., "Wait for guest", "Course timing").
+    /// </summary>
+    [Id(24)] public string? HoldReason { get; init; }
+
+    /// <summary>
+    /// Course number for coursed dining (1 = appetizer, 2 = main, 3 = dessert, etc.).
+    /// Default is 1.
+    /// </summary>
+    [Id(25)] public int CourseNumber { get; init; } = 1;
+
+    /// <summary>
+    /// When the item was explicitly fired to the kitchen.
+    /// </summary>
+    [Id(26)] public DateTime? FiredAt { get; init; }
+
+    /// <summary>
+    /// Who fired the item to the kitchen.
+    /// </summary>
+    [Id(27)] public Guid? FiredBy { get; init; }
 }
 
 public enum OrderLineStatus

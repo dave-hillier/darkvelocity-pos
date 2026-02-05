@@ -246,3 +246,82 @@ public sealed record OrderCreatedFromSplit : IOrderEvent
     [Id(12)] public List<OrderLine> Lines { get; init; } = [];
     [Id(13)] public DateTime OccurredAt { get; init; }
 }
+
+#region Hold/Fire Events
+
+/// <summary>
+/// Event when items are put on hold, preventing them from being sent to the kitchen.
+/// </summary>
+[GenerateSerializer]
+public sealed record OrderItemsHeld : IOrderEvent
+{
+    [Id(0)] public Guid OrderId { get; init; }
+    [Id(1)] public List<Guid> LineIds { get; init; } = [];
+    [Id(2)] public Guid HeldBy { get; init; }
+    [Id(3)] public string? Reason { get; init; }
+    [Id(4)] public DateTime OccurredAt { get; init; }
+}
+
+/// <summary>
+/// Event when items are released from hold (unhold).
+/// </summary>
+[GenerateSerializer]
+public sealed record OrderItemsReleased : IOrderEvent
+{
+    [Id(0)] public Guid OrderId { get; init; }
+    [Id(1)] public List<Guid> LineIds { get; init; } = [];
+    [Id(2)] public Guid ReleasedBy { get; init; }
+    [Id(3)] public DateTime OccurredAt { get; init; }
+}
+
+/// <summary>
+/// Event when a course number is assigned to items.
+/// </summary>
+[GenerateSerializer]
+public sealed record OrderItemsCourseSet : IOrderEvent
+{
+    [Id(0)] public Guid OrderId { get; init; }
+    [Id(1)] public List<Guid> LineIds { get; init; } = [];
+    [Id(2)] public int CourseNumber { get; init; }
+    [Id(3)] public Guid SetBy { get; init; }
+    [Id(4)] public DateTime OccurredAt { get; init; }
+}
+
+/// <summary>
+/// Event when items are fired to the kitchen (explicitly sent, bypassing hold).
+/// </summary>
+[GenerateSerializer]
+public sealed record OrderItemsFired : IOrderEvent
+{
+    [Id(0)] public Guid OrderId { get; init; }
+    [Id(1)] public List<Guid> LineIds { get; init; } = [];
+    [Id(2)] public Guid FiredBy { get; init; }
+    [Id(3)] public DateTime OccurredAt { get; init; }
+}
+
+/// <summary>
+/// Event when all items in a specific course are fired to the kitchen.
+/// </summary>
+[GenerateSerializer]
+public sealed record OrderCourseFired : IOrderEvent
+{
+    [Id(0)] public Guid OrderId { get; init; }
+    [Id(1)] public int CourseNumber { get; init; }
+    [Id(2)] public List<Guid> FiredLineIds { get; init; } = [];
+    [Id(3)] public Guid FiredBy { get; init; }
+    [Id(4)] public DateTime OccurredAt { get; init; }
+}
+
+/// <summary>
+/// Event when all held items are fired at once.
+/// </summary>
+[GenerateSerializer]
+public sealed record OrderAllItemsFired : IOrderEvent
+{
+    [Id(0)] public Guid OrderId { get; init; }
+    [Id(1)] public List<Guid> FiredLineIds { get; init; } = [];
+    [Id(2)] public Guid FiredBy { get; init; }
+    [Id(3)] public DateTime OccurredAt { get; init; }
+}
+
+#endregion

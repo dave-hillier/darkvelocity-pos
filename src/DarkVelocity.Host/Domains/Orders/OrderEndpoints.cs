@@ -274,6 +274,189 @@ public static class OrderEndpoints
             }));
         }).WithMetadata(new RequirePermissionAttribute(ResourceTypes.Site, Permissions.View, isSiteScoped: true));
 
+        // Hold/Fire Workflow Endpoints
+
+        // Hold specific items
+        group.MapPost("/{orderId}/hold", async (
+            Guid orgId, Guid siteId, Guid orderId,
+            [FromBody] HoldItemsRequest request,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+            if (!await grain.ExistsAsync())
+                return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+            await grain.HoldItemsAsync(new HoldItemsCommand(request.LineIds, request.HeldBy, request.Reason));
+            var summary = await grain.GetHoldSummaryAsync();
+
+            return Results.Ok(Hal.Resource(new HoldSummaryResponse(
+                summary.TotalHeldCount,
+                summary.HeldByCourseCounts,
+                summary.HeldLineIds), new Dictionary<string, object>
+            {
+                ["order"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" }
+            }));
+        }).WithMetadata(new RequirePermissionAttribute(ResourceTypes.Site, Permissions.Operate, isSiteScoped: true));
+
+        // Release items from hold
+        group.MapPost("/{orderId}/release", async (
+            Guid orgId, Guid siteId, Guid orderId,
+            [FromBody] ReleaseItemsRequest request,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+            if (!await grain.ExistsAsync())
+                return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+            await grain.ReleaseItemsAsync(new ReleaseItemsCommand(request.LineIds, request.ReleasedBy));
+            var summary = await grain.GetHoldSummaryAsync();
+
+            return Results.Ok(Hal.Resource(new HoldSummaryResponse(
+                summary.TotalHeldCount,
+                summary.HeldByCourseCounts,
+                summary.HeldLineIds), new Dictionary<string, object>
+            {
+                ["order"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" }
+            }));
+        }).WithMetadata(new RequirePermissionAttribute(ResourceTypes.Site, Permissions.Operate, isSiteScoped: true));
+
+        // Set course number for items
+        group.MapPost("/{orderId}/set-course", async (
+            Guid orgId, Guid siteId, Guid orderId,
+            [FromBody] SetItemCourseRequest request,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+            if (!await grain.ExistsAsync())
+                return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+            await grain.SetItemCourseAsync(new SetItemCourseCommand(request.LineIds, request.CourseNumber, request.SetBy));
+            var courses = await grain.GetCourseSummaryAsync();
+
+            return Results.Ok(Hal.Resource(new CourseSummaryResponse(courses), new Dictionary<string, object>
+            {
+                ["order"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" }
+            }));
+        }).WithMetadata(new RequirePermissionAttribute(ResourceTypes.Site, Permissions.Operate, isSiteScoped: true));
+
+        // Fire specific items to kitchen
+        group.MapPost("/{orderId}/fire", async (
+            Guid orgId, Guid siteId, Guid orderId,
+            [FromBody] FireItemsRequest request,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+            if (!await grain.ExistsAsync())
+                return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+            var result = await grain.FireItemsAsync(new FireItemsCommand(request.LineIds, request.FiredBy));
+
+            return Results.Ok(Hal.Resource(new FireResultResponse(
+                result.FiredCount,
+                result.FiredLineIds,
+                result.FiredAt), new Dictionary<string, object>
+            {
+                ["order"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" }
+            }));
+        }).WithMetadata(new RequirePermissionAttribute(ResourceTypes.Site, Permissions.Operate, isSiteScoped: true));
+
+        // Fire all items in a specific course
+        group.MapPost("/{orderId}/fire-course", async (
+            Guid orgId, Guid siteId, Guid orderId,
+            [FromBody] FireCourseRequest request,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+            if (!await grain.ExistsAsync())
+                return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+            var result = await grain.FireCourseAsync(new FireCourseCommand(request.CourseNumber, request.FiredBy));
+
+            return Results.Ok(Hal.Resource(new FireResultResponse(
+                result.FiredCount,
+                result.FiredLineIds,
+                result.FiredAt), new Dictionary<string, object>
+            {
+                ["order"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" }
+            }));
+        }).WithMetadata(new RequirePermissionAttribute(ResourceTypes.Site, Permissions.Operate, isSiteScoped: true));
+
+        // Fire all pending items at once
+        group.MapPost("/{orderId}/fire-all", async (
+            Guid orgId, Guid siteId, Guid orderId,
+            [FromBody] FireAllRequest request,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+            if (!await grain.ExistsAsync())
+                return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+            var result = await grain.FireAllAsync(request.FiredBy);
+
+            return Results.Ok(Hal.Resource(new FireResultResponse(
+                result.FiredCount,
+                result.FiredLineIds,
+                result.FiredAt), new Dictionary<string, object>
+            {
+                ["order"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" }
+            }));
+        }).WithMetadata(new RequirePermissionAttribute(ResourceTypes.Site, Permissions.Operate, isSiteScoped: true));
+
+        // Get hold summary
+        group.MapGet("/{orderId}/hold-summary", async (
+            Guid orgId, Guid siteId, Guid orderId,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+            if (!await grain.ExistsAsync())
+                return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+            var summary = await grain.GetHoldSummaryAsync();
+
+            return Results.Ok(Hal.Resource(new HoldSummaryResponse(
+                summary.TotalHeldCount,
+                summary.HeldByCourseCounts,
+                summary.HeldLineIds), new Dictionary<string, object>
+            {
+                ["order"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" }
+            }));
+        }).WithMetadata(new RequirePermissionAttribute(ResourceTypes.Site, Permissions.View, isSiteScoped: true));
+
+        // Get held items
+        group.MapGet("/{orderId}/held-items", async (
+            Guid orgId, Guid siteId, Guid orderId,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+            if (!await grain.ExistsAsync())
+                return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+            var heldItems = await grain.GetHeldItemsAsync();
+            var items = heldItems.Select(l => Hal.Resource(l, new Dictionary<string, object>
+            {
+                ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/lines/{l.Id}" }
+            })).ToList();
+
+            return Results.Ok(Hal.Collection($"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}/held-items", items, items.Count));
+        }).WithMetadata(new RequirePermissionAttribute(ResourceTypes.Site, Permissions.View, isSiteScoped: true));
+
+        // Get course summary
+        group.MapGet("/{orderId}/courses", async (
+            Guid orgId, Guid siteId, Guid orderId,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IOrderGrain>(GrainKeys.Order(orgId, siteId, orderId));
+            if (!await grain.ExistsAsync())
+                return Results.NotFound(Hal.Error("not_found", "Order not found"));
+
+            var courses = await grain.GetCourseSummaryAsync();
+
+            return Results.Ok(Hal.Resource(new CourseSummaryResponse(courses), new Dictionary<string, object>
+            {
+                ["order"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/orders/{orderId}" }
+            }));
+        }).WithMetadata(new RequirePermissionAttribute(ResourceTypes.Site, Permissions.View, isSiteScoped: true));
+
         return app;
     }
 }

@@ -144,6 +144,57 @@ public interface IOrderGrain : IGrainWithStringKey
     /// Returns the share details without modifying the order.
     /// </summary>
     Task<SplitPaymentResult> CalculateSplitByAmountsAsync(List<decimal> amounts);
+
+    // Hold/Fire workflow
+
+    /// <summary>
+    /// Place specific items on hold, preventing them from being sent to the kitchen.
+    /// Held items must be explicitly fired before they are sent.
+    /// </summary>
+    Task HoldItemsAsync(HoldItemsCommand command);
+
+    /// <summary>
+    /// Release items from hold, returning them to normal pending status.
+    /// Released items can be sent to kitchen via SendAsync.
+    /// </summary>
+    Task ReleaseItemsAsync(ReleaseItemsCommand command);
+
+    /// <summary>
+    /// Set the course number for specific items.
+    /// Course numbers are used for coursed dining workflows.
+    /// </summary>
+    Task SetItemCourseAsync(SetItemCourseCommand command);
+
+    /// <summary>
+    /// Fire specific items to the kitchen immediately.
+    /// Items are removed from hold (if held) and sent to kitchen.
+    /// </summary>
+    Task<FireResult> FireItemsAsync(FireItemsCommand command);
+
+    /// <summary>
+    /// Fire all items in a specific course to the kitchen.
+    /// </summary>
+    Task<FireResult> FireCourseAsync(FireCourseCommand command);
+
+    /// <summary>
+    /// Fire all held items to the kitchen at once.
+    /// </summary>
+    Task<FireResult> FireAllAsync(Guid firedBy);
+
+    /// <summary>
+    /// Get summary of items currently on hold.
+    /// </summary>
+    Task<HoldSummary> GetHoldSummaryAsync();
+
+    /// <summary>
+    /// Get all held line items.
+    /// </summary>
+    Task<IReadOnlyList<OrderLine>> GetHeldItemsAsync();
+
+    /// <summary>
+    /// Get distinct course numbers for this order with item counts.
+    /// </summary>
+    Task<Dictionary<int, int>> GetCourseSummaryAsync();
 }
 
 [GenerateSerializer]
@@ -196,3 +247,67 @@ public record SplitPaymentResult(
     [property: Id(1)] decimal BalanceDue,
     [property: Id(2)] List<SplitShare> Shares,
     [property: Id(3)] bool IsValid);
+
+#region Hold/Fire Commands and Results
+
+/// <summary>
+/// Command to place specific items on hold.
+/// </summary>
+[GenerateSerializer]
+public record HoldItemsCommand(
+    [property: Id(0)] List<Guid> LineIds,
+    [property: Id(1)] Guid HeldBy,
+    [property: Id(2)] string? Reason = null);
+
+/// <summary>
+/// Command to release items from hold.
+/// </summary>
+[GenerateSerializer]
+public record ReleaseItemsCommand(
+    [property: Id(0)] List<Guid> LineIds,
+    [property: Id(1)] Guid ReleasedBy);
+
+/// <summary>
+/// Command to set the course number for items.
+/// </summary>
+[GenerateSerializer]
+public record SetItemCourseCommand(
+    [property: Id(0)] List<Guid> LineIds,
+    [property: Id(1)] int CourseNumber,
+    [property: Id(2)] Guid SetBy);
+
+/// <summary>
+/// Command to fire specific items to the kitchen.
+/// </summary>
+[GenerateSerializer]
+public record FireItemsCommand(
+    [property: Id(0)] List<Guid> LineIds,
+    [property: Id(1)] Guid FiredBy);
+
+/// <summary>
+/// Command to fire all items in a specific course.
+/// </summary>
+[GenerateSerializer]
+public record FireCourseCommand(
+    [property: Id(0)] int CourseNumber,
+    [property: Id(1)] Guid FiredBy);
+
+/// <summary>
+/// Result of a fire operation.
+/// </summary>
+[GenerateSerializer]
+public record FireResult(
+    [property: Id(0)] int FiredCount,
+    [property: Id(1)] List<Guid> FiredLineIds,
+    [property: Id(2)] DateTime FiredAt);
+
+/// <summary>
+/// Summary of held items by course.
+/// </summary>
+[GenerateSerializer]
+public record HoldSummary(
+    [property: Id(0)] int TotalHeldCount,
+    [property: Id(1)] Dictionary<int, int> HeldByCourseCounts,
+    [property: Id(2)] List<Guid> HeldLineIds);
+
+#endregion

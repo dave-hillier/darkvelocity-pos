@@ -113,10 +113,10 @@ export default function KitchenDisplayPage() {
       prev.map(order => {
         if (order.id !== orderId) return order
         if (order.status === 'pending') {
-          return { ...order, status: 'cooking', startedAt: new Date() }
+          return { ...order, status: 'cooking' as const, startedAt: new Date() }
         }
         if (order.status === 'cooking') {
-          return { ...order, status: 'ready' }
+          return { ...order, status: 'ready' as const }
         }
         return order
       }).filter(order => !(order.id === orderId && order.status === 'ready'))

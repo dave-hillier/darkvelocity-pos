@@ -21,6 +21,13 @@ export type OrderAction =
   | { type: 'LINE_ADDED_FROM_SERVER'; payload: { line: OrderLine } }
   | { type: 'STATUS_CHANGED'; payload: { status: OrderStatus } }
   | { type: 'TOTALS_UPDATED'; payload: { subtotal: number; taxTotal: number; discountTotal: number; grandTotal: number } }
+  // Hold/Fire workflow actions
+  | { type: 'ITEMS_HELD'; payload: { lineIds: string[]; heldAt: string; heldBy: string; reason?: string } }
+  | { type: 'ITEMS_RELEASED'; payload: { lineIds: string[] } }
+  | { type: 'ITEMS_COURSE_SET'; payload: { lineIds: string[]; courseNumber: number } }
+  | { type: 'ITEMS_FIRED'; payload: { lineIds: string[]; firedAt: string; firedBy: string } }
+  | { type: 'COURSE_FIRED'; payload: { courseNumber: number; firedLineIds: string[]; firedAt: string; firedBy: string } }
+  | { type: 'ALL_ITEMS_FIRED'; payload: { firedLineIds: string[]; firedAt: string; firedBy: string } }
 
 export interface OrderState {
   order: Order | null
@@ -408,6 +415,127 @@ export function orderReducer(state: OrderState, action: OrderAction): OrderState
           lines: newLines,
           status: status || 'Sent',
           sentAt,
+        },
+      }
+    }
+
+    // Hold/Fire workflow handlers
+    case 'ITEMS_HELD': {
+      if (!state.order) return state
+
+      const { lineIds, heldAt, heldBy, reason } = action.payload
+      const newLines = state.order.lines.map((line) =>
+        lineIds.includes(line.id)
+          ? { ...line, isHeld: true, heldAt, heldBy, holdReason: reason }
+          : line
+      )
+
+      return {
+        ...state,
+        order: {
+          ...state.order,
+          lines: newLines,
+        },
+      }
+    }
+
+    case 'ITEMS_RELEASED': {
+      if (!state.order) return state
+
+      const { lineIds } = action.payload
+      const newLines = state.order.lines.map((line) =>
+        lineIds.includes(line.id)
+          ? { ...line, isHeld: false, heldAt: undefined, heldBy: undefined, holdReason: undefined }
+          : line
+      )
+
+      return {
+        ...state,
+        order: {
+          ...state.order,
+          lines: newLines,
+        },
+      }
+    }
+
+    case 'ITEMS_COURSE_SET': {
+      if (!state.order) return state
+
+      const { lineIds, courseNumber } = action.payload
+      const newLines = state.order.lines.map((line) =>
+        lineIds.includes(line.id)
+          ? { ...line, courseNumber }
+          : line
+      )
+
+      return {
+        ...state,
+        order: {
+          ...state.order,
+          lines: newLines,
+        },
+      }
+    }
+
+    case 'ITEMS_FIRED': {
+      if (!state.order) return state
+
+      const { lineIds, firedAt, firedBy } = action.payload
+      const newLines = state.order.lines.map((line) =>
+        lineIds.includes(line.id)
+          ? { ...line, isHeld: false, heldAt: undefined, heldBy: undefined, holdReason: undefined, firedAt, firedBy, sentAt: firedAt }
+          : line
+      )
+
+      return {
+        ...state,
+        order: {
+          ...state.order,
+          lines: newLines,
+          status: state.order.status === 'Open' ? 'Sent' : state.order.status,
+          sentAt: state.order.sentAt || firedAt,
+        },
+      }
+    }
+
+    case 'COURSE_FIRED': {
+      if (!state.order) return state
+
+      const { firedLineIds, firedAt, firedBy } = action.payload
+      const newLines = state.order.lines.map((line) =>
+        firedLineIds.includes(line.id)
+          ? { ...line, isHeld: false, heldAt: undefined, heldBy: undefined, holdReason: undefined, firedAt, firedBy, sentAt: firedAt }
+          : line
+      )
+
+      return {
+        ...state,
+        order: {
+          ...state.order,
+          lines: newLines,
+          status: state.order.status === 'Open' ? 'Sent' : state.order.status,
+          sentAt: state.order.sentAt || firedAt,
+        },
+      }
+    }
+
+    case 'ALL_ITEMS_FIRED': {
+      if (!state.order) return state
+
+      const { firedLineIds, firedAt, firedBy } = action.payload
+      const newLines = state.order.lines.map((line) =>
+        firedLineIds.includes(line.id)
+          ? { ...line, isHeld: false, heldAt: undefined, heldBy: undefined, holdReason: undefined, firedAt, firedBy, sentAt: firedAt }
+          : line
+      )
+
+      return {
+        ...state,
+        order: {
+          ...state.order,
+          lines: newLines,
+          status: state.order.status === 'Open' ? 'Sent' : state.order.status,
+          sentAt: state.order.sentAt || firedAt,
         },
       }
     }

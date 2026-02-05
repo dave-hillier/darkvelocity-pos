@@ -59,6 +59,10 @@ public class KitchenEventSubscriberGrain : Grain, IGrainWithStringKey, IAsyncObs
                     await HandleOrderSentToKitchenAsync(sentEvent);
                     break;
 
+                case OrderItemsFiredToKitchenEvent firedEvent:
+                    await HandleOrderItemsFiredToKitchenAsync(firedEvent);
+                    break;
+
                 case OrderVoidedEvent voidedEvent:
                     await HandleOrderVoidedAsync(voidedEvent);
                     break;
@@ -137,6 +141,70 @@ public class KitchenEventSubscriberGrain : Grain, IGrainWithStringKey, IAsyncObs
 
         _logger.LogInformation(
             "Kitchen ticket {TicketNumber} created for order {OrderNumber}",
+            result.TicketNumber,
+            evt.OrderNumber);
+    }
+
+    private async Task HandleOrderItemsFiredToKitchenAsync(OrderItemsFiredToKitchenEvent evt)
+    {
+        if (evt.Lines.Count == 0)
+        {
+            _logger.LogDebug("No items fired to kitchen for order {OrderNumber}", evt.OrderNumber);
+            return;
+        }
+
+        _logger.LogInformation(
+            "Items fired to kitchen for order {OrderNumber}: {ItemCount} items (FireAll: {IsFireAll}, Course: {CourseNumber})",
+            evt.OrderNumber,
+            evt.Lines.Count,
+            evt.IsFireAll,
+            evt.CourseNumber);
+
+        // Create a new kitchen ticket for the fired items
+        // In practice, you might want to add to an existing ticket or create a new one
+        var ticketId = Guid.NewGuid();
+        var ticketKey = GrainKeys.KitchenOrder(evt.OrganizationId, evt.SiteId, ticketId);
+        var ticketGrain = GrainFactory.GetGrain<IKitchenTicketGrain>(ticketKey);
+
+        // Parse order type from string
+        if (!Enum.TryParse<OrderType>(evt.OrderType, true, out var orderType))
+        {
+            orderType = OrderType.DineIn;
+        }
+
+        // Determine priority based on fire type
+        var priority = evt.IsFireAll ? TicketPriority.AllDay : TicketPriority.Normal;
+
+        // Create the ticket
+        var result = await ticketGrain.CreateAsync(new CreateKitchenTicketCommand(
+            OrganizationId: evt.OrganizationId,
+            SiteId: evt.SiteId,
+            OrderId: evt.OrderId,
+            OrderNumber: evt.OrderNumber,
+            OrderType: orderType,
+            TableNumber: evt.TableNumber,
+            GuestCount: evt.GuestCount,
+            ServerName: evt.ServerName,
+            Notes: evt.IsFireAll ? "FIRE ALL" : null,
+            Priority: priority,
+            CourseNumber: evt.CourseNumber ?? 1));
+
+        // Add each line item to the ticket
+        foreach (var line in evt.Lines)
+        {
+            await ticketGrain.AddItemAsync(new AddTicketItemCommand(
+                OrderLineId: line.LineId,
+                MenuItemId: line.MenuItemId,
+                Name: line.Name,
+                Quantity: line.Quantity,
+                Modifiers: line.Modifiers,
+                SpecialInstructions: line.SpecialInstructions,
+                StationId: line.StationId,
+                CourseNumber: line.CourseNumber));
+        }
+
+        _logger.LogInformation(
+            "Kitchen ticket {TicketNumber} created for fired items from order {OrderNumber}",
             result.TicketNumber,
             evt.OrderNumber);
     }

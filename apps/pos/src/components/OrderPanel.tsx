@@ -39,7 +39,7 @@ export default function OrderPanel() {
         {order.lines.map((line) => (
           <li
             key={line.id}
-            className={`order-line ${selectedLineId === line.id ? 'selected' : ''} ${line.sentAt ? 'sent' : ''}`}
+            className={`order-line ${selectedLineId === line.id ? 'selected' : ''} ${line.sentAt ? 'sent' : ''} ${line.isHeld ? 'held' : ''}`}
             onClick={() => selectLine(selectedLineId === line.id ? null : line.id)}
             role="button"
             tabIndex={0}
@@ -49,6 +49,10 @@ export default function OrderPanel() {
               <span className="order-line-qty">{line.quantity}x</span>
               <span className="order-line-name">{line.itemName}</span>
               {line.sentAt && <span className="sent-indicator" aria-label="Sent to kitchen">Sent</span>}
+              {line.isHeld && !line.sentAt && <span className="held-indicator" aria-label="On hold">Hold</span>}
+              {line.courseNumber && line.courseNumber > 1 && !line.sentAt && (
+                <span className="course-indicator" aria-label={`Course ${line.courseNumber}`}>C{line.courseNumber}</span>
+              )}
               {line.discountAmount > 0 && (
                 <small className="discount-info">
                   Discount: -{formatCurrency(line.discountAmount)}
