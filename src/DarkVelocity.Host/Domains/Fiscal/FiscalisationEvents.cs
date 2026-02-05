@@ -215,3 +215,110 @@ public sealed record FiscalDeviceDecommissioned(
 {
     public override string EventType => "fiscalisation.device.decommissioned";
 }
+
+// ============================================================================
+// Fiskaly Integration Events
+// Events for Fiskaly cloud TSE integration (Germany, Austria, Italy)
+// ============================================================================
+
+/// <summary>
+/// Published when Fiskaly integration is configured for a tenant
+/// </summary>
+public sealed record FiskalyIntegrationConfigured(
+    Guid IntegrationId,
+    Guid TenantId,
+    string Region,
+    string Environment,
+    string? TssId,
+    DateTime ConfiguredAt
+) : IntegrationEvent
+{
+    public override string EventType => "fiskaly.integration.configured";
+}
+
+/// <summary>
+/// Published when Fiskaly integration is disabled
+/// </summary>
+public sealed record FiskalyIntegrationDisabled(
+    Guid IntegrationId,
+    Guid TenantId,
+    DateTime DisabledAt
+) : IntegrationEvent
+{
+    public override string EventType => "fiskaly.integration.disabled";
+}
+
+/// <summary>
+/// Published when a transaction is started in Fiskaly
+/// </summary>
+public sealed record FiskalyTransactionStarted(
+    Guid TseTransactionId,
+    string FiskalyTransactionId,
+    Guid TenantId,
+    long TransactionNumber,
+    DateTime StartedAt
+) : IntegrationEvent
+{
+    public override string EventType => "fiskaly.transaction.started";
+}
+
+/// <summary>
+/// Published when a transaction is completed and signed in Fiskaly
+/// </summary>
+public sealed record FiskalyTransactionCompleted(
+    Guid TseTransactionId,
+    string FiskalyTransactionId,
+    Guid TenantId,
+    long TransactionNumber,
+    string? Signature,
+    long SignatureCounter,
+    string? QrCodeData,
+    DateTime CompletedAt
+) : IntegrationEvent
+{
+    public override string EventType => "fiskaly.transaction.completed";
+}
+
+/// <summary>
+/// Published when a Fiskaly transaction fails
+/// </summary>
+public sealed record FiskalyTransactionFailed(
+    Guid TseTransactionId,
+    Guid TenantId,
+    string ErrorCode,
+    string ErrorMessage,
+    DateTime FailedAt
+) : IntegrationEvent
+{
+    public override string EventType => "fiskaly.transaction.failed";
+}
+
+/// <summary>
+/// Published when Fiskaly TSS status changes
+/// </summary>
+public sealed record FiskalyTssStatusChanged(
+    Guid IntegrationId,
+    Guid TenantId,
+    string TssId,
+    string OldStatus,
+    string NewStatus,
+    DateTime ChangedAt
+) : IntegrationEvent
+{
+    public override string EventType => "fiskaly.tss.status_changed";
+}
+
+/// <summary>
+/// Published when a batch of transactions is synced to Fiskaly
+/// </summary>
+public sealed record FiskalySyncCompleted(
+    Guid IntegrationId,
+    Guid TenantId,
+    int TransactionCount,
+    int SuccessCount,
+    int FailureCount,
+    DateTime SyncedAt
+) : IntegrationEvent
+{
+    public override string EventType => "fiskaly.sync.completed";
+}

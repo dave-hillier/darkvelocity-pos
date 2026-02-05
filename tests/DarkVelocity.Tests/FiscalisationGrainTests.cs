@@ -1398,3 +1398,289 @@ public class InternalTseProviderTests
         finish1.QrCodeData.Should().NotBe(finish2.QrCodeData);
     }
 }
+
+// ============================================================================
+// Fiskaly Configuration Tests
+// ============================================================================
+
+public class FiskalyConfigurationTests
+{
+    [Fact]
+    public void GetBaseUrl_Germany_Test_ReturnsCorrectUrl()
+    {
+        var config = new FiskalyConfiguration(
+            Enabled: true,
+            Region: FiskalyRegion.Germany,
+            Environment: FiskalyEnvironment.Test,
+            ApiKey: "test-key",
+            ApiSecret: "test-secret",
+            TssId: "tss-123",
+            ClientId: "client-123",
+            OrganizationId: null);
+
+        var url = config.GetBaseUrl();
+
+        url.Should().Be("https://kassensichv-middleware.fiskaly.com/api/v2");
+    }
+
+    [Fact]
+    public void GetBaseUrl_Germany_Production_ReturnsCorrectUrl()
+    {
+        var config = new FiskalyConfiguration(
+            Enabled: true,
+            Region: FiskalyRegion.Germany,
+            Environment: FiskalyEnvironment.Production,
+            ApiKey: "prod-key",
+            ApiSecret: "prod-secret",
+            TssId: "tss-456",
+            ClientId: "client-456",
+            OrganizationId: null);
+
+        var url = config.GetBaseUrl();
+
+        url.Should().Be("https://kassensichv-middleware.fiskaly.com/api/v2");
+    }
+
+    [Fact]
+    public void GetBaseUrl_Austria_Test_ReturnsCorrectUrl()
+    {
+        var config = new FiskalyConfiguration(
+            Enabled: true,
+            Region: FiskalyRegion.Austria,
+            Environment: FiskalyEnvironment.Test,
+            ApiKey: "test-key",
+            ApiSecret: "test-secret",
+            TssId: null,
+            ClientId: "register-123",
+            OrganizationId: null);
+
+        var url = config.GetBaseUrl();
+
+        url.Should().Be("https://rksv.fiskaly.com/api/v1");
+    }
+
+    [Fact]
+    public void GetBaseUrl_Austria_Production_ReturnsCorrectUrl()
+    {
+        var config = new FiskalyConfiguration(
+            Enabled: true,
+            Region: FiskalyRegion.Austria,
+            Environment: FiskalyEnvironment.Production,
+            ApiKey: "prod-key",
+            ApiSecret: "prod-secret",
+            TssId: null,
+            ClientId: "register-456",
+            OrganizationId: null);
+
+        var url = config.GetBaseUrl();
+
+        url.Should().Be("https://rksv.fiskaly.com/api/v1");
+    }
+
+    [Fact]
+    public void GetBaseUrl_Italy_Test_ReturnsCorrectUrl()
+    {
+        var config = new FiskalyConfiguration(
+            Enabled: true,
+            Region: FiskalyRegion.Italy,
+            Environment: FiskalyEnvironment.Test,
+            ApiKey: "test-key",
+            ApiSecret: "test-secret",
+            TssId: null,
+            ClientId: "rt-123",
+            OrganizationId: null);
+
+        var url = config.GetBaseUrl();
+
+        url.Should().Be("https://rt.fiskaly.com/api/v1");
+    }
+
+    [Fact]
+    public void GetBaseUrl_Italy_Production_ReturnsCorrectUrl()
+    {
+        var config = new FiskalyConfiguration(
+            Enabled: true,
+            Region: FiskalyRegion.Italy,
+            Environment: FiskalyEnvironment.Production,
+            ApiKey: "prod-key",
+            ApiSecret: "prod-secret",
+            TssId: null,
+            ClientId: "rt-456",
+            OrganizationId: null);
+
+        var url = config.GetBaseUrl();
+
+        url.Should().Be("https://rt.fiskaly.com/api/v1");
+    }
+}
+
+// ============================================================================
+// Fiskaly Integration Grain Tests
+// ============================================================================
+
+[Collection(ClusterCollection.Name)]
+[Trait("Category", "Integration")]
+public class FiskalyIntegrationGrainTests
+{
+    private readonly TestClusterFixture _fixture;
+
+    public FiskalyIntegrationGrainTests(TestClusterFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    private IFiskalyIntegrationGrain GetGrain(Guid orgId)
+    {
+        var key = $"{orgId}:fiskaly";
+        return _fixture.Cluster.GrainFactory.GetGrain<IFiskalyIntegrationGrain>(key);
+    }
+
+    [Fact]
+    public async Task GetSnapshotAsync_WhenNotConfigured_ReturnsDisabledSnapshot()
+    {
+        var orgId = Guid.NewGuid();
+        var grain = GetGrain(orgId);
+
+        var snapshot = await grain.GetSnapshotAsync();
+
+        snapshot.Enabled.Should().BeFalse();
+        snapshot.TssId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_WhenNotConfigured_ReturnsFalse()
+    {
+        var orgId = Guid.NewGuid();
+        var grain = GetGrain(orgId);
+
+        var result = await grain.TestConnectionAsync();
+
+        result.Should().BeFalse();
+    }
+}
+
+// ============================================================================
+// Fiskaly DTO Tests
+// ============================================================================
+
+public class FiskalyDtoTests
+{
+    [Fact]
+    public void FiskalyReceipt_CanBeCreated()
+    {
+        var receipt = new FiskalyReceipt(
+            ReceiptType: "RECEIPT",
+            AmountsPerVatRate: new List<FiskalyVatAmount>
+            {
+                new("NORMAL", "100.00"),
+                new("REDUCED_1", "50.00")
+            },
+            AmountsPerPaymentType: new List<FiskalyPaymentAmount>
+            {
+                new("CASH", "100.00"),
+                new("NON_CASH", "50.00")
+            });
+
+        receipt.ReceiptType.Should().Be("RECEIPT");
+        receipt.AmountsPerVatRate.Should().HaveCount(2);
+        receipt.AmountsPerPaymentType.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void FiskalyRksvReceiptRequest_CanBeCreated()
+    {
+        var receipt = new FiskalyRksvReceiptRequest(
+            ReceiptType: "STANDARD",
+            Amounts: new FiskalyRksvAmounts(
+                Normal: "100.00",
+                Reduced1: "50.00",
+                Reduced2: null,
+                Zero: "10.00",
+                Special: null));
+
+        receipt.ReceiptType.Should().Be("STANDARD");
+        receipt.Amounts.Normal.Should().Be("100.00");
+        receipt.Amounts.Reduced1.Should().Be("50.00");
+        receipt.Amounts.Zero.Should().Be("10.00");
+    }
+
+    [Fact]
+    public void FiskalyTransactionSchema_CanBeCreatedWithStandardV1()
+    {
+        var receipt = new FiskalyReceipt(
+            ReceiptType: "RECEIPT",
+            AmountsPerVatRate: new List<FiskalyVatAmount>(),
+            AmountsPerPaymentType: new List<FiskalyPaymentAmount>());
+
+        var schema = new FiskalyTransactionSchema(
+            StandardV1: new FiskalyStandardV1(receipt));
+
+        schema.StandardV1.Should().NotBeNull();
+        schema.StandardV1!.Receipt.ReceiptType.Should().Be("RECEIPT");
+    }
+
+    [Fact]
+    public void FiskalyVatAmount_MapsToCorrectProperties()
+    {
+        var vatAmount = new FiskalyVatAmount("NORMAL", "119.00");
+
+        vatAmount.VatRate.Should().Be("NORMAL");
+        vatAmount.Amount.Should().Be("119.00");
+    }
+
+    [Fact]
+    public void FiskalyPaymentAmount_MapsToCorrectProperties()
+    {
+        var paymentAmount = new FiskalyPaymentAmount("CASH", "50.00");
+
+        paymentAmount.PaymentType.Should().Be("CASH");
+        paymentAmount.Amount.Should().Be("50.00");
+    }
+}
+
+// ============================================================================
+// Fiskaly Region Tests
+// ============================================================================
+
+public class FiskalyRegionTests
+{
+    [Theory]
+    [InlineData(FiskalyRegion.Germany, "KassenSichV")]
+    [InlineData(FiskalyRegion.Austria, "RKSV")]
+    [InlineData(FiskalyRegion.Italy, "RT")]
+    public void AllRegions_AreSupported(FiskalyRegion region, string description)
+    {
+        // Verify all regions can create valid configurations
+        var config = new FiskalyConfiguration(
+            Enabled: true,
+            Region: region,
+            Environment: FiskalyEnvironment.Test,
+            ApiKey: "key",
+            ApiSecret: "secret",
+            TssId: "tss",
+            ClientId: "client",
+            OrganizationId: null);
+
+        config.Region.Should().Be(region);
+        config.GetBaseUrl().Should().NotBeNullOrEmpty();
+    }
+
+    [Theory]
+    [InlineData(FiskalyEnvironment.Test)]
+    [InlineData(FiskalyEnvironment.Production)]
+    public void AllEnvironments_AreSupported(FiskalyEnvironment environment)
+    {
+        var config = new FiskalyConfiguration(
+            Enabled: true,
+            Region: FiskalyRegion.Germany,
+            Environment: environment,
+            ApiKey: "key",
+            ApiSecret: "secret",
+            TssId: "tss",
+            ClientId: "client",
+            OrganizationId: null);
+
+        config.Environment.Should().Be(environment);
+        config.GetBaseUrl().Should().NotBeNullOrEmpty();
+    }
+}
