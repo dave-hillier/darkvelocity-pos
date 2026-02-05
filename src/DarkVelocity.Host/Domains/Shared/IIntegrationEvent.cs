@@ -7,9 +7,10 @@ public interface IIntegrationEvent
     string EventType { get; }
 }
 
+[GenerateSerializer]
 public abstract record IntegrationEvent : IIntegrationEvent
 {
-    public Guid EventId { get; init; } = Guid.NewGuid();
-    public DateTime OccurredAt { get; init; } = DateTime.UtcNow;
+    [Id(0)] public Guid EventId { get; init; } = Guid.NewGuid();
+    [Id(1)] public DateTime OccurredAt { get; init; } = DateTime.UtcNow;
     public abstract string EventType { get; }
 }

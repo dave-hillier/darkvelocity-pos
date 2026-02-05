@@ -1,4 +1,5 @@
 using Azure.Data.Tables;
+using DarkVelocity.Host.Authorization;
 using DarkVelocity.Host.Endpoints;
 using DarkVelocity.Host.Extensions;
 using DarkVelocity.Host.Services;
@@ -41,6 +42,7 @@ builder.Host.UseOrleans(siloBuilder =>
 builder.Services
     .AddSwaggerDocumentation()
     .AddJwtAuthentication(builder.Configuration)
+    .AddSpiceDbAuthorization(builder.Configuration)
     .AddCorsPolicy()
     .AddSearchServices(builder.Configuration)
     .AddPaymentGatewayServices()

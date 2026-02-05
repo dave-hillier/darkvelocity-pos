@@ -52,38 +52,62 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryEvent>, I
                 break;
 
             case StockBatchReceived e:
-                var batch = new StockBatch
+                // First reduce unbatched deficit (negative stock) if any
+                var receivedQty = e.Quantity;
+                if (state.UnbatchedDeficit > 0)
                 {
-                    Id = e.BatchId,
-                    BatchNumber = e.BatchNumber,
-                    ReceivedDate = e.OccurredAt,
-                    ExpiryDate = e.ExpiryDate.HasValue ? e.ExpiryDate.Value.ToDateTime(TimeOnly.MinValue) : null,
-                    Quantity = e.Quantity,
-                    OriginalQuantity = e.Quantity,
-                    UnitCost = e.UnitCost,
-                    TotalCost = e.Quantity * e.UnitCost,
-                    SupplierId = e.SupplierId,
-                    DeliveryId = e.DeliveryId,
-                    Status = BatchStatus.Active
-                };
-                state.Batches.Add(batch);
+                    var deficitReduction = Math.Min(state.UnbatchedDeficit, receivedQty);
+                    state.UnbatchedDeficit -= deficitReduction;
+                    receivedQty -= deficitReduction;
+                }
+                // Add remaining quantity as a batch
+                if (receivedQty > 0)
+                {
+                    var batch = new StockBatch
+                    {
+                        Id = e.BatchId,
+                        BatchNumber = e.BatchNumber,
+                        ReceivedDate = e.OccurredAt,
+                        ExpiryDate = e.ExpiryDate.HasValue ? e.ExpiryDate.Value.ToDateTime(TimeOnly.MinValue) : null,
+                        Quantity = receivedQty,
+                        OriginalQuantity = e.Quantity,
+                        UnitCost = e.UnitCost,
+                        TotalCost = e.Quantity * e.UnitCost,
+                        SupplierId = e.SupplierId,
+                        DeliveryId = e.DeliveryId,
+                        Status = BatchStatus.Active
+                    };
+                    state.Batches.Add(batch);
+                }
                 state.LastReceivedAt = e.OccurredAt;
                 RecalculateQuantitiesAndCost(state);
                 break;
 
             case StockTransferredIn e:
-                var transferBatch = new StockBatch
+                // First reduce unbatched deficit (negative stock) if any
+                var transferQty = e.Quantity;
+                if (state.UnbatchedDeficit > 0)
                 {
-                    Id = Guid.NewGuid(),
-                    BatchNumber = $"XFER-{e.TransferId.ToString()[..8]}",
-                    ReceivedDate = e.OccurredAt,
-                    Quantity = e.Quantity,
-                    OriginalQuantity = e.Quantity,
-                    UnitCost = e.UnitCost,
-                    TotalCost = e.Quantity * e.UnitCost,
-                    Status = BatchStatus.Active
-                };
-                state.Batches.Add(transferBatch);
+                    var deficitReduction = Math.Min(state.UnbatchedDeficit, transferQty);
+                    state.UnbatchedDeficit -= deficitReduction;
+                    transferQty -= deficitReduction;
+                }
+                // Add remaining quantity as a batch
+                if (transferQty > 0)
+                {
+                    var transferBatch = new StockBatch
+                    {
+                        Id = Guid.NewGuid(),
+                        BatchNumber = $"XFER-{e.TransferId.ToString()[..8]}",
+                        ReceivedDate = e.OccurredAt,
+                        Quantity = transferQty,
+                        OriginalQuantity = e.Quantity,
+                        UnitCost = e.UnitCost,
+                        TotalCost = e.Quantity * e.UnitCost,
+                        Status = BatchStatus.Active
+                    };
+                    state.Batches.Add(transferBatch);
+                }
                 state.LastReceivedAt = e.OccurredAt;
                 RecalculateQuantitiesAndCost(state);
                 break;
@@ -108,19 +132,31 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryEvent>, I
                 var variance = e.NewQuantity - e.PreviousQuantity;
                 if (variance > 0)
                 {
-                    var adjBatch = new StockBatch
+                    // First reduce unbatched deficit (negative stock) if any
+                    var adjQty = variance;
+                    if (state.UnbatchedDeficit > 0)
                     {
-                        Id = Guid.NewGuid(),
-                        BatchNumber = $"ADJ-{e.OccurredAt:yyyyMMdd}",
-                        ReceivedDate = e.OccurredAt,
-                        Quantity = variance,
-                        OriginalQuantity = variance,
-                        UnitCost = state.WeightedAverageCost,
-                        TotalCost = variance * state.WeightedAverageCost,
-                        Status = BatchStatus.Active,
-                        Notes = e.Reason
-                    };
-                    state.Batches.Add(adjBatch);
+                        var deficitReduction = Math.Min(state.UnbatchedDeficit, adjQty);
+                        state.UnbatchedDeficit -= deficitReduction;
+                        adjQty -= deficitReduction;
+                    }
+                    // Add remaining quantity as a batch
+                    if (adjQty > 0)
+                    {
+                        var adjBatch = new StockBatch
+                        {
+                            Id = Guid.NewGuid(),
+                            BatchNumber = $"ADJ-{e.OccurredAt:yyyyMMdd}",
+                            ReceivedDate = e.OccurredAt,
+                            Quantity = adjQty,
+                            OriginalQuantity = variance,
+                            UnitCost = state.WeightedAverageCost,
+                            TotalCost = variance * state.WeightedAverageCost,
+                            Status = BatchStatus.Active,
+                            Notes = e.Reason
+                        };
+                        state.Batches.Add(adjBatch);
+                    }
                 }
                 else if (variance < 0)
                 {
@@ -166,13 +202,22 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryEvent>, I
             state.Batches[index] = batch with { Quantity = newQty, Status = newStatus };
             remaining -= consumeQty;
         }
+
+        // Track unbatched consumption for negative stock support
+        // Per design: "Negative stock is the default - service doesn't stop for inventory discrepancies"
+        if (remaining > 0)
+        {
+            state.UnbatchedDeficit += remaining;
+        }
     }
 
     private static void RecalculateQuantitiesAndCost(InventoryState state)
     {
         var activeBatches = state.Batches.Where(b => b.Status == BatchStatus.Active);
 
-        state.QuantityOnHand = activeBatches.Sum(b => b.Quantity);
+        // Include unbatched deficit for negative stock support
+        // Per design: "Negative stock is the default - service doesn't stop for inventory discrepancies"
+        state.QuantityOnHand = activeBatches.Sum(b => b.Quantity) - state.UnbatchedDeficit;
         state.QuantityAvailable = state.QuantityOnHand - state.QuantityReserved;
 
         var totalValue = activeBatches.Sum(b => b.Quantity * b.UnitCost);

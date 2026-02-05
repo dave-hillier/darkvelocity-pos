@@ -77,6 +77,11 @@ public sealed class InventoryState
     [Id(8)] public decimal QuantityOnHand { get; set; }
     [Id(9)] public decimal QuantityReserved { get; set; }
     [Id(10)] public decimal QuantityAvailable { get; set; }
+    /// <summary>
+    /// Tracks consumption beyond available batches (negative stock).
+    /// Per design: "Negative stock is the default - service doesn't stop for inventory discrepancies"
+    /// </summary>
+    [Id(21)] public decimal UnbatchedDeficit { get; set; }
 
     [Id(11)] public decimal ReorderPoint { get; set; }
     [Id(12)] public decimal ReorderQuantity { get; set; }

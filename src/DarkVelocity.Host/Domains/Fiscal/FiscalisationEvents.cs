@@ -10,16 +10,17 @@ namespace DarkVelocity.Host.Events;
 /// Published when a TSE transaction is started.
 /// This event is generated internally and can be forwarded to an external TSE.
 /// </summary>
+[GenerateSerializer]
 public sealed record TseTransactionStarted(
-    Guid TseTransactionId,
-    Guid DeviceId,
-    Guid LocationId,
-    Guid TenantId,
-    long TransactionNumber,
-    string ProcessType,
-    string ProcessData,
-    DateTime StartTime,
-    string? ClientId
+    [property: Id(0)] Guid TseTransactionId,
+    [property: Id(1)] Guid DeviceId,
+    [property: Id(2)] Guid LocationId,
+    [property: Id(3)] Guid TenantId,
+    [property: Id(4)] long TransactionNumber,
+    [property: Id(5)] string ProcessType,
+    [property: Id(6)] string ProcessData,
+    [property: Id(7)] DateTime StartTime,
+    [property: Id(8)] string? ClientId
 ) : IntegrationEvent
 {
     public override string EventType => "tse.transaction.started";
@@ -46,23 +47,24 @@ public sealed record TseTransactionUpdated(
 /// Published when a TSE transaction is finished and signed.
 /// Contains the signature and all data required for the QR code.
 /// </summary>
+[GenerateSerializer]
 public sealed record TseTransactionFinished(
-    Guid TseTransactionId,
-    Guid DeviceId,
-    Guid LocationId,
-    Guid TenantId,
-    long TransactionNumber,
-    long SignatureCounter,
-    string Signature,
-    string SignatureAlgorithm,
-    string PublicKeyBase64,
-    DateTime StartTime,
-    DateTime EndTime,
-    string ProcessType,
-    string ProcessData,
-    string CertificateSerial,
-    string TimeFormat,
-    string QrCodeData
+    [property: Id(0)] Guid TseTransactionId,
+    [property: Id(1)] Guid DeviceId,
+    [property: Id(2)] Guid LocationId,
+    [property: Id(3)] Guid TenantId,
+    [property: Id(4)] long TransactionNumber,
+    [property: Id(5)] long SignatureCounter,
+    [property: Id(6)] string Signature,
+    [property: Id(7)] string SignatureAlgorithm,
+    [property: Id(8)] string PublicKeyBase64,
+    [property: Id(9)] DateTime StartTime,
+    [property: Id(10)] DateTime EndTime,
+    [property: Id(11)] string ProcessType,
+    [property: Id(12)] string ProcessData,
+    [property: Id(13)] string CertificateSerial,
+    [property: Id(14)] string TimeFormat,
+    [property: Id(15)] string QrCodeData
 ) : IntegrationEvent
 {
     public override string EventType => "tse.transaction.finished";
