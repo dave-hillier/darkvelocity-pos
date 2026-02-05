@@ -680,7 +680,7 @@ public class LoyaltyProgramGrainTests
         // Assert
         result.BasePoints.Should().Be(0);
         result.TotalPoints.Should().Be(0);
-        result.RuleId.Should().BeNull();
+        result.AppliedRuleId.Should().BeNull();
     }
 
     // ==================== Rewards Tests ====================
@@ -702,7 +702,7 @@ public class LoyaltyProgramGrainTests
             "Another Active", "Also active", RewardType.PercentDiscount, 200, DiscountValue: 20));
 
         // Deactivate second reward
-        await grain.UpdateRewardAsync(reward2.RewardId, isActive: false);
+        await grain.UpdateRewardAsync(reward2.RewardId, pointsCost: null, isActive: false);
 
         // Act
         var availableRewards = await grain.GetAvailableRewardsAsync(1);
@@ -881,7 +881,7 @@ public class LoyaltyProgramGrainTests
             DiscountValue: 10));
 
         // Act
-        await grain.UpdateRewardAsync(reward.RewardId, pointsCost: 150);
+        await grain.UpdateRewardAsync(reward.RewardId, pointsCost: 150, isActive: null);
 
         // Assert
         var state = await grain.GetStateAsync();

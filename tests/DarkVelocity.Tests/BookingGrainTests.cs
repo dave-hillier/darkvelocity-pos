@@ -561,7 +561,7 @@ public class BookingGrainTests
 
         // Assert - Should have two assignments (grain doesn't de-duplicate)
         var state = await grain.GetStateAsync();
-        state.TableAssignments.Should().HaveCountGreaterOrEqualTo(1);
+        state.TableAssignments.Should().HaveCountGreaterThanOrEqualTo(1);
         state.TableAssignments.Where(t => t.TableId == tableId).Should().NotBeEmpty();
     }
 }

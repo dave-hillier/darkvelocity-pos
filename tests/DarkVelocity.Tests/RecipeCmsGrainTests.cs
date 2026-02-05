@@ -928,7 +928,7 @@ public class RecipeRegistryGrainTests
         await grain.RegisterRecipeAsync("recipe-1", "Individual Recipe", 5.00m, null, recipeType: RecipeType.MadeToOrder);
         await grain.RegisterRecipeAsync("recipe-2", "Batch Prep 1", 10.00m, null, recipeType: RecipeType.BatchPrep);
         await grain.RegisterRecipeAsync("recipe-3", "Batch Prep 2", 15.00m, null, recipeType: RecipeType.BatchPrep);
-        await grain.RegisterRecipeAsync("recipe-4", "Component Recipe", 8.00m, null, recipeType: RecipeType.SubRecipe);
+        await grain.RegisterRecipeAsync("recipe-4", "Component Recipe", 8.00m, null, recipeType: RecipeType.MadeToOrder);
 
         // Act
         var batchPrepRecipes = await grain.GetBatchPrepRecipesAsync();

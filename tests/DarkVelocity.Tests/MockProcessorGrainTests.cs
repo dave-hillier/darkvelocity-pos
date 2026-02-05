@@ -425,7 +425,7 @@ public class MockProcessorGrainTests
         // Assert
         var state = await grain.GetStateAsync();
         state.Status.Should().Be("disputed");
-        state.Events.Should().Contain(e => e.Type == "dispute_created");
+        state.Events.Should().Contain(e => e.EventType == "dispute_created");
     }
 
     [Fact]

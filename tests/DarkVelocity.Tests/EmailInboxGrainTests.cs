@@ -534,7 +534,7 @@ public class EmailInboxGrainTests
         // Assert - the first few message IDs should have been evicted
         // but the grain should still be functional
         var state = await grain.GetStateAsync();
-        state.RecentMessageIds.Count.Should().BeLessOrEqualTo(1000);
+        state.RecentMessageIds.Count.Should().BeLessThanOrEqualTo(1000);
         state.TotalEmailsReceived.Should().Be(1005);
 
         // Recent messages should still be tracked

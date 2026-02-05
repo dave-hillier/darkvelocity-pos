@@ -750,9 +750,9 @@ public class CustomerSpendProjectionGrainTests
             TransactionDate: DateOnly.FromDateTime(DateTime.UtcNow)));
 
         // Multiple redemptions
-        await grain.RedeemPointsAsync(new RedeemSpendPointsCommand(100, Guid.NewGuid(), "Discount"));
-        await grain.RedeemPointsAsync(new RedeemSpendPointsCommand(150, Guid.NewGuid(), "FreeItem"));
-        await grain.RedeemPointsAsync(new RedeemSpendPointsCommand(200, Guid.NewGuid(), "Upgrade"));
+        await grain.RedeemPointsAsync(new RedeemSpendPointsCommand(Guid.NewGuid(), 100, "Discount"));
+        await grain.RedeemPointsAsync(new RedeemSpendPointsCommand(Guid.NewGuid(), 150, "FreeItem"));
+        await grain.RedeemPointsAsync(new RedeemSpendPointsCommand(Guid.NewGuid(), 200, "Upgrade"));
 
         var state = await grain.GetStateAsync();
         Assert.Equal(450, state.TotalPointsRedeemed);

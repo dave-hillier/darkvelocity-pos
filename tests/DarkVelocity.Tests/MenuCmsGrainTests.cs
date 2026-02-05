@@ -1043,7 +1043,7 @@ public class ModifierBlockGrainTests
         // Act
         var result = await grain.CreateAsync(new CreateModifierBlockCommand(
             Name: "Toppings",
-            SelectionRule: ModifierSelectionRule.ChooseMultiple,
+            SelectionRule: ModifierSelectionRule.ChooseMany,
             MinSelections: 0,
             MaxSelections: 5,
             IsRequired: false,
@@ -1057,7 +1057,7 @@ public class ModifierBlockGrainTests
             PublishImmediately: true));
 
         // Assert
-        result.Published!.SelectionRule.Should().Be(ModifierSelectionRule.ChooseMultiple);
+        result.Published!.SelectionRule.Should().Be(ModifierSelectionRule.ChooseMany);
         result.Published.MinSelections.Should().Be(0);
         result.Published.MaxSelections.Should().Be(5);
         result.Published.IsRequired.Should().BeFalse();
