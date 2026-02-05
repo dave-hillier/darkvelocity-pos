@@ -1,6 +1,6 @@
 # DarkVelocity POS - Product Completeness Analysis
 
-> **Analysis Date:** February 2026
+> **Analysis Date:** February 2026 (Updated after rebase)
 > **Analyzed By:** Claude Code Domain Analysis Agents
 > **Purpose:** Identify gaps and improvements needed for production readiness
 
@@ -8,23 +8,31 @@
 
 This document provides a comprehensive analysis of all 17 grain domains in the DarkVelocity POS system, evaluating product completeness and identifying specific actionable improvements needed for a production-ready hospitality platform.
 
+### Recent Improvements (Since Last Analysis)
+
+- **Bundle/Combo Support** - Full meal deal and bundle support added to Menu and Orders
+- **Order Holds & Fires** - Complete kitchen workflow for course-based firing
+- **Fiskaly Integration** - Configuration-driven integration for Germany, Austria, Italy
+- **Comprehensive Test Coverage** - ~18,600 lines of tests added across all domains
+- **Internal TSE** - Software-based TSE with HMAC-SHA256 signatures
+
 ### Overall Assessment
 
 | Category | Count | Status |
 |----------|-------|--------|
 | Domains Analyzed | 17 | Complete |
-| Production Ready | 2 | Menu, Payments (core) |
-| Near Complete (70%+) | 5 | Orders, Customers, Organization, Payments, Menu |
-| Partial (50-70%) | 6 | Inventory, Tables, Staff, Reporting, Recipes, Costing |
-| Significant Gaps (<50%) | 6 | Payment Processors, Fiscal, System, Finance, External Channels, Devices |
+| Production Ready | 2 | Menu (82%), Orders (78%) |
+| Near Complete (70%+) | 4 | Payments (75%), Organization (70%), Customers (65%) |
+| Partial (50-70%) | 5 | Inventory (60%), Tables (60%), Reporting (60%), Recipes (55%), Fiscal (50%) |
+| Significant Gaps (<50%) | 6 | Devices (45%), Finance (40%), External Channels (40%), System (35%), Payment Processors (30%), Costing (50%) |
 
 ### Critical Blockers (P0)
 
 1. **Devices Domain** - No offline mode or printing system
 2. **External Channels Domain** - No webhook handlers or HTTP clients for delivery platforms
 3. **Payment Processors Domain** - No actual Stripe/Adyen implementation
-4. **Fiscal Domain** - No API endpoints or TSE adapters for EU compliance
-5. **System Domain** - Notifications don't send, webhooks don't deliver
+4. **System Domain** - Notifications don't send, webhooks don't deliver
+5. **Costing Domain** - No REST API endpoints
 
 ---
 
@@ -32,43 +40,50 @@ This document provides a comprehensive analysis of all 17 grain domains in the D
 
 ### 1. Orders Domain
 
-**Completeness: 70%**
+**Completeness: 78%** *(improved from 70%)*
 
 #### Current Implementation
 - Full order lifecycle with event sourcing
 - Order types: DineIn, TakeOut, Delivery, DriveThru, Online, Tab
 - Per-item tax rates for multiple jurisdictions
 - Order-level discounts with approval tracking
-- Bill splitting by items
+- Bill splitting by items, people, and amounts
 - Table and server transfers
 - Kitchen ticket integration via Orleans streams
+- **NEW:** Bundle/combo support with flexible slot selection rules
+- **NEW:** Hold/Fire workflow for course-based kitchen management
+- **NEW:** Course numbering and course firing
 
-#### Critical Gaps
+#### Remaining Gaps
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
-| Course Management | High | 1-2 weeks | No course-based firing, holding, or timing coordination |
-| Seat Assignment | High | 1 week | Cannot assign items to seats for seat-based splitting |
-| Order Merging | Medium | 3-5 days | Can split but cannot merge orders (combining tables) |
+| Seat Assignment | High | 3-5 days | Cannot assign items to seats for seat-based splitting |
 | Line-Level Discounts | High | 1 week | Only order-level discounts exist |
-| Hold/Rush/Recall | High | 1 week | Cannot hold orders before kitchen, rush, or recall |
-| Order History API | Medium | 3-5 days | Event sourcing exists but no timeline view endpoint |
+| Price Overrides | High | 3-5 days | PriceOverride exists but not exposed in AddLineCommand |
+| Order Merging | Medium | 3-5 days | Can split but cannot merge orders (combining tables) |
+| Course Timing Coordination | Medium | 1 week | Courses fire but no delay/timing between courses |
+| Kitchen Ticket Void Sync | Medium | 3-5 days | Voiding lines doesn't void kitchen ticket items |
+| Seat-Based Payment Split | Medium | 1 week | Cannot split payment by seat |
+| Order History API | Low | 3-5 days | No timeline view endpoint |
 
 #### Recommended Actions
 
 ```
-Phase 1 (Essential):
-├── Implement SetLineCourseAsync() and FireCourseAsync()
+Phase 1 (Essential - 2 weeks):
 ├── Add Seat property to OrderLine
-├── Add line-level discount methods
-└── Implement HoldOrderAsync() and RushOrderAsync()
+├── Implement line-level discount methods
+├── Expose PriceOverride in AddLineCommand
+└── Sync kitchen ticket voids
 
-Phase 2 (Enhanced):
+Phase 2 (Enhanced - 2 weeks):
 ├── Implement MergeFromOrderAsync()
-├── Create OrderHistoryGrain for audit timeline
-├── Add order search and filtering endpoints
-└── Coordinate kitchen ticket voids
+├── Add course timing coordination
+├── Implement seat-based payment splitting
+└── Create order history/timeline API
 ```
+
+**Total Effort to 90%:** 4-6 weeks
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Orders/OrderGrain.cs`
@@ -94,12 +109,13 @@ Phase 2 (Enhanced):
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
-| Settlement Batch | Critical | 1-2 weeks | Interface exists but no implementation |
-| House Accounts | High | 2 weeks | Customer AR for tabs and corporate accounts |
-| Loyalty Integration | High | 1 week | PaymentMethod.LoyaltyPoints exists but no processing |
-| Offline Queue | Critical | 1-2 weeks | No store-and-forward for network failures |
-| Chargeback Handling | Medium | 1 week | No dispute workflow |
-| Surcharges | Medium | 3-5 days | No card processing fee handling |
+| Settlement Batch | Critical | 40-50h | Interface exists but no implementation |
+| House Accounts | High | 30-35h | Customer AR for tabs and corporate accounts |
+| Loyalty Integration | High | 25-30h | PaymentMethod.LoyaltyPoints exists but no processing |
+| Offline Queue | Critical | 35-40h | No store-and-forward for network failures |
+| Chargeback Handling | Medium | 30-35h | No dispute workflow |
+| Payment Reconciliation | Medium | 15-20h | No settlement vs system records comparison |
+| Surcharges | Low | 10-15h | No card processing fee handling |
 
 #### Recommended Actions
 
@@ -114,8 +130,10 @@ Phase 2 (High Value):
 ├── Create CustomerAccountGrain for house accounts
 ├── Integrate LoyaltyProgramGrain with payments
 ├── Add surcharge calculation
-└── Implement tip pooling integration
+└── Implement payment reconciliation reports
 ```
+
+**Total Effort to 90%:** 4-5 weeks
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Payments/PaymentGrain.cs`
@@ -130,38 +148,43 @@ Phase 2 (High Value):
 
 #### Current Implementation
 - Merchant and Terminal grain interfaces
-- MockProcessorGrain for testing
+- MockProcessorGrain for testing (comprehensive)
 - Payment Intent flow (Stripe-compatible)
 - Webhook endpoint structure
+- Basic auth/capture/refund/void flow
+- 3DS handling via NextAction pattern
 
 #### Critical Gaps
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
-| Stripe Implementation | Critical | 2-3 weeks | Interface only, no actual SDK integration |
-| Adyen Implementation | Critical | 2-3 weeks | Interface only, no actual SDK integration |
-| Offline Payments | Critical | 1-2 weeks | No store-forward queue |
-| Retry Logic | High | 1 week | State tracks retries but no implementation |
-| Terminal Pairing | High | 1 week | Basic registration only |
-| PCI Compliance | High | 2 weeks | No tokenization enforcement or audit logging |
+| Stripe Implementation | Critical | 14-21 days | Interface only, no actual SDK integration |
+| Adyen Implementation | Critical | 16-21 days | Interface only, no actual SDK integration |
+| Offline Payments | Critical | 10-14 days | No store-forward queue |
+| Retry Logic & Idempotency | Critical | 5-7 days | No idempotency keys, no exponential backoff |
+| Terminal Pairing | High | 6-8 days | Basic registration only |
+| PCI Compliance | High | 8-10 days | Card data stored in state, no tokenization |
+| Settlement Reporting | High | 10-12 days | No batch management |
 
 #### Recommended Actions
 
 ```
-Phase 1 (Critical):
+Phase 1 (Critical - 6 weeks):
 ├── Implement StripeProcessorGrain with SDK
 ├── Implement AdyenProcessorGrain with SDK
 ├── Create OfflinePaymentQueueGrain
 ├── Add idempotency key management
 └── Implement retry with exponential backoff
 
-Phase 2 (Production):
+Phase 2 (Production - 4 weeks):
 ├── Add terminal pairing workflow
-├── Implement settlement reporting
+├── Implement settlement batch grain
 ├── Create DisputeGrain for chargebacks
 ├── Add processor routing/failover
-└── Implement PCI audit logging
+└── Implement PCI-compliant tokenization
 ```
+
+**Total Effort to 90%:** 10-14 weeks
 
 #### Key Files to Create
 - `/src/DarkVelocity.Host/Domains/Payments/StripeProcessorGrain.cs`
@@ -177,41 +200,47 @@ Phase 2 (Production):
 
 #### Current Implementation
 - Customer profile management with event sourcing
-- Loyalty enrollment and points
+- Loyalty enrollment and points with tier-based multipliers
 - Rewards issuance and redemption
 - Visit history tracking (last 50)
 - Preferences and dietary restrictions
 - Referral code generation
 - GDPR compliance (anonymize/delete)
+- Points expiration configuration
 
 #### Critical Gaps
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
-| Birthday Rewards | High | 3-5 days | Defined but never triggered |
-| Segmentation | High | 1 week | Set to "New" on creation, never updated |
-| Marketing Consent | High | 3-5 days | Flags exist but no capture workflow (GDPR) |
-| Points Expiration | High | 3-5 days | Config exists but never enforced |
-| Redemption Limits | Medium | 2-3 days | Config exists but not checked |
-| Visit History Grain | Medium | 3-5 days | Interface defined, implementation partial |
+| Points Expiration Enforcement | P0 | 14 pts | Config exists but never enforced |
+| Segmentation Automation | P0 | 16 pts | Set to "New" on creation, never updated |
+| GDPR Consent Granularity | P0 | 12 pts | Only boolean opt-ins, no timestamps |
+| Birthday Rewards | P1 | 11 pts | Defined but never triggered |
+| Referral Completion | P1 | 16 pts | Codes generated but no qualification tracking |
+| Customer Journey Automation | P1 | 16 pts | No lifecycle stage management |
+| VIP Detection | P2 | 12 pts | No automated high-value customer flagging |
+| Redemption Limits | P2 | 11 pts | Config exists but not checked |
 
 #### Recommended Actions
 
 ```
-Phase 1 (Essential):
-├── Create birthday reward background job
-├── Implement RFM segmentation automation
-├── Add marketing consent capture with audit trail
-├── Create points expiration job
-└── Enforce redemption limits in RedeemRewardAsync()
+Phase 1 (Compliance - 2 sprints):
+├── Implement GDPR consent granularity
+├── Complete data privacy/anonymization
+└── Create automated points expiration job
 
-Phase 2 (Enhanced):
-├── Complete CustomerVisitHistoryGrain
-├── Add customer feedback/review system
-├── Implement multi-channel identity resolution
-├── Add customer journey tracking
-└── Build tier maintenance job
+Phase 2 (Core Marketing - 2 sprints):
+├── Implement segmentation automation (RFM)
+├── Create birthday reward background job
+└── Add customer journey automation
+
+Phase 3 (Growth - 2 sprints):
+├── Complete referral program tracking
+├── Implement VIP detection
+└── Add marketing automation integration
 ```
+
+**Total Effort to 90%:** 4-6 weeks (~167 story points)
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Customers/CustomerGrain.cs`
@@ -237,30 +266,29 @@ Phase 2 (Enhanced):
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
-| Stock Take Workflow | High | 2 weeks | Basic count only, no scheduling or approval |
-| Transfer Grain | Medium | 1-2 weeks | Basic in/out, no lifecycle management |
-| Variance Reporting | High | 1 week | Tracks but no analysis or alerts |
-| Stock Optimization | Medium | 1-2 weeks | No ABC analysis or dynamic reorder points |
-| Expiry Monitoring | High | 3-5 days | No background job for expiry alerts |
-| Procurement API | High | 1 week | Grains exist but limited endpoint exposure |
+| Stock Take Workflow | High | 26 days | Basic count only, no blind count or approval |
+| Transfer Lifecycle Grain | High | 39 days | Basic in/out, no transit tracking |
+| Variance Reporting | High | 44 days | Tracks but no analysis or alerts |
+| Stock Optimization | Medium | 50 days | No ABC analysis or dynamic reorder points |
+| Expiry Monitoring Job | High | 36 days | No background job for expiry alerts |
 
 #### Recommended Actions
 
 ```
-Phase 1 (Essential):
-├── Create StockTakeGrain with full workflow
+Phase 1 (Core - 6-8 weeks):
+├── Create StockTakeGrain with blind count workflow
 ├── Add variance analysis and alerting
 ├── Implement expiry monitoring background job
-├── Complete procurement API endpoints
 └── Create transfer lifecycle grain
 
-Phase 2 (Advanced):
+Phase 2 (Advanced - 4-6 weeks):
 ├── Implement ABC classification
 ├── Add automatic reorder suggestions
 ├── Create multi-location inventory view
-├── Add reservation/allocation system
-└── Implement supplier performance tracking
+└── Build three-way match (PO-Delivery-Invoice)
 ```
+
+**Total Effort to 90%:** 6-8 weeks (~260 days across phases)
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Inventory/InventoryGrain.cs`
@@ -271,7 +299,7 @@ Phase 2 (Advanced):
 
 ### 6. Menu Domain
 
-**Completeness: 80%**
+**Completeness: 82%** *(improved from 80%)*
 
 #### Current Implementation
 - Event-sourced CMS with draft/publish workflow
@@ -282,34 +310,37 @@ Phase 2 (Advanced):
 - Site-specific overrides
 - Channel visibility (POS, online, delivery)
 - Reusable modifier blocks
+- **NEW:** Bundle/combo support with flexible selection rules (Fixed, ChooseOne, ChooseMany, ChooseRange)
+- **NEW:** Per-slot price adjustments for upsells/downgrades
+- **NEW:** Nested menu items as bundle options
 
-#### Critical Gaps
+#### Remaining Gaps
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
-| Combo/Bundle Items | High | 1-2 weeks | No meal deal or bundle support |
-| Dynamic Pricing | High | 1 week | Availability exists but no price changes |
+| Auto-86 from Inventory | High | 3-5 days | Manual snooze only, no inventory integration |
+| Dynamic Pricing | High | 1 week | Availability exists but no time-based price changes |
 | Upsell Prompts | Medium | 3-5 days | No cross-sell or upsell suggestions |
-| Auto-86 from Inventory | High | 3-5 days | Manual snooze only |
 | Price Tiers | Medium | 1 week | No VIP/staff/loyalty pricing |
-| Menu Engineering | Medium | 3-5 days | Grain exists but not integrated |
+| Menu Engineering Integration | Medium | 3-5 days | Grain exists but not integrated in resolution |
+| Modifier Availability Windows | Medium | 3-5 days | Only items have daypart availability |
 
 #### Recommended Actions
 
 ```
-Phase 1 (Essential):
-├── Add ComboComponent to MenuItemVersionState
-├── Implement dynamic pricing in AvailabilityWindow
+Phase 1 (Essential - 2 weeks):
 ├── Integrate inventory for auto-snoozing
+├── Implement dynamic pricing rules
 └── Connect menu engineering data to resolution
 
-Phase 2 (Enhanced):
+Phase 2 (Enhanced - 1.5 weeks):
 ├── Add UpsellPrompt support
 ├── Implement PriceTier for customer segments
-├── Add auto-unsnooze background job
-├── Enhance media support (gallery, video)
-└── Add modifier availability windows
+├── Add modifier availability windows
+└── Enhance media support (gallery, video)
 ```
+
+**Total Effort to 95%:** 3-4 weeks
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Menu/MenuCmsState.cs`
@@ -323,40 +354,43 @@ Phase 2 (Enhanced):
 **Completeness: 55%**
 
 #### Current Implementation
-- Recipe CMS with version control
+- Recipe CMS with 3-level versioning (published, draft, current)
 - Localization support
 - Ingredient management with waste percentage
 - Batch prep configuration
 - Menu item linkage
-- Separate costing grains with price history
+- Recipe registry for indexing
+- Cost calculation with snapshots
 
 #### Critical Gaps
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
+| Missing Ingredient Grain | High | 2-3 weeks | Ingredients are just Guids with string names |
 | Domain Fragmentation | High | 1-2 weeks | RecipeCMS and Costing domains disconnected |
 | Sub-Recipes | High | 1-2 weeks | Cannot use recipes as ingredients |
-| Recipe Scaling | Medium | 1 week | Cannot adjust for different batch sizes |
 | Allergen Inheritance | High | 1 week | Manual tagging, not computed from ingredients |
+| Recipe Scaling | Medium | 1 week | Cannot adjust for different batch sizes |
 | Nutritional Calculation | Medium | 1 week | Not calculated from ingredients |
 | Production Tracking | Medium | 1-2 weeks | Events defined but no grain |
 
 #### Recommended Actions
 
 ```
-Phase 1 (Critical):
-├── Consolidate recipe costing into RecipeDocumentGrain
-├── Create IIngredientGrain for definitions
+Phase 1 (Critical - 3 weeks):
+├── Create IIngredientGrain for master data
 ├── Implement allergen inheritance from ingredients
+├── Consolidate recipe costing integration
 └── Add recipe validation rules
 
-Phase 2 (Enhanced):
+Phase 2 (Enhanced - 3 weeks):
 ├── Add sub-recipe/component support
 ├── Implement recipe scaling
 ├── Add nutritional calculation
 ├── Create batch production tracking grain
-└── Build menu engineering integration
 ```
+
+**Total Effort to 85%:** 8-12 weeks
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Menu/RecipeCmsGrains.cs`
@@ -370,39 +404,41 @@ Phase 2 (Enhanced):
 
 #### Current Implementation
 - Recipe cost calculation
-- Ingredient price tracking with history
+- Ingredient price tracking with history (max 100 entries)
 - Cost alerts with acknowledgment
 - Costing settings with thresholds
 - Menu engineering (BCG matrix)
 - FIFO/LIFO/WAC costing policies
+- Recipe snapshots (max 52 weekly)
 
 #### Critical Gaps
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
-| NO API ENDPOINTS | Critical | 1-2 days | Zero REST API exposure |
-| Alert Index | High | 3-5 days | Cannot query alerts by type/status |
-| Menu Engineering Integration | Medium | 1 week | Disconnected from real sales data |
-| Profitability Dashboard | High | 1 week | No aggregated profitability view |
-| Variance Analysis | Medium | 1 week | No theoretical vs actual reconciliation |
-| Cost Trending | Low | 1 week | No forecasting or trending |
+| NO API ENDPOINTS | Critical | 40h | Zero REST API exposure |
+| Alert Index | High | 20h | Cannot query alerts by type/status |
+| Cost Trending & Variance | High | 30h | No variance analysis |
+| Profitability Dashboard | High | 25h | No aggregated profitability view |
+| Menu Engineering Integration | Medium | 10h | Uses theoretical cost, not actual recipe costs |
+| Automatic Alert Generation | Medium | 15h | Manual alerts only |
+| Accounting Group | Medium | 35h | Listed in docs but not implemented |
 
 #### Recommended Actions
 
 ```
-Phase 1 (Critical):
+Phase 1 (MVP - 2 weeks):
 ├── Create CostingEndpoints.cs (all grains)
 ├── Create CostAlertIndexGrain
-├── Add Orleans stream subscriber for auto-updates
 └── Implement profitability dashboard grain
 
-Phase 2 (Enhanced):
-├── Enhance price recommendations with elasticity
-├── Create cost variance analysis grain
-├── Add cost trending and forecasting
-├── Implement scenario modeling
-└── Enhance accounting groups for P&L
+Phase 2 (Analytics - 3 weeks):
+├── Add cost trending grain
+├── Implement variance analysis
+├── Connect menu engineering to real recipe costs
+└── Add automatic alert generation
 ```
+
+**Total Effort to 90%:** 6-8 weeks (~245 hours)
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Costing/CostingGrains.cs`
@@ -424,37 +460,36 @@ Phase 2 (Enhanced):
 - Floor plan support
 - Waitlist with quoted times
 - Booking settings per site
-- Booking calendar aggregation
-- Deposit lifecycle
+- Deposit lifecycle (required → paid → applied/forfeited/refunded)
+- Booking accounting subscriber for journal entries
 
 #### Critical Gaps
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
-| Calendar Auto-Sync | Critical | 3-5 days | Manual sync, data drifts |
-| Notifications | High | 1-2 weeks | No confirmation or reminder sending |
-| No-Show Detection | High | 3-5 days | Manual marking only |
-| Deposit Payment Links | High | 1 week | Cannot generate online payment links |
-| Table Assignment | Medium | 1-2 weeks | No optimization or suggestions |
-| Turn Time Tracking | Medium | 1 week | No actual turn time calculation |
+| BookingCalendarGrain | Critical | 40-60h | Referenced but NOT implemented |
+| Advanced Availability | High | 30-40h | No actual table matching logic |
+| Notifications | High | 20-25h | No confirmation or reminder sending |
+| No-Show Detection | High | 25-35h | Manual marking only |
+| Turn Time Tracking | Medium | 20-30h | No actual turn time calculation |
+| Table Optimization | Medium | 35-45h | No smart table assignment |
 
 #### Recommended Actions
 
 ```
-Phase 1 (Critical):
-├── Create booking stream subscriber for calendar sync
-├── Implement NotificationSchedulerGrain
-├── Add no-show auto-detection via Orleans reminders
-├── Integrate Stripe for deposit payment links
-└── Complete CustomerVisitHistoryGrain
+Phase 1 (Critical - 2 weeks):
+├── Implement BookingCalendarGrain
+├── Create advanced availability calculation
+└── Add no-show auto-detection via Orleans reminders
 
-Phase 2 (Enhanced):
+Phase 2 (Enhancement - 3 weeks):
+├── Implement NotificationSchedulerGrain
+├── Add turn time tracking and analytics
 ├── Create TableAssignmentOptimizerGrain
-├── Build TableAnalyticsGrain for turn times
-├── Add channel-specific booking rules
-├── Enhance occasion handling
-└── Implement waitlist SMS notifications
+└── Integrate deposit payment links
 ```
+
+**Total Effort to 90%:** 6-8 weeks (~285-395 hours)
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Bookings/BookingGrain.cs`
@@ -476,36 +511,38 @@ Phase 2 (Enhanced):
 - Payroll period aggregation
 - Availability and time off requests
 - Shift swap workflow
+- **NEW:** Comprehensive test coverage
 
 #### Critical Gaps
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
-| Break Tracking | High | 3-5 days | Events defined but not implemented |
-| Overtime Calculation | High | 1 week | Only >8 hours/day, no weekly |
-| Certifications | Medium | 1 week | Role requires but not tracked |
-| Performance Metrics | Medium | 1-2 weeks | No tracking at all |
-| Payroll Export | High | 2 weeks | Stub only, no actual export |
-| Labor Compliance | High | 2 weeks | No validation of labor laws |
-| NO TESTS | Critical | 2 weeks | Zero test coverage |
+| Overtime Calculation | High | 21 pts | Only >8 hours/day, no weekly or jurisdiction rules |
+| Labor Compliance | High | 20 pts | No break validation, no child labor rules |
+| Certifications | High | 18 pts | Role requires but not tracked |
+| Payroll Export | High | 21 pts | Stub only, no ADP/Gusto/QB export |
+| Tax Calculation | High | 18 pts | No federal/state/local withholding |
+| Break Tracking | High | 16 pts | Events defined but not implemented |
+| Performance Metrics | Medium | 21 pts | No tracking at all |
 
 #### Recommended Actions
 
 ```
-Phase 1 (Critical):
-├── Implement break start/end in EmployeeGrain
-├── Add weekly overtime calculation
+Phase 1 (Critical - 4 weeks):
+├── Implement jurisdiction-aware overtime rules
+├── Create LaborLawComplianceGrain
+├── Implement break tracking in EmployeeGrain
 ├── Create payroll export service (ADP, Gusto, CSV)
-├── Add labor compliance validation
-└── Write comprehensive test suite
+└── Add tax calculation service
 
-Phase 2 (Enhanced):
+Phase 2 (Enhanced - 4 weeks):
 ├── Create certification tracking grain
 ├── Implement performance metrics
-├── Add shift templates
-├── Create labor cost forecasting
-└── Add schedule publishing notifications
+├── Add paid leave accrual
+├── Create direct deposit management
 ```
+
+**Total Effort to 90%:** 8-10 weeks (~250 story points)
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Staff/EmployeeGrain.cs`
@@ -524,46 +561,46 @@ Phase 2 (Enhanced):
 - Expense index for queries
 - Ledger grain (utility for balances)
 - Tax rate management
+- Booking and GiftCard accounting subscribers
 
 #### Critical Gaps
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
-| Chart of Accounts | Critical | 1-2 weeks | No centralized account registry |
-| Journal Entry Grain | Critical | 1-2 weeks | No proper multi-line double-entry |
-| Accounting Periods | High | 1 week | Minimal period management |
-| Multi-Currency | Medium | 2 weeks | Fields only, no conversion |
-| Tax Reporting | High | 1-2 weeks | Basic rates only |
-| Expense-to-GL | High | 1 week | Expenses don't post to GL |
-| Financial Reports | Critical | 2-3 weeks | No P&L, balance sheet, cash flow |
-| External Integration | High | 3-4 weeks | No QuickBooks/Xero sync |
+| Chart of Accounts | P0 | 1-2 weeks | No centralized account registry |
+| Journal Entry Grain | P0 | 1-2 weeks | No proper multi-line balanced entries |
+| Accounting Periods | P1 | 1 week | Minimal period management |
+| Financial Reports | P1 | 2-3 weeks | No P&L, balance sheet, cash flow |
+| Expense-to-GL | P1 | 1 week | Expenses don't post to GL |
+| AP/AR Grains | P2 | 3-4 weeks | No accounts payable/receivable |
+| External Integration | P3 | 6-8 weeks | No QuickBooks/Xero sync |
 
 #### Recommended Actions
 
 ```
-Phase 1 (Critical):
+Phase 1 (Foundation - 4 weeks):
 ├── Create ChartOfAccountsGrain
 ├── Create JournalEntryGrain (balanced double-entry)
 ├── Create AccountingPeriodGrain
-├── Add expense-to-GL subscriber
-└── Create basic financial reports
+├── Add Account REST API endpoints
+└── Create expense-to-GL subscriber
 
-Phase 2 (Integration):
-├── Implement QuickBooks Online integration
-├── Implement Xero integration
-├── Add bank reconciliation
-├── Create AP/AR grains
-└── Add multi-currency support
+Phase 2 (Automation - 3 weeks):
+├── Create financial reports (Trial Balance, P&L, Balance Sheet)
+├── Add sales/COGS posting subscribers
+└── Implement period closing automation
+
+Phase 3 (Advanced - 5 weeks):
+├── Create AccountsPayable/ReceivableGrain
+├── Implement bank reconciliation
+└── Build QuickBooks/Xero integration
 ```
+
+**Total Effort to 90%:** 12-15 weeks
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Finance/AccountGrain.cs`
 - `/src/DarkVelocity.Host/Domains/Finance/ExpenseGrain.cs`
-
-#### Files to Create
-- `/src/DarkVelocity.Host/Domains/Finance/ChartOfAccountsGrain.cs`
-- `/src/DarkVelocity.Host/Domains/Finance/JournalEntryGrain.cs`
-- `/src/DarkVelocity.Host/Domains/Finance/AccountingPeriodGrain.cs`
 
 ---
 
@@ -579,6 +616,8 @@ Phase 2 (Integration):
 - External order grain with full data model
 - Menu sync tracking
 - Platform payout tracking
+- Daily metrics tracking
+- Comprehensive API endpoints for channels
 
 #### Critical Gaps
 
@@ -586,45 +625,36 @@ Phase 2 (Integration):
 |-----|----------|--------|-------------|
 | Webhook Handlers | Critical | 2-3 weeks | No inbound webhook endpoints |
 | HTTP Clients | Critical | 2-3 weeks | No outbound API calls to platforms |
-| OAuth2 M2M | Critical | 1 week | No client credentials grant |
 | Platform Adapters | Critical | 3-4 weeks | No Deliverect/UberEats/DoorDash adapters |
 | External Order API | High | 3-5 days | Grain exists but no endpoints |
+| OAuth2 M2M | High | 1 week | No client credentials grant |
 | Menu Push | High | 2 weeks | No menu sync to platforms |
-| Payout Reconciliation | Medium | 1-2 weeks | No matching against orders |
-| Commission Tracking | Medium | 1 week | No per-order commission |
+| Payout Reconciliation | Medium | 2-3 weeks | No matching against orders |
 
 #### Recommended Actions
 
 ```
-Phase 1 (Critical):
-├── Create Deliverect webhook handler
-├── Create Deliverect API client
-├── Create DeliverectAdapter for data mapping
-├── Add ExternalOrderEndpoints
-├── Implement OAuth2 client credentials
-└── Add event stream for status notifications
+Phase 1 (Foundation - 2 weeks):
+├── Create API endpoints for ExternalOrder grains
+├── Build webhook receiver infrastructure
+└── Create platform adapter architecture
 
-Phase 2 (Additional Platforms):
-├── Implement UberEats integration
-├── Implement DoorDash integration
-├── Create menu sync orchestrator
-└── Build payout reconciliation workflow
+Phase 2 (Platform Integration - 2 weeks):
+├── Implement Deliverect adapter + webhook handler
+├── Create menu push implementation
+└── Add OAuth2 client credentials flow
 
-Phase 3 (Advanced):
-├── Add auto-accept engine
-├── Implement commission tracking
-├── Add driver tracking integration
-└── Build analytics dashboard
+Phase 3 (Operations - 2 weeks):
+├── Build payout reconciliation
+├── Add commission tracking
+└── Implement channel health monitoring
 ```
+
+**Total Effort to 90%:** 6-7 weeks (~28 days)
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Channels/ChannelGrain.cs`
 - `/src/DarkVelocity.Host/Domains/Orders/OrdersGatewayGrains.cs`
-
-#### Files to Create
-- `/src/DarkVelocity.Host/Webhooks/DeliverectWebhookHandler.cs`
-- `/src/DarkVelocity.Host/Adapters/DeliverectAdapter.cs`
-- `/src/DarkVelocity.Host/Clients/DeliverectApiClient.cs`
 
 ---
 
@@ -646,31 +676,31 @@ Phase 3 (Advanced):
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
-| Offline Mode | Critical | 3-4 weeks | No local storage or sync queue |
-| Printing System | Critical | 4-5 weeks | No ESC/POS, no print jobs |
-| Terminal Pairing | High | 2-3 weeks | Minimal implementation |
-| Device Provisioning | High | 1-2 weeks | No setup wizard |
-| Device Monitoring | Medium | 2 weeks | Basic heartbeat only |
-| Multi-Device Sync | Medium | 3 weeks | No order hand-off or shared state |
+| Print Job Management | Critical | 8-12 pts | No job queue, no retry, no status tracking |
+| Offline Mode & Sync | Critical | 10-15 pts | No local storage or sync queue |
+| Device Health Monitoring | Critical | 8-10 pts | Only LastSeenAt, no metrics |
+| Device Provisioning | High | 5-8 pts | No setup wizard |
+| Terminal Pairing | High | 8-10 pts | Minimal implementation |
+| Multi-Device Sync | Medium | 8-12 pts | No order hand-off or shared state |
+| ESC/POS Library | Low | 8-10 pts | Only basic cash drawer kick |
 
 #### Recommended Actions
 
 ```
-Phase 1 (Critical):
+Phase 1 (Critical - 4 weeks):
+├── Create PrintJobGrain with queue and retry
 ├── Implement IndexedDB schema for offline
-├── Create sync queue grain
-├── Add service worker with offline fallback
-├── Create print job management grain
-├── Implement ESC/POS command builder
-└── Create local print server (Electron/Tauri)
+├── Create OfflineQueueGrain for sync
+└── Add device health monitoring
 
-Phase 2 (Production):
+Phase 2 (Production - 4 weeks):
 ├── Build device provisioning wizard
-├── Implement Stripe Terminal SDK
-├── Add device health telemetry
-├── Create multi-device sync via SignalR
-└── Add fiscal device integration
+├── Implement ESC/POS command builder
+├── Create receipt template engine
+└── Add multi-device synchronization
 ```
+
+**Total Effort to 90%:** 6 sprints (~75-110 points)
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Devices/DeviceGrain.cs`
@@ -691,37 +721,42 @@ Phase 2 (Production):
 - Period aggregation (weekly/monthly)
 - Site dashboard composition
 - Comprehensive API endpoints
+- Stream subscribers for orders and inventory
 
 #### Critical Gaps
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
-| Time-Based Analysis | High | 1-2 weeks | No hourly or day-part breakdown |
-| Labor Reports | Critical | 2 weeks | Not implemented at all |
-| Payment Reconciliation | High | 1-2 weeks | No tender breakdown |
-| Product Mix | Medium | 1 week | Partial only |
-| Comp/Void Detail | Medium | 1 week | Total only, no breakdown |
-| Tax by Jurisdiction | Medium | 1 week | Aggregate only |
-| Data Export | High | 1 week | No CSV/Excel |
-| Dashboard Metrics | Medium | 1 week | WTD/PTD are placeholders |
+| Hourly/Daypart Analysis | High | 3-4 days | No time-based breakdown |
+| Labor Reports | Critical | 3-4 weeks | Not implemented at all |
+| Payment Reconciliation | High | 2-3 weeks | No tender breakdown |
+| Dashboard Metrics | High | 5-7 days | WTD/PTD are placeholders (hardcoded 0) |
+| Data Export | High | 3 weeks | No CSV/Excel/PDF |
+| Product Mix | Medium | 2 weeks | Partial only |
+| Comparative Reports | Medium | 2 weeks | No YoY, MoM trending |
 
 #### Recommended Actions
 
 ```
-Phase 1 (Critical):
-├── Add SalesByHour to DailySalesState
-├── Create labor reporting grains
-├── Add payment method breakdown
-├── Implement data export endpoints
-└── Complete dashboard calculations
+Phase 1 (Foundation - 4 weeks):
+├── Complete dashboard metrics calculations
+├── Add hourly/daypart analysis
+├── Implement data export (CSV/Excel)
+└── Add payment method breakdown
 
-Phase 2 (Enhanced):
-├── Add product performance grain
-├── Implement comp/void breakdown
-├── Add tax by rate reporting
-├── Create variance trending
-└── Build comparative reports (YoY)
+Phase 2 (Core - 4 weeks):
+├── Create labor reporting grains
+├── Implement payment reconciliation
+├── Add product mix analysis
+└── Build comp/void breakdown
+
+Phase 3 (Advanced - 4 weeks):
+├── Create comparative/trending reports
+├── Implement tax by jurisdiction
+├── Add inventory turnover calculations
 ```
+
+**Total Effort to 90%:** 12-15 weeks
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Reporting/ReportingGrains.cs`
@@ -731,7 +766,7 @@ Phase 2 (Enhanced):
 
 ### 15. Fiscal Domain
 
-**Completeness: 35%**
+**Completeness: 50%** *(improved from 35%)*
 
 #### Current Implementation
 - Fiscal device grain with counters
@@ -740,49 +775,48 @@ Phase 2 (Enhanced):
 - Tax rate management
 - Multi-device type support (Swissbit, Fiskaly, Epson, Diebold)
 - Comprehensive test coverage
+- **NEW:** Fiskaly cloud integration with Germany, Austria, Italy support
+- **NEW:** Internal TSE provider with HMAC-SHA256 signatures
+- **NEW:** Configuration-driven integration (FiskalyConfigGrain)
+- **NEW:** TSE domain events for external TSE mapping
 
-#### Critical Gaps
+#### Remaining Gaps
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
 | NO API ENDPOINTS | Critical | 2-3 days | Zero REST API |
-| NO TSE ADAPTERS | Critical | 2-3 weeks | Interfaces only |
 | NO DSFinV-K EXPORT | Critical | 1-2 weeks | Compliance requirement |
-| Germany Only | High | 4-6 weeks | No Austria, France, Italy, Poland |
 | No Order Integration | Critical | 2-3 days | Operates in isolation |
-| No Device Lifecycle | High | 1-2 weeks | Basic registration only |
-| No Background Jobs | High | 1 week | No scheduled tasks |
+| External TSE Adapters | High | 2-3 weeks | Swissbit USB/Cloud not implemented |
+| Device Lifecycle | High | 1-2 weeks | Basic registration only |
+| Italy RT Implementation | High | 1 week | Stubbed only |
+| France/Poland | Medium | 4 weeks | No NF 525 or JPK/KSeF |
 
 #### Recommended Actions
 
 ```
-Phase 1 (MVP - Germany):
+Phase 1 (MVP Germany - 3 weeks):
 ├── Create FiscalEndpoints.cs
-├── Implement MockTseAdapter
-├── Integrate with OrderGrain
-├── Create basic DSFinV-K export
-└── Implement FiskalyCloudAdapter
+├── Implement order→fiscal integration
+├── Create DSFinV-K export
+└── Add device lifecycle management
 
-Phase 2 (Production):
-├── Add device lifecycle management
-├── Create background jobs (Z-report, cert expiry)
-├── Complete DSFinV-K export tables
-└── Add receipt numbering
+Phase 2 (Production - 3 weeks):
+├── Implement external TSE adapters (Swissbit)
+├── Complete Italy RT implementation
+├── Add background jobs (Z-report, cert expiry)
+└── Create error recovery/resilience
 
-Phase 3 (Multi-Country):
-├── Implement Austria (RKSV)
+Phase 3 (Multi-Country - 4 weeks):
 ├── Implement France (NF 525)
-├── Implement Italy (RT)
-└── Implement Poland (JPK/KSeF)
+├── Implement Poland (JPK/KSeF)
 ```
+
+**Total Effort to 90%:** 10-14 weeks
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Fiscal/FiscalisationGrains.cs`
-
-#### Files to Create
-- `/src/DarkVelocity.Host/Domains/Fiscal/FiscalEndpoints.cs`
-- `/src/DarkVelocity.Host/Domains/Fiscal/Adapters/FiskalyCloudAdapter.cs`
-- `/src/DarkVelocity.Host/Domains/Fiscal/Export/DSFinVKExporter.cs`
+- `/src/DarkVelocity.Host/Domains/Fiscal/FiskalyIntegration.cs`
 
 ---
 
@@ -802,31 +836,31 @@ Phase 3 (Multi-Country):
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
-| No Event Sourcing | High | 1-2 weeks | Simple state, no audit trail |
-| No Branding | High | 1 week | No logo, colors, theme |
-| No Plan Management | High | 1-2 weeks | No tier limits or features |
-| Slug Uniqueness | Medium | 2-3 days | Not enforced |
-| Ownership Transfer | Medium | 3-5 days | Documented but not implemented |
-| Cancellation Flow | Medium | 3-5 days | No proper offboarding |
-| Suspension Details | Medium | 2-3 days | No reason or auto-reactivation |
+| No Event Sourcing | P0 | 40h | Simple state, no audit trail |
+| Subscription Plans | P0 | 56h | No tier limits or feature flags |
+| Cancellation Flow | P0 | 28h | No proper offboarding |
+| Ownership Transfer | P0 | 24h | Documented but not implemented |
+| Slug Uniqueness | P1 | 16h | Not enforced |
+| Branding | P2 | 32h | No logo, colors, theme |
+| UserGroup Endpoints | P1 | 20h | Grain exists but no API |
 
 #### Recommended Actions
 
 ```
-Phase 1 (Essential):
+Phase 1 (Foundation - 4 weeks):
 ├── Convert to JournaledGrain pattern
-├── Create OrganizationRegistryGrain for slug uniqueness
-├── Add branding settings
-├── Implement subscription plan management
-└── Add contact information
+├── Implement cancellation flow
+├── Add ownership transfer
+└── Create subscription plan management
 
-Phase 2 (Enhanced):
-├── Implement ownership transfer
-├── Add cancellation workflow
-├── Enhance suspension tracking
-├── Create multi-site dashboard
-├── Add feature flags system
+Phase 2 (Completeness - 3 weeks):
+├── Create SlugLookupGrain for uniqueness
+├── Add UserGroup API endpoints
+├── Implement branding settings
+└── Add multi-site aggregation
 ```
+
+**Total Effort to 90%:** 4-5 weeks (~352 hours)
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Organization/OrganizationGrain.cs`
@@ -851,47 +885,41 @@ Phase 2 (Enhanced):
 
 | Gap | Priority | Effort | Description |
 |-----|----------|--------|-------------|
-| NotificationGrain | Critical | 2-3 weeks | INTERFACE ONLY - no implementation |
-| Webhook Delivery | Critical | 1-2 weeks | Returns mock success |
-| Alert Evaluation | Critical | 1 week | EvaluateRulesAsync() is a stub |
-| No Background Jobs | High | 1 week | No scheduled processing |
-| Blob Storage | High | 3-5 days | Email attachments not persisted |
-| Workflow Rules | Medium | 1-2 weeks | No transition guards |
-| Circuit Breaker | Medium | 3-5 days | Webhooks fail permanently |
-| Audit Logging | Medium | 1-2 weeks | No dedicated audit grain |
+| NotificationGrain | Critical | 80-120h | INTERFACE ONLY - no implementation |
+| Webhook Delivery | Critical | 60-80h | Returns mock success, no HTTP calls |
+| Alert Evaluation | Critical | 40-60h | EvaluateRulesAsync() is a stub |
+| Background Jobs | High | 40-60h | No scheduled processing |
+| API Endpoints | High | 30-40h | No alert/workflow endpoints |
+| Blob Storage | Medium | 35-50h | Email attachments not persisted |
+| Circuit Breaker | Medium | 20-30h | Webhooks fail permanently |
 
 #### Recommended Actions
 
 ```
-Phase 1 (Critical):
-├── Implement NotificationGrain (email, SMS, push)
-├── Implement HttpWebhookDeliveryService
+Phase 1 (Critical - 4 weeks):
+├── Implement NotificationGrain (email, SMS, Slack, push)
 ├── Implement AlertGrain.EvaluateRulesAsync()
-├── Create background job scheduler
-└── Add blob storage for attachments
+├── Create HttpWebhookDeliveryService
+└── Create background job scheduler
 
-Phase 2 (Reliability):
-├── Add webhook retry queue
+Phase 2 (Reliability - 3 weeks):
+├── Add webhook retry queue with exponential backoff
 ├── Implement circuit breaker pattern
-├── Add notification channels (Slack, Teams)
-└── Create workflow transition rules
+├── Create alert/workflow API endpoints
+└── Add audit logging
 
-Phase 3 (Operations):
-├── Create audit log grain
-├── Add system health monitoring
+Phase 3 (Operations - 2 weeks):
+├── Add blob storage for attachments
+├── Create system health monitoring
 ├── Implement webhook analytics
-├── Add workflow SLA tracking
 ```
+
+**Total Effort to 90%:** 16-17 weeks (~630-700 hours)
 
 #### Key Files
 - `/src/DarkVelocity.Host/Domains/Alerts/AlertGrain.cs`
 - `/src/DarkVelocity.Host/Domains/Workflow/WebhookGrain.cs`
 - `/src/DarkVelocity.Host/Domains/Workflow/EmailInboxGrain.cs`
-
-#### Files to Create
-- `/src/DarkVelocity.Host/Domains/Alerts/NotificationGrain.cs`
-- `/src/DarkVelocity.Host/Services/HttpWebhookDeliveryService.cs`
-- `/src/DarkVelocity.Host/BackgroundServices/AlertEvaluationService.cs`
 
 ---
 
@@ -903,32 +931,32 @@ Phase 3 (Operations):
 |------|-------|--------------|
 | 1-2 | Payments | Settlement batch, offline queue |
 | 2-3 | Payment Processors | Stripe/Adyen implementation |
-| 3-4 | Devices | Offline mode foundation |
-| 4-5 | Devices | Printing system |
-| 5-6 | External Channels | Deliverect integration |
-| 6-7 | System | Notifications, webhooks |
-| 7-8 | Fiscal | German compliance MVP |
+| 3-4 | Devices | Offline mode, print job management |
+| 4-5 | External Channels | Webhook handlers, Deliverect adapter |
+| 5-6 | System | Notification delivery, webhook delivery |
+| 6-7 | Costing | API endpoints, alert index |
+| 7-8 | Fiscal | API endpoints, DSFinV-K export |
 
 ### Phase 2: Core Completeness (Weeks 9-16)
 
 | Week | Focus | Deliverables |
 |------|-------|--------------|
 | 9-10 | Finance | Chart of accounts, journal entries |
-| 10-11 | Reporting | Labor reports, payment reconciliation |
-| 11-12 | Staff | Break tracking, payroll export |
-| 12-13 | Orders | Course management, seat assignment |
-| 13-14 | Tables & Bookings | Notifications, auto-sync |
+| 10-11 | Reporting | Labor reports, dashboard metrics |
+| 11-12 | Staff | Overtime, break tracking, payroll export |
+| 12-13 | Orders | Seat assignment, line discounts |
+| 13-14 | Tables & Bookings | BookingCalendar, notifications |
 | 14-15 | Customers | Segmentation, birthday rewards |
-| 15-16 | Costing | API endpoints, dashboards |
+| 15-16 | Inventory | Stock take workflow, variance reporting |
 
 ### Phase 3: Market Expansion (Weeks 17-24)
 
 | Week | Focus | Deliverables |
 |------|-------|--------------|
-| 17-18 | External Channels | UberEats, DoorDash |
-| 18-20 | Fiscal | Austria, France support |
+| 17-18 | External Channels | UberEats, DoorDash adapters |
+| 18-20 | Fiscal | France (NF 525), Poland (KSeF) |
 | 20-22 | Finance | QuickBooks, Xero integration |
-| 22-24 | Advanced Features | Analytics, forecasting |
+| 22-24 | Advanced Features | Analytics, forecasting, multi-currency |
 
 ---
 
@@ -936,25 +964,25 @@ Phase 3 (Operations):
 
 | Domain | Current | Effort to 90% |
 |--------|---------|---------------|
-| Payment Processors | 30% | 6-8 weeks |
-| Fiscal | 35% | 10-12 weeks |
-| System | 35% | 12-17 weeks |
+| Payment Processors | 30% | 10-14 weeks |
+| System | 35% | 16-17 weeks |
 | Finance | 40% | 12-15 weeks |
-| External Channels | 40% | 14-16 weeks |
-| Devices | 45% | 15-18 weeks |
+| External Channels | 40% | 6-7 weeks |
+| Devices | 45% | 6 sprints |
 | Costing | 50% | 6-8 weeks |
-| Recipes | 55% | 5-6 weeks |
+| Fiscal | 50% | 10-14 weeks |
+| Recipes | 55% | 8-12 weeks |
 | Staff | 55% | 8-10 weeks |
-| Reporting | 60% | 6-8 weeks |
+| Reporting | 60% | 12-15 weeks |
 | Tables & Bookings | 60% | 6-8 weeks |
 | Inventory | 60% | 6-8 weeks |
 | Customers | 65% | 4-6 weeks |
-| Orders | 70% | 4-6 weeks |
 | Organization | 70% | 4-5 weeks |
 | Payments | 75% | 4-5 weeks |
-| Menu | 80% | 3-4 weeks |
+| Orders | 78% | 4-6 weeks |
+| Menu | 82% | 3-4 weeks |
 
-**Total Estimated Effort:** 120-160 developer-weeks for full production readiness
+**Total Estimated Effort:** 110-150 developer-weeks for full production readiness
 
 ---
 
@@ -968,7 +996,8 @@ The codebase demonstrates strong architectural patterns:
 4. **Composition over Inheritance** - Grains collaborate via grain-to-grain calls
 5. **Stream-Based Integration** - Orleans streams for cross-domain events
 6. **Multi-Tenancy** - Proper org/site key prefixing throughout
-7. **Test Coverage** - Good test patterns where tests exist
+7. **Test Coverage** - Comprehensive test patterns (~18,600 lines)
+8. **Configuration-Driven Integration** - Fiskaly integration shows good patterns
 
 ## Architecture Recommendations
 
@@ -1011,7 +1040,8 @@ src/DarkVelocity.Host/Domains/
 │   ├── AccountGrain.cs
 │   └── ExpenseGrain.cs
 ├── Fiscal/
-│   └── FiscalisationGrains.cs
+│   ├── FiscalisationGrains.cs
+│   └── FiskalyIntegration.cs
 ├── Inventory/
 │   └── InventoryGrain.cs
 ├── Menu/
@@ -1056,10 +1086,12 @@ tests/DarkVelocity.Tests/
 ├── InventoryGrainTests.cs
 ├── OrderGrainTests.cs
 ├── PaymentGrainTests.cs
+├── RecipeCmsGrainTests.cs
+├── StaffGrainTests.cs
 ├── WebhookGrainTests.cs
 └── WorkflowGrainTests.cs
 ```
 
 ---
 
-*This document should be updated as domains are completed and new gaps are identified.*
+*This document was updated after rebasing to include recent improvements: bundle/combo support, order holds/fires, Fiskaly integration, and comprehensive test coverage.*
