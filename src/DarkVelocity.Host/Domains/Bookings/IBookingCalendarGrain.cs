@@ -7,6 +7,24 @@ namespace DarkVelocity.Host.Grains;
 // ============================================================================
 
 [GenerateSerializer]
+public record AddBookingToCalendarCommand(
+    [property: Id(0)] Guid BookingId,
+    [property: Id(1)] string ConfirmationCode,
+    [property: Id(2)] TimeOnly Time,
+    [property: Id(3)] int PartySize,
+    [property: Id(4)] string GuestName,
+    [property: Id(5)] BookingStatus Status);
+
+[GenerateSerializer]
+public record UpdateBookingInCalendarCommand(
+    [property: Id(0)] Guid BookingId,
+    [property: Id(1)] BookingStatus? Status = null,
+    [property: Id(2)] TimeOnly? Time = null,
+    [property: Id(3)] int? PartySize = null,
+    [property: Id(4)] Guid? TableId = null,
+    [property: Id(5)] string? TableNumber = null);
+
+[GenerateSerializer]
 public record CalendarDayView
 {
     [Id(0)] public DateOnly Date { get; init; }
