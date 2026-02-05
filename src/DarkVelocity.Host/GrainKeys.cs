@@ -332,6 +332,18 @@ public static class GrainKeys
         => $"{orgId}:{siteId}:menu-engineering";
 
     /// <summary>
+    /// Creates a key for a profitability dashboard grain.
+    /// </summary>
+    public static string ProfitabilityDashboard(Guid orgId, Guid siteId)
+        => $"{orgId}:{siteId}:profitability";
+
+    /// <summary>
+    /// Creates a key for a cost alert index grain.
+    /// </summary>
+    public static string CostAlertIndex(Guid orgId)
+        => Index(orgId, "costalerts", "all");
+
+    /// <summary>
     /// Creates a key for a purchase order grain.
     /// </summary>
     public static string PurchaseOrder(Guid orgId, Guid orderId) => OrgEntity(orgId, "purchaseorder", orderId);
@@ -355,6 +367,30 @@ public static class GrainKeys
     /// Creates a key for a device grain.
     /// </summary>
     public static string Device(Guid orgId, Guid deviceId) => OrgEntity(orgId, "device", deviceId);
+
+    /// <summary>
+    /// Creates a key for a print job grain.
+    /// </summary>
+    public static string PrintJob(Guid orgId, Guid deviceId, Guid jobId)
+        => $"{orgId}:device:{deviceId}:printjob:{jobId}";
+
+    /// <summary>
+    /// Creates a key for a device print queue grain.
+    /// </summary>
+    public static string DevicePrintQueue(Guid orgId, Guid deviceId)
+        => $"{orgId}:device:{deviceId}:printqueue";
+
+    /// <summary>
+    /// Creates a key for an offline sync queue grain.
+    /// </summary>
+    public static string OfflineSyncQueue(Guid orgId, Guid deviceId)
+        => $"{orgId}:device:{deviceId}:syncqueue";
+
+    /// <summary>
+    /// Creates a key for a device status (health) grain.
+    /// </summary>
+    public static string DeviceStatus(Guid orgId, Guid locationId)
+        => $"{orgId}:{locationId}:devicestatus";
 
     /// <summary>
     /// Creates a key for a daily sales report grain.
@@ -462,6 +498,26 @@ public static class GrainKeys
     /// Creates a key for the channel registry grain (one per org).
     /// </summary>
     public static string ChannelRegistry(Guid orgId) => $"{orgId}:channelregistry";
+
+    /// <summary>
+    /// Creates a key for an external order grain.
+    /// </summary>
+    public static string ExternalOrder(Guid orgId, Guid externalOrderId) => OrgEntity(orgId, "externalorder", externalOrderId);
+
+    /// <summary>
+    /// Creates a key for a menu sync grain.
+    /// </summary>
+    public static string MenuSync(Guid orgId, Guid syncId) => OrgEntity(orgId, "menusync", syncId);
+
+    /// <summary>
+    /// Creates a key for a delivery platform grain.
+    /// </summary>
+    public static string DeliveryPlatform(Guid orgId, Guid platformId) => OrgEntity(orgId, "deliveryplatform", platformId);
+
+    /// <summary>
+    /// Creates a key for a platform payout grain.
+    /// </summary>
+    public static string PlatformPayout(Guid orgId, Guid payoutId) => OrgEntity(orgId, "payout", payoutId);
 
     // ============================================================================
     // CMS Menu Grains
@@ -705,4 +761,50 @@ public static class GrainKeys
     /// Maps refresh token hashes to (orgId, sessionId) for OAuth token refresh.
     /// </summary>
     public static string RefreshTokenLookup() => "global:refreshtokenlookup";
+
+    // ============================================================================
+    // Fiscal Grains
+    // ============================================================================
+
+    /// <summary>
+    /// Creates a key for a fiscal device grain.
+    /// </summary>
+    public static string FiscalDevice(Guid orgId, Guid siteId, Guid deviceId)
+        => $"{orgId}:{siteId}:fiscaldevice:{deviceId}";
+
+    /// <summary>
+    /// Creates a key for a fiscal device registry grain (one per site).
+    /// </summary>
+    public static string FiscalDeviceRegistry(Guid orgId, Guid siteId)
+        => $"{orgId}:{siteId}:fiscaldeviceregistry";
+
+    /// <summary>
+    /// Creates a key for a fiscal transaction grain.
+    /// </summary>
+    public static string FiscalTransaction(Guid orgId, Guid siteId, Guid transactionId)
+        => $"{orgId}:{siteId}:fiscaltransaction:{transactionId}";
+
+    /// <summary>
+    /// Creates a key for a fiscal transaction registry grain (one per site).
+    /// </summary>
+    public static string FiscalTransactionRegistry(Guid orgId, Guid siteId)
+        => $"{orgId}:{siteId}:fiscaltxregistry";
+
+    /// <summary>
+    /// Creates a key for a fiscal journal grain (one per site per day).
+    /// </summary>
+    public static string FiscalJournal(Guid orgId, Guid siteId, DateOnly date)
+        => $"{orgId}:{siteId}:fiscaljournal:{date:yyyy-MM-dd}";
+
+    /// <summary>
+    /// Creates a key for a DSFinV-K export grain.
+    /// </summary>
+    public static string DSFinVKExport(Guid orgId, Guid siteId, Guid exportId)
+        => $"{orgId}:{siteId}:dsfinvk:{exportId}";
+
+    /// <summary>
+    /// Creates a key for a DSFinV-K export registry grain (one per site).
+    /// </summary>
+    public static string DSFinVKExportRegistry(Guid orgId, Guid siteId)
+        => $"{orgId}:{siteId}:dsfinvkregistry";
 }

@@ -1,17 +1,53 @@
+using DarkVelocity.Host.Services;
 using DarkVelocity.Host.State;
+using DarkVelocity.Host.Streams;
+using Microsoft.Extensions.Logging;
+using Orleans.Runtime;
+using Orleans.Streams;
+using System.Text.Json;
 
 namespace DarkVelocity.Host.Grains;
 
 public class WebhookSubscriptionGrain : Grain, IWebhookSubscriptionGrain
 {
     private readonly IPersistentState<WebhookSubscriptionState> _state;
+    private readonly IWebhookDeliveryService _deliveryService;
+    private readonly ILogger<WebhookSubscriptionGrain> _logger;
+    private IAsyncStream<IStreamEvent>? _webhookStream;
+
     private const int MaxRecentDeliveries = 100;
+    private const int MaxConsecutiveFailuresBeforeDisable = 10;
+
+    // Exponential backoff parameters
+    private static readonly TimeSpan[] RetryDelays =
+    [
+        TimeSpan.FromSeconds(5),
+        TimeSpan.FromSeconds(30),
+        TimeSpan.FromMinutes(2),
+        TimeSpan.FromMinutes(10),
+        TimeSpan.FromMinutes(30)
+    ];
 
     public WebhookSubscriptionGrain(
         [PersistentState("webhook", "OrleansStorage")]
-        IPersistentState<WebhookSubscriptionState> state)
+        IPersistentState<WebhookSubscriptionState> state,
+        IWebhookDeliveryService deliveryService,
+        ILogger<WebhookSubscriptionGrain> logger)
     {
         _state = state;
+        _deliveryService = deliveryService;
+        _logger = logger;
+    }
+
+    private IAsyncStream<IStreamEvent> GetWebhookStream()
+    {
+        if (_webhookStream == null && _state.State.OrganizationId != Guid.Empty)
+        {
+            var streamProvider = this.GetStreamProvider(StreamConstants.DefaultStreamProvider);
+            var streamId = StreamId.Create(StreamConstants.WebhookStreamNamespace, _state.State.OrganizationId.ToString());
+            _webhookStream = streamProvider.GetStream<IStreamEvent>(streamId);
+        }
+        return _webhookStream!;
     }
 
     public async Task<WebhookCreatedResult> CreateAsync(CreateWebhookCommand command)
@@ -139,25 +175,159 @@ public class WebhookSubscriptionGrain : Grain, IWebhookSubscriptionGrain
     {
         EnsureExists();
 
-        if (_state.State.Status != WebhookStatus.Active)
-            throw new InvalidOperationException($"Webhook is not active: {_state.State.Status}");
+        if (_state.State.Status == WebhookStatus.Deleted)
+            throw new InvalidOperationException("Webhook subscription has been deleted");
+
+        if (_state.State.Status == WebhookStatus.Failed)
+            throw new InvalidOperationException("Webhook endpoint is disabled due to too many failures. Call ResumeAsync to re-enable.");
+
+        if (_state.State.Status == WebhookStatus.Paused)
+            throw new InvalidOperationException("Webhook is paused. Call ResumeAsync to re-enable.");
 
         if (!_state.State.Events.Any(e => e.EventType == eventType && e.IsEnabled))
             throw new InvalidOperationException($"Not subscribed to event: {eventType}");
 
         var deliveryId = Guid.NewGuid();
+        var attemptNumber = 1;
+
+        // Publish attempt event
+        await GetWebhookStream().OnNextAsync(new WebhookDeliveryAttemptedEvent(
+            _state.State.Id,
+            deliveryId,
+            eventType,
+            _state.State.Url,
+            attemptNumber)
+        {
+            OrganizationId = _state.State.OrganizationId
+        });
+
+        // Parse payload (it's a JSON string) and deliver
+        object payloadObject;
+        try
+        {
+            payloadObject = JsonSerializer.Deserialize<JsonElement>(payload);
+        }
+        catch
+        {
+            // If not valid JSON, wrap it
+            payloadObject = new { data = payload, eventType };
+        }
+
+        var result = await _deliveryService.DeliverAsync(
+            _state.State.Url,
+            new
+            {
+                id = deliveryId,
+                @event = eventType,
+                timestamp = DateTime.UtcNow,
+                data = payloadObject
+            },
+            _state.State.Secret,
+            _state.State.Headers);
+
         var delivery = new WebhookDelivery
         {
             Id = deliveryId,
             EventType = eventType,
             AttemptedAt = DateTime.UtcNow,
-            StatusCode = 200, // Simulated success - actual HTTP call would be done by a delivery service
-            Success = true,
+            StatusCode = result.StatusCode ?? 0,
+            Success = result.Success,
+            ErrorMessage = result.ErrorMessage,
             RetryCount = 0
         };
 
         await RecordDeliveryAsync(delivery);
-        return new DeliveryResult(deliveryId, true, 200);
+
+        if (result.Success)
+        {
+            // Publish success event
+            await GetWebhookStream().OnNextAsync(new WebhookDeliverySucceededEvent(
+                _state.State.Id,
+                deliveryId,
+                eventType,
+                result.StatusCode ?? 200,
+                result.ResponseTimeMs)
+            {
+                OrganizationId = _state.State.OrganizationId
+            });
+
+            _logger.LogInformation(
+                "Webhook {WebhookId} delivered successfully to {Url} for event {EventType}",
+                _state.State.Id, _state.State.Url, eventType);
+        }
+        else
+        {
+            var willRetry = result.ShouldRetry && _state.State.ConsecutiveFailures < MaxConsecutiveFailuresBeforeDisable;
+
+            // Publish failure event
+            await GetWebhookStream().OnNextAsync(new WebhookDeliveryFailedEvent(
+                _state.State.Id,
+                deliveryId,
+                eventType,
+                result.StatusCode,
+                result.ErrorMessage ?? "Unknown error",
+                attemptNumber,
+                willRetry)
+            {
+                OrganizationId = _state.State.OrganizationId
+            });
+
+            _logger.LogWarning(
+                "Webhook {WebhookId} delivery failed to {Url} for event {EventType}. Error: {Error}. ConsecutiveFailures: {ConsecutiveFailures}",
+                _state.State.Id, _state.State.Url, eventType, result.ErrorMessage, _state.State.ConsecutiveFailures);
+
+            // Check if we need to disable the endpoint
+            if (_state.State.Status == WebhookStatus.Failed)
+            {
+                await GetWebhookStream().OnNextAsync(new WebhookEndpointDisabledEvent(
+                    _state.State.Id,
+                    _state.State.Url,
+                    _state.State.ConsecutiveFailures,
+                    $"Disabled after {_state.State.ConsecutiveFailures} consecutive failures")
+                {
+                    OrganizationId = _state.State.OrganizationId
+                });
+
+                _logger.LogError(
+                    "Webhook {WebhookId} endpoint {Url} has been disabled due to {ConsecutiveFailures} consecutive failures",
+                    _state.State.Id, _state.State.Url, _state.State.ConsecutiveFailures);
+            }
+        }
+
+        return new DeliveryResult(deliveryId, result.Success, result.StatusCode ?? 0);
+    }
+
+    /// <summary>
+    /// Delivers a webhook with retry support using exponential backoff.
+    /// </summary>
+    public async Task<DeliveryResult> DeliverWithRetryAsync(string eventType, string payload, int maxRetries = 3)
+    {
+        EnsureExists();
+
+        var lastResult = await DeliverAsync(eventType, payload);
+        var attemptNumber = 1;
+
+        while (!lastResult.Success && attemptNumber < maxRetries)
+        {
+            // Check if we should retry based on current status
+            if (_state.State.Status != WebhookStatus.Active)
+                break;
+
+            // Wait with exponential backoff
+            var delayIndex = Math.Min(attemptNumber - 1, RetryDelays.Length - 1);
+            var delay = RetryDelays[delayIndex];
+
+            _logger.LogInformation(
+                "Retrying webhook {WebhookId} delivery in {Delay}. Attempt {Attempt} of {MaxRetries}",
+                _state.State.Id, delay, attemptNumber + 1, maxRetries);
+
+            await Task.Delay(delay);
+
+            attemptNumber++;
+            lastResult = await DeliverAsync(eventType, payload);
+        }
+
+        return lastResult;
     }
 
     public async Task RecordDeliveryAsync(WebhookDelivery delivery)

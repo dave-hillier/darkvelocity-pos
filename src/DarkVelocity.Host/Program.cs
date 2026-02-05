@@ -1,6 +1,8 @@
 using Azure.Data.Tables;
+using DarkVelocity.Host.Adapters;
 using DarkVelocity.Host.Endpoints;
 using DarkVelocity.Host.Extensions;
+using DarkVelocity.Host.PaymentProcessors;
 using DarkVelocity.Host.Services;
 using DarkVelocity.Host.Streams;
 using Orleans.Dashboard;
@@ -44,11 +46,19 @@ builder.Services
     .AddCorsPolicy()
     .AddSearchServices(builder.Configuration)
     .AddPaymentGatewayServices()
+    .AddDeliverectServices(builder.Configuration)
     .AddMemoryCache()
     .AddApiKeySeeder()
     .AddSingleton<IDocumentIntelligenceService, StubDocumentIntelligenceService>()
     .AddSingleton<IEmailIngestionService, StubEmailIngestionService>()
-    .AddSingleton<IFuzzyMatchingService, FuzzyMatchingService>();
+    .AddSingleton<IFuzzyMatchingService, FuzzyMatchingService>()
+    // Notification services
+    .AddSingleton<IEmailService, StubEmailService>()
+    .AddSingleton<ISmsService, StubSmsService>()
+    .AddSingleton<IPushService, StubPushService>()
+    .AddSingleton<ISlackService, StubSlackService>()
+    // Webhook delivery service
+    .AddHttpClient<IWebhookDeliveryService, WebhookDeliveryService>();
 
 var app = builder.Build();
 
@@ -105,13 +115,18 @@ app.MapOAuthEndpoints()
    .MapAvailabilityEndpoints()
    .MapWebhookEndpoints()
    .MapPaymentGatewayEndpoints()
+   .MapPaymentProcessorEndpoints()
    .MapChannelEndpoints()
+   .MapDeliveryWebhookEndpoints()
+   .MapExternalOrderEndpoints()
    .MapBatchEndpoints()
    .MapPurchaseDocumentEndpoints()
    .MapEmailIngestionEndpoints()
    .MapVendorMappingEndpoints()
    .MapExpenseEndpoints()
-   .MapReportingEndpoints();
+   .MapReportingEndpoints()
+   .MapCostingEndpoints()
+   .MapSystemEndpoints();
 
 app.Run();
 

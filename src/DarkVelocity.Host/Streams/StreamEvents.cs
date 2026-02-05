@@ -1054,3 +1054,155 @@ public sealed record DeviceSessionEndedEvent(
 ) : StreamEvent;
 
 #endregion
+
+#region Notification Stream Events
+
+/// <summary>
+/// Published when a notification is queued for sending.
+/// </summary>
+[GenerateSerializer]
+public sealed record NotificationQueuedEvent(
+    [property: Id(0)] Guid NotificationId,
+    [property: Id(1)] string NotificationType,
+    [property: Id(2)] string Recipient,
+    [property: Id(3)] string Subject,
+    [property: Id(4)] Guid? TriggeredByAlertId
+) : StreamEvent;
+
+/// <summary>
+/// Published when a notification was sent successfully.
+/// </summary>
+[GenerateSerializer]
+public sealed record NotificationSentEvent(
+    [property: Id(0)] Guid NotificationId,
+    [property: Id(1)] string NotificationType,
+    [property: Id(2)] string Recipient,
+    [property: Id(3)] string? ExternalMessageId
+) : StreamEvent;
+
+/// <summary>
+/// Published when a notification failed to send.
+/// </summary>
+[GenerateSerializer]
+public sealed record NotificationFailedEvent(
+    [property: Id(0)] Guid NotificationId,
+    [property: Id(1)] string NotificationType,
+    [property: Id(2)] string Recipient,
+    [property: Id(3)] string ErrorMessage,
+    [property: Id(4)] string? ErrorCode
+) : StreamEvent;
+
+/// <summary>
+/// Published when a failed notification is being retried.
+/// </summary>
+[GenerateSerializer]
+public sealed record NotificationRetriedEvent(
+    [property: Id(0)] Guid NotificationId,
+    [property: Id(1)] string NotificationType,
+    [property: Id(2)] string Recipient,
+    [property: Id(3)] int RetryAttempt
+) : StreamEvent;
+
+#endregion
+
+#region Webhook Stream Events
+
+/// <summary>
+/// Published when a webhook delivery is attempted.
+/// </summary>
+[GenerateSerializer]
+public sealed record WebhookDeliveryAttemptedEvent(
+    [property: Id(0)] Guid WebhookId,
+    [property: Id(1)] Guid DeliveryId,
+    [property: Id(2)] string EventType,
+    [property: Id(3)] string Url,
+    [property: Id(4)] int AttemptNumber
+) : StreamEvent;
+
+/// <summary>
+/// Published when a webhook delivery succeeded.
+/// </summary>
+[GenerateSerializer]
+public sealed record WebhookDeliverySucceededEvent(
+    [property: Id(0)] Guid WebhookId,
+    [property: Id(1)] Guid DeliveryId,
+    [property: Id(2)] string EventType,
+    [property: Id(3)] int StatusCode,
+    [property: Id(4)] int ResponseTimeMs
+) : StreamEvent;
+
+/// <summary>
+/// Published when a webhook delivery failed.
+/// </summary>
+[GenerateSerializer]
+public sealed record WebhookDeliveryFailedEvent(
+    [property: Id(0)] Guid WebhookId,
+    [property: Id(1)] Guid DeliveryId,
+    [property: Id(2)] string EventType,
+    [property: Id(3)] int? StatusCode,
+    [property: Id(4)] string ErrorMessage,
+    [property: Id(5)] int AttemptNumber,
+    [property: Id(6)] bool WillRetry
+) : StreamEvent;
+
+/// <summary>
+/// Published when a webhook endpoint is disabled due to too many failures.
+/// </summary>
+[GenerateSerializer]
+public sealed record WebhookEndpointDisabledEvent(
+    [property: Id(0)] Guid WebhookId,
+    [property: Id(1)] string Url,
+    [property: Id(2)] int ConsecutiveFailures,
+    [property: Id(3)] string Reason
+) : StreamEvent;
+
+#endregion
+
+#region Scheduled Job Stream Events
+
+/// <summary>
+/// Published when a scheduled job is scheduled.
+/// </summary>
+[GenerateSerializer]
+public sealed record JobScheduledEvent(
+    [property: Id(0)] Guid JobId,
+    [property: Id(1)] string JobName,
+    [property: Id(2)] string Schedule,
+    [property: Id(3)] DateTime NextRunAt
+) : StreamEvent;
+
+/// <summary>
+/// Published when a scheduled job starts execution.
+/// </summary>
+[GenerateSerializer]
+public sealed record JobStartedEvent(
+    [property: Id(0)] Guid JobId,
+    [property: Id(1)] string JobName,
+    [property: Id(2)] Guid ExecutionId
+) : StreamEvent;
+
+/// <summary>
+/// Published when a scheduled job completes execution.
+/// </summary>
+[GenerateSerializer]
+public sealed record JobCompletedEvent(
+    [property: Id(0)] Guid JobId,
+    [property: Id(1)] string JobName,
+    [property: Id(2)] Guid ExecutionId,
+    [property: Id(3)] bool Success,
+    [property: Id(4)] string? ErrorMessage,
+    [property: Id(5)] int DurationMs
+) : StreamEvent;
+
+/// <summary>
+/// Published when a scheduled job is cancelled.
+/// </summary>
+[GenerateSerializer]
+public sealed record JobCancelledEvent(
+    [property: Id(0)] Guid JobId,
+    [property: Id(1)] string JobName,
+    [property: Id(2)] Guid? CancelledBy,
+    [property: Id(3)] string? Reason
+) : StreamEvent;
+
+#endregion

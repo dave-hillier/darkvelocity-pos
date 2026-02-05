@@ -341,9 +341,64 @@ public interface IAlertGrain : IGrainWithStringKey
     Task<IReadOnlyDictionary<AlertType, int>> GetAlertCountsByTypeAsync();
 
     // Rule evaluation
+    Task<IReadOnlyList<Alert>> EvaluateRulesAsync(MetricsSnapshot metrics);
     Task EvaluateRulesAsync();
     Task<IReadOnlyList<AlertRule>> GetRulesAsync();
     Task UpdateRuleAsync(AlertRule rule);
+}
+
+// ============================================================================
+// Metrics for Rule Evaluation
+// ============================================================================
+
+/// <summary>
+/// A snapshot of metrics to be evaluated against alert rules.
+/// </summary>
+[GenerateSerializer]
+public record MetricsSnapshot
+{
+    /// <summary>
+    /// The entity being evaluated (e.g., ingredient, site, menu item).
+    /// </summary>
+    [Id(0)] public Guid? EntityId { get; init; }
+
+    /// <summary>
+    /// The type of entity (e.g., "Ingredient", "Site", "MenuItem").
+    /// </summary>
+    [Id(1)] public string? EntityType { get; init; }
+
+    /// <summary>
+    /// The entity name for alert messages.
+    /// </summary>
+    [Id(2)] public string? EntityName { get; init; }
+
+    /// <summary>
+    /// Key-value pairs of metrics.
+    /// Common metrics:
+    /// - QuantityOnHand, QuantityAvailable, ReorderPoint, ParLevel (inventory)
+    /// - GrossProfitPercent, GrossProfitPercentLastWeek, COGSVariancePercent (cost)
+    /// - PriceChangePercent, WastePercent, VoidRate (operations)
+    /// - DaysUntilExpiry (expiry tracking)
+    /// </summary>
+    [Id(3)] public required Dictionary<string, decimal> Metrics { get; init; }
+
+    /// <summary>
+    /// Additional context for alert messages.
+    /// </summary>
+    [Id(4)] public Dictionary<string, string>? Context { get; init; }
+}
+
+/// <summary>
+/// Result of evaluating a rule against metrics.
+/// </summary>
+[GenerateSerializer]
+public record RuleEvaluationResult
+{
+    [Id(0)] public required AlertRule Rule { get; init; }
+    [Id(1)] public required bool Triggered { get; init; }
+    [Id(2)] public decimal? ActualValue { get; init; }
+    [Id(3)] public decimal? ThresholdValue { get; init; }
+    [Id(4)] public string? Message { get; init; }
 }
 
 // ============================================================================
