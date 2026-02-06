@@ -846,7 +846,9 @@ public class CashDrawerGrain : Grain, ICashDrawerGrain
 
     public async Task CountAsync(CountDrawerCommand command)
     {
-        EnsureOpen();
+        // Allow counting when drawer is Open or already Counting (for recounts)
+        if (_state.State.Status != DrawerStatus.Open && _state.State.Status != DrawerStatus.Counting)
+            throw new InvalidOperationException("Drawer is not open");
 
         _state.State.Status = DrawerStatus.Counting;
         _state.State.ActualBalance = command.CountedAmount;

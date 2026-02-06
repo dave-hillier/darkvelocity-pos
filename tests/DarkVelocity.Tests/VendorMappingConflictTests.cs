@@ -408,12 +408,12 @@ public class VendorMappingConflictTests
             Guid.NewGuid(),
             "Inferred Product",
             "inferred-sku",
-            MappingSource.Inferred,
+            MappingSource.Auto,
             0.75m));
 
         // Assert
         var result = await grain.GetMappingAsync("Unknown Product XYZ");
-        result.Mapping!.Source.Should().Be(MappingSource.Inferred);
+        result.Mapping!.Source.Should().Be(MappingSource.Auto);
         result.Mapping.Confidence.Should().Be(0.75m);
     }
 

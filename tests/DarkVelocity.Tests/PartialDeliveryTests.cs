@@ -235,10 +235,10 @@ public class PartialDeliveryTests
         snapshot.HasDiscrepancies.Should().BeTrue();
         snapshot.Discrepancies.Should().HaveCount(3);
 
-        snapshot.Discrepancies.Select(d => d.Type).Should().Contain(
-            DiscrepancyType.ShortDelivery,
-            DiscrepancyType.DamagedGoods,
-            DiscrepancyType.IncorrectPrice);
+        var discrepancyTypes = snapshot.Discrepancies.Select(d => d.Type).ToList();
+        discrepancyTypes.Should().Contain(DiscrepancyType.ShortDelivery);
+        discrepancyTypes.Should().Contain(DiscrepancyType.DamagedGoods);
+        discrepancyTypes.Should().Contain(DiscrepancyType.IncorrectPrice);
     }
 
     // Given: A delivery with a line for 120 potatoes received against an expected 100

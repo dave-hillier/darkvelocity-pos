@@ -758,12 +758,12 @@ public class CostingSettingsGrain : Grain, ICostingSettingsGrain
 
     public Task<bool> ShouldAlertOnPriceChangeAsync(decimal changePercent)
     {
-        return Task.FromResult(Math.Abs(changePercent) >= _state.State.PriceChangeAlertThreshold);
+        return Task.FromResult(Math.Abs(changePercent) > _state.State.PriceChangeAlertThreshold);
     }
 
     public Task<bool> ShouldAlertOnCostIncreaseAsync(decimal changePercent)
     {
-        return Task.FromResult(changePercent >= _state.State.CostIncreaseAlertThreshold);
+        return Task.FromResult(changePercent > _state.State.CostIncreaseAlertThreshold);
     }
 
     public Task<bool> IsMarginBelowMinimumAsync(decimal marginPercent)

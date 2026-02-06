@@ -95,6 +95,8 @@ public class PrintJobGrainTests
         var deviceId = Guid.NewGuid();
         var jobId = Guid.NewGuid();
         var grain = GetJobGrain(orgId, deviceId, jobId);
+        var queueGrain = GetQueueGrain(orgId, deviceId);
+        await queueGrain.InitializeAsync(deviceId);
         await grain.QueueAsync(new QueuePrintJobCommand(
             Guid.NewGuid(), PrintJobType.Receipt, "Content"));
         await grain.StartAsync(new StartPrintJobCommand());
@@ -118,6 +120,8 @@ public class PrintJobGrainTests
         var deviceId = Guid.NewGuid();
         var jobId = Guid.NewGuid();
         var grain = GetJobGrain(orgId, deviceId, jobId);
+        var queueGrain = GetQueueGrain(orgId, deviceId);
+        await queueGrain.InitializeAsync(deviceId);
         await grain.QueueAsync(new QueuePrintJobCommand(
             Guid.NewGuid(), PrintJobType.Receipt, "Content"));
         await grain.StartAsync(new StartPrintJobCommand());
@@ -144,6 +148,8 @@ public class PrintJobGrainTests
         var deviceId = Guid.NewGuid();
         var jobId = Guid.NewGuid();
         var grain = GetJobGrain(orgId, deviceId, jobId);
+        var queueGrain = GetQueueGrain(orgId, deviceId);
+        await queueGrain.InitializeAsync(deviceId);
         await grain.QueueAsync(new QueuePrintJobCommand(
             Guid.NewGuid(), PrintJobType.Receipt, "Content"));
         await grain.StartAsync(new StartPrintJobCommand());
@@ -167,6 +173,8 @@ public class PrintJobGrainTests
         var deviceId = Guid.NewGuid();
         var jobId = Guid.NewGuid();
         var grain = GetJobGrain(orgId, deviceId, jobId);
+        var queueGrain = GetQueueGrain(orgId, deviceId);
+        await queueGrain.InitializeAsync(deviceId);
         await grain.QueueAsync(new QueuePrintJobCommand(
             Guid.NewGuid(), PrintJobType.Receipt, "Content"));
 

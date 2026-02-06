@@ -6,7 +6,7 @@ DarkVelocity provides everything hospitality businesses need to run their operat
 
 ## Tech Stack
 
-- **Backend**: .NET 10 with Orleans (virtual actors), PostgreSQL, Kafka, SignalR
+- **Backend**: .NET 10 with Orleans (virtual actors), PostgreSQL, SignalR
 - **Frontend**: React 19 + TypeScript, Vite, Pico.css
 
 ## Quick Start
@@ -32,8 +32,7 @@ cd docker && docker compose up -d
 | Service    | Port |
 |------------|------|
 | PostgreSQL | 5432 |
-| Kafka      | 9092 |
-| Kafka UI   | 8080 |
+
 
 Dev credentials: `darkvelocity` / `darkvelocity_dev`
 

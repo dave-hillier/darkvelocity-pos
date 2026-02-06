@@ -878,7 +878,7 @@ public class KitchenDomainCoverageTests
 
         // Assert
         timings.WaitTime.Should().NotBeNull();
-        timings.WaitTime!.Value.TotalSeconds.Should().BeGreaterOrEqualTo(0);
+        timings.WaitTime!.Value.TotalSeconds.Should().BeGreaterThanOrEqualTo(0);
         timings.PrepTime.Should().BeNull(); // Not started
         timings.CompletedAt.Should().BeNull(); // Not completed
     }

@@ -878,7 +878,7 @@ public class StaffDomainExtendedTests
 
         // Assert
         result.IsCompliant.Should().BeFalse();
-        result.Violations.Should().Contain(v => v.BreakType == "rest");
+        result.Violations.Should().Contain(v => v.ViolationType == "rest");
     }
 
     // Given: a New York employee who worked a 7-hour shift and took a 30-minute meal break

@@ -462,10 +462,10 @@ public class MenuEngineeringQuadrantTests
         var report = await grain.AnalyzeAsync(new AnalyzeMenuCommand(DateTime.Today.AddDays(-30), DateTime.Today));
 
         // Assert
-        report.StarCount.Should().BeGreaterOrEqualTo(1);
-        report.PlowhorseCount.Should().BeGreaterOrEqualTo(1);
-        report.PuzzleCount.Should().BeGreaterOrEqualTo(1);
-        report.DogCount.Should().BeGreaterOrEqualTo(1);
+        report.StarCount.Should().BeGreaterThanOrEqualTo(1);
+        report.PlowhorseCount.Should().BeGreaterThanOrEqualTo(1);
+        report.PuzzleCount.Should().BeGreaterThanOrEqualTo(1);
+        report.DogCount.Should().BeGreaterThanOrEqualTo(1);
 
         var starItem = await grain.GetItemAsync(starId);
         var plowhorseItem = await grain.GetItemAsync(plowhorseId);

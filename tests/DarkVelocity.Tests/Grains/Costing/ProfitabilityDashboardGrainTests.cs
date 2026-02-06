@@ -251,7 +251,7 @@ public class ProfitabilityDashboardGrainTests
 
         // Assert - should have trimmed to max records
         breakdown.Should().HaveCount(1);
-        breakdown[0].ItemCount.Should().BeLessOrEqualTo(5000);
+        breakdown[0].ItemCount.Should().BeLessThanOrEqualTo(5000);
     }
 
     // ============================================================================
@@ -338,7 +338,7 @@ public class ProfitabilityDashboardGrainTests
         var trends = await grain.GetCostTrendsAsync(range);
 
         // Assert - should have trimmed to max 365 points
-        trends.Count.Should().BeLessOrEqualTo(365);
+        trends.Count.Should().BeLessThanOrEqualTo(365);
     }
 
     // ============================================================================

@@ -238,7 +238,7 @@ public class WebhookSubscriptionGrainTests
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*Webhook is not active*");
+            .WithMessage("*Webhook is paused*");
     }
 
     // Given: A webhook not subscribed to the customer.created event
