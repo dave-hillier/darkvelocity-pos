@@ -42,10 +42,10 @@ public class TddDeepDiveInventoryTests
         var ingredientId = Guid.NewGuid();
         var grain = await CreateInventoryAsync(orgId, siteId, ingredientId);
 
-        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH-001", quantity: 10m, unitCost: 5.00m));
+        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH-001", Quantity: 10m, UnitCost: 5.00m));
 
         // Act - consume 15 units from 10 available, pushing stock to -5
-        await grain.ConsumeAsync(new ConsumeStockCommand(quantity: 15m, "Over-consumption test"));
+        await grain.ConsumeAsync(new ConsumeStockCommand(Quantity: 15m, "Over-consumption test"));
 
         // Assert
         var level = await grain.GetLevelInfoAsync();
@@ -70,10 +70,10 @@ public class TddDeepDiveInventoryTests
         var ingredientId = Guid.NewGuid();
         var grain = await CreateInventoryAsync(orgId, siteId, ingredientId);
 
-        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH-001", quantity: 5m, unitCost: 4.00m));
+        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH-001", Quantity: 5m, UnitCost: 4.00m));
 
         // Act - consume 8 from 5 available
-        var result = await grain.ConsumeAsync(new ConsumeStockCommand(quantity: 8m, "Kitchen consumption"));
+        var result = await grain.ConsumeAsync(new ConsumeStockCommand(Quantity: 8m, "Kitchen consumption"));
 
         // Assert - stock goes negative
         var level = await grain.GetLevelInfoAsync();
@@ -108,8 +108,8 @@ public class TddDeepDiveInventoryTests
         var ingredientId = Guid.NewGuid();
         var grain = await CreateInventoryAsync(orgId, siteId, ingredientId);
 
-        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("ORIGINAL-BATCH", quantity: 10m, unitCost: 3.00m));
-        await grain.ConsumeAsync(new ConsumeStockCommand(quantity: 20m, "Over-consumption"));
+        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("ORIGINAL-BATCH", Quantity: 10m, UnitCost: 3.00m));
+        await grain.ConsumeAsync(new ConsumeStockCommand(Quantity: 20m, "Over-consumption"));
 
         // Verify we are at -10 with unbatched deficit of 10
         var stateBefore = await grain.GetStateAsync();
@@ -123,7 +123,7 @@ public class TddDeepDiveInventoryTests
         var sourceSiteId = Guid.NewGuid();
         var transferId = Guid.NewGuid();
         var result = await grain.ReceiveTransferAsync(
-            new ReceiveTransferCommand(quantity: 10m, unitCost: 5.00m, sourceSiteId, transferId));
+            new ReceiveTransferCommand(Quantity: 10m, UnitCost: 5.00m, sourceSiteId, transferId));
 
         // Assert - deficit should be fully absorbed, QuantityOnHand back to 0
         var stateAfter = await grain.GetStateAsync();
@@ -154,12 +154,12 @@ public class TddDeepDiveInventoryTests
         var grain = await CreateInventoryAsync(orgId, siteId, ingredientId);
 
         // Batch A: 10 units at $2/unit (received first)
-        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH-A", quantity: 10m, unitCost: 2.00m));
+        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH-A", Quantity: 10m, UnitCost: 2.00m));
         // Batch B: 10 units at $5/unit (received second)
-        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH-B", quantity: 10m, unitCost: 5.00m));
+        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH-B", Quantity: 10m, UnitCost: 5.00m));
 
         // Act - consume 7 units (less than batch A's quantity)
-        var result = await grain.ConsumeAsync(new ConsumeStockCommand(quantity: 7m, "Kitchen consumption"));
+        var result = await grain.ConsumeAsync(new ConsumeStockCommand(Quantity: 7m, "Kitchen consumption"));
 
         // Assert - only batch A should be consumed (FIFO)
         result.BatchBreakdown.Should().HaveCount(1);
@@ -192,10 +192,10 @@ public class TddDeepDiveInventoryTests
         var ingredientId = Guid.NewGuid();
         var grain = await CreateInventoryAsync(orgId, siteId, ingredientId);
 
-        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH-001", quantity: 10m, unitCost: 6.00m));
+        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH-001", Quantity: 10m, UnitCost: 6.00m));
 
         // Act - consume 15 from 10 available
-        await grain.ConsumeAsync(new ConsumeStockCommand(quantity: 15m, "Excess consumption"));
+        await grain.ConsumeAsync(new ConsumeStockCommand(Quantity: 15m, "Excess consumption"));
 
         // Assert
         var state = await grain.GetStateAsync();
@@ -230,8 +230,8 @@ public class TddDeepDiveInventoryTests
         var ingredientId = Guid.NewGuid();
         var grain = await CreateInventoryAsync(orgId, siteId, ingredientId);
 
-        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("INITIAL", quantity: 5m, unitCost: 2.00m));
-        await grain.ConsumeAsync(new ConsumeStockCommand(quantity: 10m, "Over-consume to create deficit"));
+        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("INITIAL", Quantity: 5m, UnitCost: 2.00m));
+        await grain.ConsumeAsync(new ConsumeStockCommand(Quantity: 10m, "Over-consume to create deficit"));
 
         // Verify we are at -5 with unbatched deficit of 5
         var stateBefore = await grain.GetStateAsync();
@@ -239,7 +239,7 @@ public class TddDeepDiveInventoryTests
         stateBefore.UnbatchedDeficit.Should().Be(5m);
 
         // Act - receive 8 units at $3/unit
-        var result = await grain.ReceiveBatchAsync(new ReceiveBatchCommand("RECOVERY-BATCH", quantity: 8m, unitCost: 3.00m));
+        var result = await grain.ReceiveBatchAsync(new ReceiveBatchCommand("RECOVERY-BATCH", Quantity: 8m, UnitCost: 3.00m));
 
         // Assert
         var stateAfter = await grain.GetStateAsync();
@@ -273,7 +273,7 @@ public class TddDeepDiveInventoryTests
             reorderPoint: 10, parLevel: 50);
 
         // Add exactly 10 units (the reorder point)
-        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH-001", quantity: 10m, unitCost: 4.00m));
+        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH-001", Quantity: 10m, UnitCost: 4.00m));
 
         // Act
         var stockLevel = await grain.GetStockLevelAsync();
@@ -300,14 +300,14 @@ public class TddDeepDiveInventoryTests
         var ingredientId = Guid.NewGuid();
         var grain = await CreateInventoryAsync(orgId, siteId, ingredientId);
 
-        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH-001", quantity: 20m, unitCost: 3.00m));
+        await grain.ReceiveBatchAsync(new ReceiveBatchCommand("BATCH-001", Quantity: 20m, UnitCost: 3.00m));
 
         // Verify we start in a normal state
         var levelBefore = await grain.GetStockLevelAsync();
         levelBefore.Should().Be(StockLevel.Normal);
 
         // Act - consume exactly all stock
-        await grain.ConsumeAsync(new ConsumeStockCommand(quantity: 20m, "Full depletion"));
+        await grain.ConsumeAsync(new ConsumeStockCommand(Quantity: 20m, "Full depletion"));
 
         // Assert
         var level = await grain.GetLevelInfoAsync();
