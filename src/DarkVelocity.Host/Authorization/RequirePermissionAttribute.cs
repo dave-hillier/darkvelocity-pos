@@ -58,7 +58,7 @@ public sealed class RequirePermissionAttribute : Attribute
                 "Route parameter 'orgId' not found");
             var siteId = routeValues["siteId"]?.ToString() ?? throw new InvalidOperationException(
                 "Route parameter 'siteId' not found");
-            return $"{orgId}:{siteId}";
+            return $"{orgId}/{siteId}";
         }
 
         // Default to orgId for org-level resources

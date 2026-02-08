@@ -56,8 +56,8 @@ definition site {
     permission supervise = is_supervisor & active_session
     permission manage = is_manager & active_session
 
-    // Backoffice - requires active session with full scope
-    permission backoffice = is_manager & (active_session with requires_full_auth)
+    // Backoffice - requires active session (full scope enforced via caveat context at check time)
+    permission backoffice = is_manager & active_session
 
     // View permission for read-only access
     permission view = operate

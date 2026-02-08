@@ -97,7 +97,7 @@ public sealed class AuthorizationService : IAuthorizationService
             _ => "pos" // Default to restricted scope for unknown methods
         };
 
-        var siteResourceId = $"{orgId}:{siteId}";
+        var siteResourceId = $"{orgId}/{siteId}";
 
         _logger.LogInformation(
             "Creating session for user {UserId} at site {SiteId} with scope {Scope} (auth method: {AuthMethod})",
@@ -116,7 +116,7 @@ public sealed class AuthorizationService : IAuthorizationService
 
     public async Task RevokeSessionAsync(Guid userId, Guid orgId, Guid siteId, CancellationToken cancellationToken = default)
     {
-        var siteResourceId = $"{orgId}:{siteId}";
+        var siteResourceId = $"{orgId}/{siteId}";
 
         _logger.LogInformation("Revoking session for user {UserId} at site {SiteId}", userId, siteId);
 
@@ -131,7 +131,7 @@ public sealed class AuthorizationService : IAuthorizationService
 
     public async Task AssignSiteRoleAsync(Guid userId, Guid orgId, Guid siteId, SiteRole role, CancellationToken cancellationToken = default)
     {
-        var siteResourceId = $"{orgId}:{siteId}";
+        var siteResourceId = $"{orgId}/{siteId}";
         var relation = role.ToString().ToLowerInvariant();
 
         _logger.LogInformation("Assigning {Role} role to user {UserId} at site {SiteId}", role, userId, siteId);
@@ -147,7 +147,7 @@ public sealed class AuthorizationService : IAuthorizationService
 
     public async Task RemoveSiteRoleAsync(Guid userId, Guid orgId, Guid siteId, SiteRole role, CancellationToken cancellationToken = default)
     {
-        var siteResourceId = $"{orgId}:{siteId}";
+        var siteResourceId = $"{orgId}/{siteId}";
         var relation = role.ToString().ToLowerInvariant();
 
         _logger.LogInformation("Removing {Role} role from user {UserId} at site {SiteId}", role, userId, siteId);
@@ -193,7 +193,7 @@ public sealed class AuthorizationService : IAuthorizationService
 
     public async Task SetupSiteAsync(Guid orgId, Guid siteId, CancellationToken cancellationToken = default)
     {
-        var siteResourceId = $"{orgId}:{siteId}";
+        var siteResourceId = $"{orgId}/{siteId}";
 
         _logger.LogInformation("Setting up site {SiteId} under org {OrgId}", siteId, orgId);
 
@@ -208,7 +208,7 @@ public sealed class AuthorizationService : IAuthorizationService
 
     public async Task SetupSiteResourceAsync(string resourceType, string resourceId, Guid orgId, Guid siteId, CancellationToken cancellationToken = default)
     {
-        var siteResourceId = $"{orgId}:{siteId}";
+        var siteResourceId = $"{orgId}/{siteId}";
 
         _logger.LogDebug("Setting up {ResourceType}:{ResourceId} under site {SiteId}", resourceType, resourceId, siteId);
 

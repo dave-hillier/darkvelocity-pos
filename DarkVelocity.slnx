@@ -4,5 +4,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DarkVelocity.Tests/DarkVelocity.Tests.csproj" />
+    <Project Path="tests/DarkVelocity.E2E/DarkVelocity.E2E.csproj" />
   </Folder>
 </Solution>
