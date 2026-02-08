@@ -59,6 +59,7 @@ public class TableGrain : Grain, ITableGrain
         if (command.Position != null) _state.State.Position = command.Position;
         if (command.IsCombinable.HasValue) _state.State.IsCombinable = command.IsCombinable.Value;
         if (command.SortOrder.HasValue) _state.State.SortOrder = command.SortOrder.Value;
+        if (command.SectionId.HasValue) _state.State.SectionId = command.SectionId.Value;
 
         _state.State.UpdatedAt = DateTime.UtcNow;
         _state.State.Version++;
@@ -214,6 +215,15 @@ public class TableGrain : Grain, ITableGrain
     {
         EnsureExists();
         _state.State.FloorPlanId = floorPlanId;
+        _state.State.UpdatedAt = DateTime.UtcNow;
+        _state.State.Version++;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task SetSectionAsync(Guid? sectionId)
+    {
+        EnsureExists();
+        _state.State.SectionId = sectionId;
         _state.State.UpdatedAt = DateTime.UtcNow;
         _state.State.Version++;
         await _state.WriteStateAsync();
@@ -514,6 +524,27 @@ public class FloorPlanGrain : JournaledGrain<FloorPlanState, IFloorPlanEvent>, I
         ));
 
         await ConfirmEvents();
+    }
+
+    public async Task AssignTableToSectionAsync(Guid tableId, Guid sectionId)
+    {
+        EnsureExists();
+        if (!State.TableIds.Contains(tableId))
+            throw new InvalidOperationException("Table is not part of this floor plan");
+        if (!State.Sections.Any(s => s.Id == sectionId))
+            throw new InvalidOperationException("Section not found in this floor plan");
+
+        var tableGrain = GrainFactory.GetGrain<ITableGrain>(
+            GrainKeys.Table(State.OrganizationId, State.SiteId, tableId));
+        await tableGrain.SetSectionAsync(sectionId);
+    }
+
+    public async Task UnassignTableFromSectionAsync(Guid tableId)
+    {
+        EnsureExists();
+        var tableGrain = GrainFactory.GetGrain<ITableGrain>(
+            GrainKeys.Table(State.OrganizationId, State.SiteId, tableId));
+        await tableGrain.SetSectionAsync(null);
     }
 
     public Task<bool> ExistsAsync() => Task.FromResult(State.Id != Guid.Empty);
