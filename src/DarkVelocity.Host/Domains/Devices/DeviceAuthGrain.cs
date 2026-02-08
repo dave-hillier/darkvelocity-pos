@@ -63,9 +63,9 @@ public class DeviceAuthGrain : Grain, IDeviceAuthGrain
             TimeSpan.FromMinutes(DeviceCodeExpirationMinutes),
             TimeSpan.FromMilliseconds(-1)); // One-shot timer
 
+        var configuredUrl = _configuration["App:BackofficeUrl"];
         var verificationBaseUri = request.VerificationBaseUri
-            ?? _configuration["App:DeviceVerificationUri"]
-            ?? "/device";
+            ?? (configuredUrl != null ? $"{configuredUrl.TrimEnd('/')}/device" : "/device");
 
         return new DeviceCodeResponse(
             deviceCode,

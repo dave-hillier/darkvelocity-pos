@@ -62,12 +62,14 @@ public static class DeviceEndpoints
         group.MapPost("/code", async (
             [FromBody] DeviceCodeApiRequest request,
             IGrainFactory grainFactory,
-            HttpContext httpContext) =>
+            HttpContext httpContext,
+            IConfiguration configuration) =>
         {
             var userCode = GrainKeys.GenerateUserCode();
             var grain = grainFactory.GetGrain<IDeviceAuthGrain>(userCode);
 
-            var verificationBaseUri = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/device";
+            var backofficeUrl = configuration["App:BackofficeUrl"] ?? "http://localhost:5174";
+            var verificationBaseUri = $"{backofficeUrl.TrimEnd('/')}/device";
 
             var response = await grain.InitiateAsync(new DeviceCodeRequest(
                 request.ClientId,
