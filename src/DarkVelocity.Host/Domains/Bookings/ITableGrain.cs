@@ -121,6 +121,9 @@ public interface IFloorPlanGrain : IGrainWithStringKey
     // Queries
     Task<bool> ExistsAsync();
     Task<bool> IsActiveAsync();
+
+    // Version (event sourcing)
+    Task<int> GetVersionAsync();
 }
 
 // Booking Availability Commands
@@ -158,4 +161,5 @@ public interface IBookingSettingsGrain : IGrainWithStringKey
     Task<bool> IsDateBlockedAsync(DateOnly date);
 
     Task<bool> ExistsAsync();
+    Task<int> GetVersionAsync();
 }
