@@ -19,7 +19,6 @@ public class DeviceAuthGrain : Grain, IDeviceAuthGrain
     private const int DeviceCodeExpirationMinutes = 15;
     private const int PollingIntervalSeconds = 5;
     private const int MaxPollCount = 180; // 15 minutes at 5 second intervals
-    private const string VerificationBaseUri = "https://app.darkvelocity.io/device";
 
     public DeviceAuthGrain(
         [PersistentState("deviceauth", "OrleansStorage")]
@@ -64,11 +63,15 @@ public class DeviceAuthGrain : Grain, IDeviceAuthGrain
             TimeSpan.FromMinutes(DeviceCodeExpirationMinutes),
             TimeSpan.FromMilliseconds(-1)); // One-shot timer
 
+        var verificationBaseUri = request.VerificationBaseUri
+            ?? _configuration["App:DeviceVerificationUri"]
+            ?? "/device";
+
         return new DeviceCodeResponse(
             deviceCode,
             FormatUserCode(userCode),
-            VerificationBaseUri,
-            $"{VerificationBaseUri}?code={userCode}",
+            verificationBaseUri,
+            $"{verificationBaseUri}?code={userCode}",
             DeviceCodeExpirationMinutes * 60,
             PollingIntervalSeconds);
     }

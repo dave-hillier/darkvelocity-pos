@@ -67,11 +67,14 @@ public static class DeviceEndpoints
             var userCode = GrainKeys.GenerateUserCode();
             var grain = grainFactory.GetGrain<IDeviceAuthGrain>(userCode);
 
+            var verificationBaseUri = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/device";
+
             var response = await grain.InitiateAsync(new DeviceCodeRequest(
                 request.ClientId,
                 request.Scope ?? "device",
                 request.DeviceFingerprint,
-                httpContext.Connection.RemoteIpAddress?.ToString()
+                httpContext.Connection.RemoteIpAddress?.ToString(),
+                verificationBaseUri
             ));
 
             return Results.Ok(response);
