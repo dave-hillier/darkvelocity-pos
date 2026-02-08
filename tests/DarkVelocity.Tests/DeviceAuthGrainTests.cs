@@ -46,7 +46,7 @@ public class DeviceAuthGrainTests
         // Assert
         response.DeviceCode.Should().NotBeNullOrEmpty();
         response.UserCode.Should().NotBeNullOrEmpty();
-        response.VerificationUri.Should().Be("https://app.darkvelocity.io/device");
+        response.VerificationUri.Should().Be("/device");
         response.VerificationUriComplete.Should().Contain(userCode);
         response.ExpiresIn.Should().Be(15 * 60); // 15 minutes
         response.Interval.Should().Be(5); // 5 seconds polling interval

@@ -11,7 +11,8 @@ public record DeviceCodeRequest(
     [property: Id(0)] string ClientId,
     [property: Id(1)] string Scope,
     [property: Id(2)] string? DeviceFingerprint = null,
-    [property: Id(3)] string? IpAddress = null);
+    [property: Id(3)] string? IpAddress = null,
+    [property: Id(4)] string? VerificationBaseUri = null);
 
 [GenerateSerializer]
 public record DeviceCodeResponse(
