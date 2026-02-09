@@ -37,6 +37,14 @@ public sealed record StockBatchReceived : IInventoryEvent
 }
 
 [GenerateSerializer]
+public sealed record EventBatchConsumptionDetail
+{
+    [Id(0)] public Guid BatchId { get; init; }
+    [Id(1)] public decimal Quantity { get; init; }
+    [Id(2)] public decimal UnitCost { get; init; }
+}
+
+[GenerateSerializer]
 public sealed record StockConsumed : IInventoryEvent
 {
     [Id(0)] public Guid IngredientId { get; init; }
@@ -45,6 +53,7 @@ public sealed record StockConsumed : IInventoryEvent
     [Id(3)] public Guid? OrderId { get; init; }
     [Id(4)] public string Reason { get; init; } = "";
     [Id(5)] public DateTime OccurredAt { get; init; }
+    [Id(6)] public IReadOnlyList<EventBatchConsumptionDetail> BatchBreakdown { get; init; } = [];
 }
 
 [GenerateSerializer]
@@ -69,6 +78,7 @@ public sealed record StockWrittenOff : IInventoryEvent
     [Id(4)] public string Reason { get; init; } = "";
     [Id(5)] public Guid RecordedBy { get; init; }
     [Id(6)] public DateTime OccurredAt { get; init; }
+    [Id(7)] public IReadOnlyList<EventBatchConsumptionDetail> BatchBreakdown { get; init; } = [];
 }
 
 [GenerateSerializer]
@@ -81,6 +91,7 @@ public sealed record StockTransferredOut : IInventoryEvent
     [Id(4)] public decimal UnitCost { get; init; }
     [Id(5)] public Guid TransferredBy { get; init; }
     [Id(6)] public DateTime OccurredAt { get; init; }
+    [Id(7)] public IReadOnlyList<EventBatchConsumptionDetail> BatchBreakdown { get; init; } = [];
 }
 
 [GenerateSerializer]
