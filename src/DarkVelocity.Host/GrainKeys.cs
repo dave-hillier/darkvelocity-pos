@@ -364,6 +364,7 @@ public static class GrainKeys
     /// Creates a key for a supplier grain.
     /// </summary>
     public static string Supplier(Guid orgId, Guid supplierId) => OrgEntity(orgId, "supplier", supplierId);
+    public static string SupplierRegistry(Guid orgId) => $"{orgId}:supplierregistry";
 
     /// <summary>
     /// Creates a key for a delivery grain.

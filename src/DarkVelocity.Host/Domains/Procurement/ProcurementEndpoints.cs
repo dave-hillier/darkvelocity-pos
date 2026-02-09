@@ -142,6 +142,19 @@ public static class ProcurementEndpoints
         // ============================================================================
         var supplierGroup = app.MapGroup("/api/orgs/{orgId}/suppliers").WithTags("Suppliers");
 
+        supplierGroup.MapGet("/", async (Guid orgId, IGrainFactory grainFactory) =>
+        {
+            var registry = grainFactory.GetGrain<ISupplierRegistryGrain>(GrainKeys.SupplierRegistry(orgId));
+            var suppliers = await registry.GetSuppliersAsync();
+            var items = suppliers.Select(s => Hal.Resource(
+                new { id = s.SupplierId, s.Code, s.Name, s.ContactEmail, s.PaymentTermsDays, s.LeadTimeDays, s.IsActive },
+                new Dictionary<string, object>
+                {
+                    ["self"] = new HalLink($"/api/orgs/{orgId}/suppliers/{s.SupplierId}")
+                })).Cast<object>();
+            return Results.Ok(Hal.Collection($"/api/orgs/{orgId}/suppliers", items, suppliers.Count));
+        });
+
         supplierGroup.MapPost("/", async (
             Guid orgId,
             [FromBody] CreateSupplierCommand command,
@@ -170,6 +183,42 @@ public static class ProcurementEndpoints
             var grain = grainFactory.GetGrain<ISupplierGrain>(GrainKeys.Supplier(orgId, supplierId));
             var snapshot = await grain.UpdateAsync(command);
             return Results.Ok(Hal.Resource(snapshot, BuildSupplierLinks(orgId, supplierId)));
+        });
+
+        supplierGroup.MapDelete("/{supplierId}", async (Guid orgId, Guid supplierId, IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<ISupplierGrain>(GrainKeys.Supplier(orgId, supplierId));
+            await grain.UpdateAsync(new UpdateSupplierCommand(
+                null, null, null, null, null, null, null, null, IsActive: false));
+            var registry = grainFactory.GetGrain<ISupplierRegistryGrain>(GrainKeys.SupplierRegistry(orgId));
+            await registry.UpdateSupplierAsync(await grain.GetSnapshotAsync());
+            return Results.NoContent();
+        });
+
+        supplierGroup.MapGet("/{supplierId}/ingredients", async (
+            Guid orgId, Guid supplierId, IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<ISupplierGrain>(GrainKeys.Supplier(orgId, supplierId));
+            var snapshot = await grain.GetSnapshotAsync();
+            var items = snapshot.Ingredients.Select(i => Hal.Resource(
+                new
+                {
+                    ingredientId = i.IngredientId,
+                    ingredientName = i.IngredientName,
+                    sku = i.Sku,
+                    supplierSku = i.SupplierSku,
+                    unitPrice = i.UnitPrice,
+                    unit = i.Unit,
+                    minOrderQuantity = i.MinOrderQuantity,
+                    leadTimeDays = i.LeadTimeDays
+                },
+                new Dictionary<string, object>
+                {
+                    ["self"] = new HalLink($"/api/orgs/{orgId}/suppliers/{supplierId}/ingredients"),
+                    ["ingredient"] = new HalLink($"/api/orgs/{orgId}/ingredients/{i.IngredientId}")
+                })).Cast<object>();
+            return Results.Ok(Hal.Collection(
+                $"/api/orgs/{orgId}/suppliers/{supplierId}/ingredients", items, snapshot.Ingredients.Count));
         });
 
         return app;
@@ -205,7 +254,8 @@ public static class ProcurementEndpoints
         return new Dictionary<string, object>
         {
             ["self"] = new HalLink(basePath),
-            ["ingredients"] = new HalLink($"{basePath}/ingredients", Title: "Supplier ingredients")
+            ["collection"] = new HalLink($"/api/orgs/{orgId}/suppliers"),
+            ["ingredients"] = new HalLink($"{basePath}/ingredients", Title: "Supplier catalog")
         };
     }
 }

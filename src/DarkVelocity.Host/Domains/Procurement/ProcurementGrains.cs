@@ -19,6 +19,13 @@ namespace DarkVelocity.Host.Grains;
 [LogConsistencyProvider(ProviderName = "LogStorage")]
 public class SupplierGrain : JournaledGrain<SupplierState, ISupplierEvent>, ISupplierGrain
 {
+    private readonly IGrainFactory _grainFactory;
+
+    public SupplierGrain(IGrainFactory grainFactory)
+    {
+        _grainFactory = grainFactory;
+    }
+
     protected override void TransitionState(SupplierState state, ISupplierEvent @event)
     {
         switch (@event)
@@ -121,7 +128,9 @@ public class SupplierGrain : JournaledGrain<SupplierState, ISupplierEvent>, ISup
         });
         await ConfirmEvents();
 
-        return CreateSnapshot();
+        var snapshot = CreateSnapshot();
+        await GetRegistry().RegisterSupplierAsync(snapshot);
+        return snapshot;
     }
 
     public async Task<SupplierSnapshot> UpdateAsync(UpdateSupplierCommand command)
@@ -144,7 +153,9 @@ public class SupplierGrain : JournaledGrain<SupplierState, ISupplierEvent>, ISup
         });
         await ConfirmEvents();
 
-        return CreateSnapshot();
+        var snapshot = CreateSnapshot();
+        await GetRegistry().UpdateSupplierAsync(snapshot);
+        return snapshot;
     }
 
     public async Task AddIngredientAsync(SupplierIngredient ingredient)
@@ -259,6 +270,12 @@ public class SupplierGrain : JournaledGrain<SupplierState, ISupplierEvent>, ISup
                 LeadTimeDays: i.LeadTimeDays)).ToList(),
             TotalPurchasesYtd: State.TotalPurchasesYtd,
             OnTimeDeliveryPercent: onTimePercent);
+    }
+
+    private ISupplierRegistryGrain GetRegistry()
+    {
+        return _grainFactory.GetGrain<ISupplierRegistryGrain>(
+            GrainKeys.SupplierRegistry(State.OrgId));
     }
 
     private void EnsureInitialized()
