@@ -217,7 +217,7 @@ public sealed class IngredientState
     [Id(22)] public Guid? ProductId { get; set; }
 
     // Audit
-    [Id(22)] public List<AuditEntry> AuditLog { get; set; } = [];
+    [Id(23)] public List<AuditEntry> AuditLog { get; set; } = [];
 }
 
 /// <summary>

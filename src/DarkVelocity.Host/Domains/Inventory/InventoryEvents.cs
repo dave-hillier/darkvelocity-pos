@@ -34,6 +34,7 @@ public sealed record StockBatchReceived : IInventoryEvent
     [Id(6)] public Guid? SupplierId { get; init; }
     [Id(7)] public Guid? DeliveryId { get; init; }
     [Id(8)] public DateTime OccurredAt { get; init; }
+    [Id(9)] public Guid? SkuId { get; init; }
 }
 
 [GenerateSerializer]

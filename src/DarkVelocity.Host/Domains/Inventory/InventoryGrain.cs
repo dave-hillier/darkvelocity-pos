@@ -75,6 +75,7 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryEvent>, I
                         TotalCost = e.Quantity * e.UnitCost,
                         SupplierId = e.SupplierId,
                         DeliveryId = e.DeliveryId,
+                        SkuId = e.SkuId,
                         Status = BatchStatus.Active
                     };
                     state.Batches.Add(batch);
@@ -353,7 +354,8 @@ public class InventoryGrain : JournaledGrain<InventoryState, IInventoryEvent>, I
             ExpiryDate = command.ExpiryDate.HasValue ? DateOnly.FromDateTime(command.ExpiryDate.Value) : null,
             SupplierId = command.SupplierId,
             DeliveryId = command.DeliveryId,
-            OccurredAt = DateTime.UtcNow
+            OccurredAt = DateTime.UtcNow,
+            SkuId = command.SkuId
         });
         await ConfirmEvents();
 
