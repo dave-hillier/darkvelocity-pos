@@ -46,8 +46,9 @@ public class DeliveryGrain : JournaledGrain<DeliveryState, IDeliveryEvent>, IDel
                 state.Lines.Add(new DeliveryLineState
                 {
                     LineId = e.LineId,
-                    IngredientId = e.IngredientId,
-                    IngredientName = e.IngredientName,
+                    SkuId = e.SkuId,
+                    SkuCode = e.SkuCode,
+                    ProductName = e.ProductName,
                     PurchaseOrderLineId = e.PurchaseOrderLineId,
                     QuantityReceived = e.QuantityReceived,
                     UnitCost = e.UnitCost,
@@ -137,8 +138,9 @@ public class DeliveryGrain : JournaledGrain<DeliveryState, IDeliveryEvent>, IDel
         {
             DeliveryId = State.DeliveryId,
             LineId = command.LineId,
-            IngredientId = command.IngredientId,
-            IngredientName = command.IngredientName,
+            SkuId = command.SkuId,
+            SkuCode = command.SkuCode,
+            ProductName = command.ProductName,
             PurchaseOrderLineId = command.PurchaseOrderLineId,
             QuantityReceived = command.QuantityReceived,
             UnitCost = command.UnitCost,
@@ -269,7 +271,7 @@ public class DeliveryGrain : JournaledGrain<DeliveryState, IDeliveryEvent>, IDel
         State.HasDiscrepancies,
         State.SupplierInvoiceNumber,
         State.Lines.Select(l => new DeliveryLineSnapshot(
-            l.LineId, l.IngredientId, l.IngredientName, l.PurchaseOrderLineId,
+            l.LineId, l.SkuId, l.SkuCode, l.ProductName, l.PurchaseOrderLineId,
             l.QuantityReceived, l.UnitCost, l.LineTotal,
             l.BatchNumber, l.ExpiryDate, l.Notes)).ToList(),
         State.Discrepancies.Select(d => new DeliveryDiscrepancySnapshot(

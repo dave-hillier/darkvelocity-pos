@@ -44,7 +44,7 @@ public static class ProcurementEndpoints
             var grain = grainFactory.GetGrain<IPurchaseOrderGrain>(GrainKeys.PurchaseOrder(orgId, poId));
             var lineId = Guid.NewGuid();
             await grain.AddLineAsync(new AddPurchaseOrderLineCommand(
-                lineId, request.IngredientId, request.IngredientName,
+                lineId, request.SkuId, request.SkuCode, request.ProductName,
                 request.QuantityOrdered, request.UnitPrice, request.Notes));
 
             var snapshot = await grain.GetSnapshotAsync();
@@ -108,7 +108,7 @@ public static class ProcurementEndpoints
             var grain = grainFactory.GetGrain<IDeliveryGrain>(GrainKeys.Delivery(orgId, deliveryId));
             var lineId = Guid.NewGuid();
             await grain.AddLineAsync(new AddDeliveryLineCommand(
-                lineId, request.IngredientId, request.IngredientName,
+                lineId, request.SkuId, request.SkuCode, request.ProductName,
                 request.PurchaseOrderLineId, request.QuantityReceived,
                 request.UnitCost, request.BatchNumber, request.ExpiryDate, request.Notes));
 
@@ -195,18 +195,18 @@ public static class ProcurementEndpoints
             return Results.NoContent();
         });
 
-        supplierGroup.MapGet("/{supplierId}/ingredients", async (
+        supplierGroup.MapGet("/{supplierId}/catalog", async (
             Guid orgId, Guid supplierId, IGrainFactory grainFactory) =>
         {
             var grain = grainFactory.GetGrain<ISupplierGrain>(GrainKeys.Supplier(orgId, supplierId));
             var snapshot = await grain.GetSnapshotAsync();
-            var items = snapshot.Ingredients.Select(i => Hal.Resource(
+            var items = snapshot.Catalog.Select(i => Hal.Resource(
                 new
                 {
-                    ingredientId = i.IngredientId,
-                    ingredientName = i.IngredientName,
-                    sku = i.Sku,
-                    supplierSku = i.SupplierSku,
+                    skuId = i.SkuId,
+                    skuCode = i.SkuCode,
+                    productName = i.ProductName,
+                    supplierProductCode = i.SupplierProductCode,
                     unitPrice = i.UnitPrice,
                     unit = i.Unit,
                     minOrderQuantity = i.MinOrderQuantity,
@@ -214,11 +214,11 @@ public static class ProcurementEndpoints
                 },
                 new Dictionary<string, object>
                 {
-                    ["self"] = new HalLink($"/api/orgs/{orgId}/suppliers/{supplierId}/ingredients"),
-                    ["ingredient"] = new HalLink($"/api/orgs/{orgId}/ingredients/{i.IngredientId}")
+                    ["self"] = new HalLink($"/api/orgs/{orgId}/suppliers/{supplierId}/catalog"),
+                    ["sku"] = new HalLink($"/api/orgs/{orgId}/products/skus/{i.SkuId}")
                 })).Cast<object>();
             return Results.Ok(Hal.Collection(
-                $"/api/orgs/{orgId}/suppliers/{supplierId}/ingredients", items, snapshot.Ingredients.Count));
+                $"/api/orgs/{orgId}/suppliers/{supplierId}/catalog", items, snapshot.Catalog.Count));
         });
 
         return app;
@@ -255,7 +255,7 @@ public static class ProcurementEndpoints
         {
             ["self"] = new HalLink(basePath),
             ["collection"] = new HalLink($"/api/orgs/{orgId}/suppliers"),
-            ["ingredients"] = new HalLink($"{basePath}/ingredients", Title: "Supplier catalog")
+            ["catalog"] = new HalLink($"{basePath}/catalog", Title: "Supplier SKU catalog")
         };
     }
 }
@@ -266,7 +266,7 @@ public record CreatePurchaseOrderRequest(
     Guid? CreatedByUserId = null, string? Notes = null);
 
 public record AddPOLineRequest(
-    Guid IngredientId, string IngredientName,
+    Guid SkuId, string SkuCode, string ProductName,
     decimal QuantityOrdered, decimal UnitPrice, string? Notes = null);
 
 public record SubmitPORequest(Guid SubmittedByUserId);
@@ -279,7 +279,7 @@ public record CreateDeliveryRequest(
     string? SupplierInvoiceNumber = null, string? Notes = null);
 
 public record AddDeliveryLineRequest(
-    Guid IngredientId, string IngredientName,
+    Guid SkuId, string SkuCode, string ProductName,
     decimal QuantityReceived, decimal UnitCost,
     Guid? PurchaseOrderLineId = null, string? BatchNumber = null,
     DateTime? ExpiryDate = null, string? Notes = null);

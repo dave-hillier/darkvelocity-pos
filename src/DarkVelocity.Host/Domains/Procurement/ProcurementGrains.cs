@@ -13,7 +13,7 @@ namespace DarkVelocity.Host.Grains;
 
 /// <summary>
 /// Grain for supplier management.
-/// Manages supplier information, pricing, and performance metrics.
+/// Manages supplier information, SKU catalog, and performance metrics.
 /// Uses event sourcing via JournaledGrain for state persistence.
 /// </summary>
 [LogConsistencyProvider(ProviderName = "LogStorage")]
@@ -57,24 +57,24 @@ public class SupplierGrain : JournaledGrain<SupplierState, ISupplierEvent>, ISup
                 if (e.IsActive.HasValue) state.IsActive = e.IsActive.Value;
                 break;
 
-            case SupplierIngredientAdded e:
-                var existingIngredient = state.Ingredients.FirstOrDefault(i => i.IngredientId == e.IngredientId);
-                if (existingIngredient != null)
+            case SupplierSkuAdded e:
+                var existingSku = state.Catalog.FirstOrDefault(i => i.SkuId == e.SkuId);
+                if (existingSku != null)
                 {
-                    existingIngredient.SupplierSku = e.SupplierSku ?? "";
-                    existingIngredient.UnitPrice = e.UnitPrice;
-                    existingIngredient.Unit = e.Unit;
-                    existingIngredient.MinOrderQuantity = e.MinOrderQuantity ?? 0;
-                    existingIngredient.LeadTimeDays = e.LeadTimeDays ?? 0;
+                    existingSku.SupplierProductCode = e.SupplierProductCode ?? "";
+                    existingSku.UnitPrice = e.UnitPrice;
+                    existingSku.Unit = e.Unit;
+                    existingSku.MinOrderQuantity = e.MinOrderQuantity ?? 0;
+                    existingSku.LeadTimeDays = e.LeadTimeDays ?? 0;
                 }
                 else
                 {
-                    state.Ingredients.Add(new SupplierIngredientState
+                    state.Catalog.Add(new SupplierCatalogItemState
                     {
-                        IngredientId = e.IngredientId,
-                        IngredientName = e.IngredientName,
-                        Sku = e.Sku ?? "",
-                        SupplierSku = e.SupplierSku ?? "",
+                        SkuId = e.SkuId,
+                        SkuCode = e.SkuCode,
+                        ProductName = e.ProductName,
+                        SupplierProductCode = e.SupplierProductCode ?? "",
                         UnitPrice = e.UnitPrice,
                         Unit = e.Unit,
                         MinOrderQuantity = e.MinOrderQuantity ?? 0,
@@ -83,15 +83,15 @@ public class SupplierGrain : JournaledGrain<SupplierState, ISupplierEvent>, ISup
                 }
                 break;
 
-            case SupplierIngredientRemoved e:
-                state.Ingredients.RemoveAll(i => i.IngredientId == e.IngredientId);
+            case SupplierSkuRemoved e:
+                state.Catalog.RemoveAll(i => i.SkuId == e.SkuId);
                 break;
 
-            case SupplierIngredientPriceUpdated e:
-                var ingredientToUpdate = state.Ingredients.FirstOrDefault(i => i.IngredientId == e.IngredientId);
-                if (ingredientToUpdate != null)
+            case SupplierSkuPriceUpdated e:
+                var skuToUpdate = state.Catalog.FirstOrDefault(i => i.SkuId == e.SkuId);
+                if (skuToUpdate != null)
                 {
-                    ingredientToUpdate.UnitPrice = e.NewPrice;
+                    skuToUpdate.UnitPrice = e.NewPrice;
                 }
                 break;
 
@@ -158,52 +158,52 @@ public class SupplierGrain : JournaledGrain<SupplierState, ISupplierEvent>, ISup
         return snapshot;
     }
 
-    public async Task AddIngredientAsync(SupplierIngredient ingredient)
+    public async Task AddSkuAsync(SupplierCatalogItem item)
     {
         EnsureInitialized();
 
-        RaiseEvent(new SupplierIngredientAdded
+        RaiseEvent(new SupplierSkuAdded
         {
             SupplierId = State.SupplierId,
-            IngredientId = ingredient.IngredientId,
-            IngredientName = ingredient.IngredientName,
-            Sku = ingredient.Sku,
-            SupplierSku = ingredient.SupplierSku,
-            UnitPrice = ingredient.UnitPrice,
-            Unit = ingredient.Unit,
-            MinOrderQuantity = ingredient.MinOrderQuantity,
-            LeadTimeDays = ingredient.LeadTimeDays,
+            SkuId = item.SkuId,
+            SkuCode = item.SkuCode,
+            ProductName = item.ProductName,
+            SupplierProductCode = item.SupplierProductCode,
+            UnitPrice = item.UnitPrice,
+            Unit = item.Unit,
+            MinOrderQuantity = item.MinOrderQuantity,
+            LeadTimeDays = item.LeadTimeDays,
             OccurredAt = DateTimeOffset.UtcNow
         });
         await ConfirmEvents();
     }
 
-    public async Task RemoveIngredientAsync(Guid ingredientId)
+    public async Task RemoveSkuAsync(Guid skuId)
     {
         EnsureInitialized();
 
-        RaiseEvent(new SupplierIngredientRemoved
+        RaiseEvent(new SupplierSkuRemoved
         {
             SupplierId = State.SupplierId,
-            IngredientId = ingredientId,
+            SkuId = skuId,
             OccurredAt = DateTimeOffset.UtcNow
         });
         await ConfirmEvents();
     }
 
-    public async Task UpdateIngredientPriceAsync(Guid ingredientId, decimal newPrice)
+    public async Task UpdateSkuPriceAsync(Guid skuId, decimal newPrice)
     {
         EnsureInitialized();
 
-        var ingredient = State.Ingredients.FirstOrDefault(i => i.IngredientId == ingredientId)
-            ?? throw new InvalidOperationException("Ingredient not found");
+        var sku = State.Catalog.FirstOrDefault(i => i.SkuId == skuId)
+            ?? throw new InvalidOperationException("SKU not found in supplier catalog");
 
-        RaiseEvent(new SupplierIngredientPriceUpdated
+        RaiseEvent(new SupplierSkuPriceUpdated
         {
             SupplierId = State.SupplierId,
-            IngredientId = ingredientId,
+            SkuId = skuId,
             NewPrice = newPrice,
-            PreviousPrice = ingredient.UnitPrice,
+            PreviousPrice = sku.UnitPrice,
             OccurredAt = DateTimeOffset.UtcNow
         });
         await ConfirmEvents();
@@ -215,14 +215,14 @@ public class SupplierGrain : JournaledGrain<SupplierState, ISupplierEvent>, ISup
         return Task.FromResult(CreateSnapshot());
     }
 
-    public Task<decimal> GetIngredientPriceAsync(Guid ingredientId)
+    public Task<decimal> GetSkuPriceAsync(Guid skuId)
     {
         EnsureInitialized();
 
-        var ingredient = State.Ingredients.FirstOrDefault(i => i.IngredientId == ingredientId)
-            ?? throw new InvalidOperationException("Ingredient not found");
+        var sku = State.Catalog.FirstOrDefault(i => i.SkuId == skuId)
+            ?? throw new InvalidOperationException("SKU not found in supplier catalog");
 
-        return Task.FromResult(ingredient.UnitPrice);
+        return Task.FromResult(sku.UnitPrice);
     }
 
     public async Task RecordPurchaseAsync(decimal amount, bool onTime)
@@ -259,11 +259,11 @@ public class SupplierGrain : JournaledGrain<SupplierState, ISupplierEvent>, ISup
             LeadTimeDays: State.LeadTimeDays,
             Notes: State.Notes,
             IsActive: State.IsActive,
-            Ingredients: State.Ingredients.Select(i => new SupplierIngredient(
-                IngredientId: i.IngredientId,
-                IngredientName: i.IngredientName,
-                Sku: i.Sku,
-                SupplierSku: i.SupplierSku,
+            Catalog: State.Catalog.Select(i => new SupplierCatalogItem(
+                SkuId: i.SkuId,
+                SkuCode: i.SkuCode,
+                ProductName: i.ProductName,
+                SupplierProductCode: i.SupplierProductCode,
                 UnitPrice: i.UnitPrice,
                 Unit: i.Unit,
                 MinOrderQuantity: i.MinOrderQuantity,

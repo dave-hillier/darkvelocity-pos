@@ -44,8 +44,9 @@ public class PurchaseOrderGrain : JournaledGrain<PurchaseOrderState, IPurchaseOr
                 state.Lines.Add(new PurchaseOrderLineState
                 {
                     LineId = e.LineId,
-                    IngredientId = e.IngredientId,
-                    IngredientName = e.IngredientName,
+                    SkuId = e.SkuId,
+                    SkuCode = e.SkuCode,
+                    ProductName = e.ProductName,
                     QuantityOrdered = e.QuantityOrdered,
                     UnitPrice = e.UnitPrice,
                     LineTotal = e.QuantityOrdered * e.UnitPrice,
@@ -156,8 +157,9 @@ public class PurchaseOrderGrain : JournaledGrain<PurchaseOrderState, IPurchaseOr
         {
             PurchaseOrderId = State.PurchaseOrderId,
             LineId = command.LineId,
-            IngredientId = command.IngredientId,
-            IngredientName = command.IngredientName,
+            SkuId = command.SkuId,
+            SkuCode = command.SkuCode,
+            ProductName = command.ProductName,
             QuantityOrdered = command.QuantityOrdered,
             UnitPrice = command.UnitPrice,
             Notes = command.Notes,
@@ -321,7 +323,7 @@ public class PurchaseOrderGrain : JournaledGrain<PurchaseOrderState, IPurchaseOr
         State.CancellationReason,
         State.OrderTotal,
         State.Lines.Select(l => new PurchaseOrderLineSnapshot(
-            l.LineId, l.IngredientId, l.IngredientName,
+            l.LineId, l.SkuId, l.SkuCode, l.ProductName,
             l.QuantityOrdered, l.QuantityReceived,
             l.UnitPrice, l.LineTotal, l.Notes)).ToList(),
         State.Notes);

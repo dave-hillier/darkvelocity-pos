@@ -29,12 +29,13 @@ public sealed record PurchaseOrderLineAdded : IPurchaseOrderEvent
 {
     [Id(0)] public Guid PurchaseOrderId { get; init; }
     [Id(1)] public Guid LineId { get; init; }
-    [Id(2)] public Guid IngredientId { get; init; }
-    [Id(3)] public string IngredientName { get; init; } = "";
+    [Id(2)] public Guid SkuId { get; init; }
+    [Id(3)] public string SkuCode { get; init; } = "";
     [Id(4)] public decimal QuantityOrdered { get; init; }
     [Id(5)] public decimal UnitPrice { get; init; }
     [Id(6)] public string? Notes { get; init; }
     [Id(7)] public DateTime OccurredAt { get; init; }
+    [Id(8)] public string ProductName { get; init; } = "";
 }
 
 [GenerateSerializer]

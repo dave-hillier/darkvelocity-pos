@@ -32,8 +32,8 @@ public sealed record DeliveryLineAdded : IDeliveryEvent
 {
     [Id(0)] public Guid DeliveryId { get; init; }
     [Id(1)] public Guid LineId { get; init; }
-    [Id(2)] public Guid IngredientId { get; init; }
-    [Id(3)] public string IngredientName { get; init; } = "";
+    [Id(2)] public Guid SkuId { get; init; }
+    [Id(3)] public string SkuCode { get; init; } = "";
     [Id(4)] public Guid? PurchaseOrderLineId { get; init; }
     [Id(5)] public decimal QuantityReceived { get; init; }
     [Id(6)] public decimal UnitCost { get; init; }
@@ -41,6 +41,7 @@ public sealed record DeliveryLineAdded : IDeliveryEvent
     [Id(8)] public DateTime? ExpiryDate { get; init; }
     [Id(9)] public string? Notes { get; init; }
     [Id(10)] public DateTime OccurredAt { get; init; }
+    [Id(11)] public string ProductName { get; init; } = "";
 }
 
 [GenerateSerializer]

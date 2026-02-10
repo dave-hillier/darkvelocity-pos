@@ -412,16 +412,16 @@ public class SupplierVersionHistoryTests
         snapshot.Name.Should().Be("Fresh Farms");
     }
 
-    // Given: a supplier with no ingredients
-    // When: an ingredient is added and its price is updated
+    // Given: a supplier with no catalog items
+    // When: a SKU is added and its price is updated
     // Then: the version increments for each operation and the new price is reflected
     [Fact]
-    public async Task AddIngredientAndUpdatePrice_ShouldIncrementVersion()
+    public async Task AddSkuAndUpdatePrice_ShouldIncrementVersion()
     {
         // Arrange
         var orgId = Guid.NewGuid();
         var supplierId = Guid.NewGuid();
-        var ingredientId = Guid.NewGuid();
+        var skuId = Guid.NewGuid();
         var grain = GetGrain(orgId, supplierId);
         await grain.CreateAsync(new CreateSupplierCommand(
             Code: "SUP002",
@@ -431,17 +431,17 @@ public class SupplierVersionHistoryTests
         var v1 = await grain.GetVersionAsync();
 
         // Act
-        await grain.AddIngredientAsync(new SupplierIngredientInput(
-            ingredientId, "Chicken Breast", null, null, 8.50m, "kg", null, null));
+        await grain.AddSkuAsync(new SupplierCatalogItem(
+            skuId, null, "Chicken Breast", null, 8.50m, "kg", null, null));
         var v2 = await grain.GetVersionAsync();
 
-        await grain.UpdateIngredientPriceAsync(ingredientId, 9.00m);
+        await grain.UpdateSkuPriceAsync(skuId, 9.00m);
         var v3 = await grain.GetVersionAsync();
 
         // Assert
         v2.Should().BeGreaterThan(v1);
         v3.Should().BeGreaterThan(v2);
-        var price = await grain.GetIngredientPriceAsync(ingredientId);
+        var price = await grain.GetSkuPriceAsync(skuId);
         price.Should().Be(9.00m);
     }
 }
