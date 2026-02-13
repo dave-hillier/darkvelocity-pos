@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { HalResource } from '../types'
+import type { HalResource, HalCollection } from '../types'
 
 export type TableStatus = 'Available' | 'Occupied' | 'Reserved' | 'Dirty' | 'Blocked' | 'OutOfService'
 export type TableShape = 'Square' | 'Round' | 'Rectangle' | 'Booth' | 'Bar' | 'Custom'
@@ -93,4 +93,9 @@ export async function setStatus(tableId: string, status: TableStatus): Promise<{
 export async function deleteTable(tableId: string): Promise<void> {
   const endpoint = apiClient.buildOrgSitePath(`/tables/${tableId}`)
   return apiClient.delete(endpoint)
+}
+
+export async function fetchTables(): Promise<HalCollection<Table>> {
+  const endpoint = apiClient.buildOrgSitePath('/tables')
+  return apiClient.get(endpoint)
 }

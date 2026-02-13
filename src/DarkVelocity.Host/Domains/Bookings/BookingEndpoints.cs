@@ -129,6 +129,21 @@ public static class BookingEndpoints
             return Results.Ok(Hal.Resource(new { message = "Booking completed" }, links));
         });
 
+        group.MapPost("/{bookingId}/no-show", async (
+            Guid orgId, Guid siteId, Guid bookingId,
+            [FromBody] NoShowRequest? request,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IBookingGrain>(GrainKeys.Booking(orgId, siteId, bookingId));
+            if (!await grain.ExistsAsync())
+                return Results.NotFound(Hal.Error("not_found", "Booking not found"));
+
+            await grain.MarkNoShowAsync(request?.MarkedBy);
+            var state = await grain.GetStateAsync();
+            var links = BuildBookingLinks(orgId, siteId, bookingId, state);
+            return Results.Ok(Hal.Resource(new { message = "Booking marked as no-show" }, links));
+        });
+
         return app;
     }
 

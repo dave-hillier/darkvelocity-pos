@@ -7,6 +7,7 @@ import DeviceSetupPage from './pages/DeviceSetupPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import PaymentPage from './pages/PaymentPage'
+import TablesPage from './pages/TablesPage'
 import { useAuth } from './contexts/AuthContext'
 
 function DeviceProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -79,6 +80,16 @@ function AppRoutes() {
               <OrderProvider>
                 <PaymentPage />
               </OrderProvider>
+            </UserProtectedRoute>
+          </DeviceProtectedRoute>
+        }
+      />
+      <Route
+        path="/tables"
+        element={
+          <DeviceProtectedRoute>
+            <UserProtectedRoute>
+              <TablesPage />
             </UserProtectedRoute>
           </DeviceProtectedRoute>
         }

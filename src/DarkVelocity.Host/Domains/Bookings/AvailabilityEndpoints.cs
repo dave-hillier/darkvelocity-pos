@@ -166,6 +166,67 @@ public static class AvailabilityEndpoints
             return Results.Ok(Hal.Collection($"/api/orgs/{orgId}/sites/{siteId}/bookings?date={targetDate:yyyy-MM-dd}", items, items.Count));
         }).WithTags("Bookings");
 
+        // Day view with stats and time slots
+        app.MapGet("/api/orgs/{orgId}/sites/{siteId}/bookings/day-view", async (
+            Guid orgId, Guid siteId,
+            [FromQuery] DateOnly? date,
+            IGrainFactory grainFactory) =>
+        {
+            var targetDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
+            var grain = grainFactory.GetGrain<IBookingCalendarGrain>(GrainKeys.BookingCalendar(orgId, siteId, targetDate));
+
+            if (!await grain.ExistsAsync())
+            {
+                return Results.Ok(Hal.Resource(new
+                {
+                    date = targetDate.ToString("yyyy-MM-dd"),
+                    totalBookings = 0,
+                    totalCovers = 0,
+                    confirmedBookings = 0,
+                    seatedBookings = 0,
+                    noShowCount = 0,
+                    slots = Array.Empty<object>()
+                }, new Dictionary<string, object>
+                {
+                    ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings/day-view?date={targetDate:yyyy-MM-dd}" },
+                    ["bookings"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings?date={targetDate:yyyy-MM-dd}" }
+                }));
+            }
+
+            var dayView = await grain.GetDayViewAsync(TimeSpan.FromMinutes(30));
+            return Results.Ok(Hal.Resource(new
+            {
+                date = dayView.Date.ToString("yyyy-MM-dd"),
+                totalBookings = dayView.TotalBookings,
+                totalCovers = dayView.TotalCovers,
+                confirmedBookings = dayView.ConfirmedBookings,
+                seatedBookings = dayView.SeatedBookings,
+                noShowCount = dayView.NoShowCount,
+                slots = dayView.Slots.Select(s => new
+                {
+                    startTime = s.StartTime.ToString("HH:mm"),
+                    endTime = s.EndTime.ToString("HH:mm"),
+                    bookingCount = s.BookingCount,
+                    coverCount = s.CoverCount,
+                    bookings = s.Bookings.Select(b => new
+                    {
+                        bookingId = b.BookingId,
+                        confirmationCode = b.ConfirmationCode,
+                        time = b.Time.ToString("HH:mm"),
+                        partySize = b.PartySize,
+                        guestName = b.GuestName,
+                        status = b.Status.ToString(),
+                        tableId = b.TableId,
+                        tableNumber = b.TableNumber
+                    })
+                })
+            }, new Dictionary<string, object>
+            {
+                ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings/day-view?date={targetDate:yyyy-MM-dd}" },
+                ["bookings"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/bookings?date={targetDate:yyyy-MM-dd}" }
+            }));
+        }).WithTags("Bookings");
+
         return app;
     }
 

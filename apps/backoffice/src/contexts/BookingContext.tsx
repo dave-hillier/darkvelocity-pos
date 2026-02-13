@@ -19,6 +19,9 @@ interface BookingContextValue extends BookingState {
   checkinBooking: (bookingId: string, checkedInBy: string) => Promise<void>
   seatBooking: (bookingId: string, tableId: string, tableNumber: string, seatedBy: string) => Promise<void>
   completeBooking: (bookingId: string) => Promise<void>
+  noShowBooking: (bookingId: string, markedBy?: string) => Promise<void>
+  fetchBookingsForDate: (date?: string) => Promise<void>
+  fetchTablesForSite: () => Promise<void>
   createTable: (data: Parameters<typeof tableApi.createTable>[0]) => Promise<void>
   seatGuests: (tableId: string, data: Parameters<typeof tableApi.seatGuests>[1]) => Promise<void>
   clearTable: (tableId: string) => Promise<void>
@@ -106,6 +109,45 @@ export function BookingProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function noShowBooking(bookingId: string, markedBy?: string) {
+    try {
+      await bookingApi.noShowBooking(bookingId, { markedBy })
+      dispatch({ type: 'BOOKING_NO_SHOW', payload: { bookingId } })
+    } catch (error) {
+      dispatch({ type: 'LOADING_FAILED', payload: { error: (error as Error).message } })
+    }
+  }
+
+  async function fetchBookingsForDate(date?: string) {
+    dispatch({ type: 'LOADING_STARTED' })
+    try {
+      const result = await bookingApi.fetchBookings(date)
+      const bookings = (result._embedded?.items ?? []).map((ref: bookingApi.BookingReference) => ({
+        id: ref.bookingId,
+        guest: { name: ref.guestName },
+        requestedTime: ref.time,
+        partySize: ref.partySize,
+        status: ref.status,
+        confirmationCode: ref.confirmationCode,
+        source: 'Direct',
+        _links: {},
+      } as bookingApi.Booking))
+      dispatch({ type: 'BOOKINGS_LOADED', payload: { bookings } })
+    } catch (error) {
+      dispatch({ type: 'LOADING_FAILED', payload: { error: (error as Error).message } })
+    }
+  }
+
+  async function fetchTablesForSite() {
+    try {
+      const result = await tableApi.fetchTables()
+      const tables = result._embedded?.items ?? []
+      dispatch({ type: 'TABLES_LOADED', payload: { tables } })
+    } catch (error) {
+      dispatch({ type: 'LOADING_FAILED', payload: { error: (error as Error).message } })
+    }
+  }
+
   async function createTable(data: Parameters<typeof tableApi.createTable>[0]) {
     dispatch({ type: 'LOADING_STARTED' })
     try {
@@ -150,6 +192,9 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         checkinBooking,
         seatBooking,
         completeBooking,
+        noShowBooking,
+        fetchBookingsForDate,
+        fetchTablesForSite,
         createTable,
         seatGuests,
         clearTable,

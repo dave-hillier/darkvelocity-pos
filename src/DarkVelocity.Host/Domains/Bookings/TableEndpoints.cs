@@ -12,6 +12,27 @@ public static class TableEndpoints
     {
         var group = app.MapGroup("/api/orgs/{orgId}/sites/{siteId}/tables").WithTags("Tables");
 
+        group.MapGet("/", async (Guid orgId, Guid siteId, IGrainFactory grainFactory) =>
+        {
+            var optimizerGrain = grainFactory.GetGrain<ITableAssignmentOptimizerGrain>(
+                GrainKeys.TableAssignmentOptimizer(orgId, siteId));
+            if (!await optimizerGrain.ExistsAsync())
+                return Results.Ok(Hal.Collection($"/api/orgs/{orgId}/sites/{siteId}/tables", new List<object>(), 0));
+
+            var tableIds = await optimizerGrain.GetRegisteredTableIdsAsync();
+            var tables = await Task.WhenAll(tableIds.Select(async tableId =>
+            {
+                var grain = grainFactory.GetGrain<ITableGrain>(GrainKeys.Table(orgId, siteId, tableId));
+                if (!await grain.ExistsAsync()) return null;
+                var state = await grain.GetStateAsync();
+                var links = BuildTableLinks(orgId, siteId, tableId, state);
+                return Hal.Resource(state, links);
+            }));
+
+            var items = tables.Where(t => t != null).ToList();
+            return Results.Ok(Hal.Collection($"/api/orgs/{orgId}/sites/{siteId}/tables", items!, items.Count));
+        });
+
         group.MapPost("/", async (
             Guid orgId,
             Guid siteId,
