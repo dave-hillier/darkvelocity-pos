@@ -33,6 +33,7 @@ import CustomerDetailPage from './pages/CustomerDetailPage'
 import BookingsPage from './pages/BookingsPage'
 import ArrivalsPage from './pages/ArrivalsPage'
 import FloorPlansPage from './pages/FloorPlansPage'
+import FloorPlanDesignerPage from './pages/FloorPlanDesignerPage'
 import ChannelsPage from './pages/ChannelsPage'
 import ChannelDetailPage from './pages/ChannelDetailPage'
 import DeviceAuthorizePage from './pages/DeviceAuthorizePage'
@@ -103,6 +104,7 @@ function AppRoutes() {
         <Route path="bookings" element={<BookingsPage />} />
         <Route path="bookings/arrivals" element={<ArrivalsPage />} />
         <Route path="bookings/floor-plans" element={<FloorPlansPage />} />
+        <Route path="bookings/floor-plans/:floorPlanId" element={<FloorPlanDesignerPage />} />
         <Route path="channels" element={<ChannelsPage />} />
         <Route path="channels/:channelId" element={<ChannelDetailPage />} />
         <Route path="devices/authorize" element={<DeviceAuthorizePage />} />

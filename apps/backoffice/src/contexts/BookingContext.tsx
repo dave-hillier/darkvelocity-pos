@@ -4,7 +4,7 @@ import * as bookingApi from '../api/bookings'
 import * as tableApi from '../api/tables'
 import * as floorPlanApi from '../api/floorPlans'
 import type { Booking } from '../api/bookings'
-import type { Table } from '../api/tables'
+import type { Table, TablePosition } from '../api/tables'
 import type { FloorPlan } from '../api/floorPlans'
 
 interface BookingContextValue extends BookingState {
@@ -22,7 +22,12 @@ interface BookingContextValue extends BookingState {
   noShowBooking: (bookingId: string, markedBy?: string) => Promise<void>
   fetchBookingsForDate: (date?: string) => Promise<void>
   fetchTablesForSite: () => Promise<void>
+  fetchFloorPlan: (floorPlanId: string) => Promise<FloorPlan | null>
+  createFloorPlan: (data: Parameters<typeof floorPlanApi.createFloorPlan>[0]) => Promise<string | null>
   createTable: (data: Parameters<typeof tableApi.createTable>[0]) => Promise<void>
+  createTableOnPlan: (floorPlanId: string, data: Parameters<typeof tableApi.createTable>[0]) => Promise<Table | null>
+  updateTablePosition: (tableId: string, position: TablePosition) => Promise<void>
+  removeTableFromPlan: (floorPlanId: string, tableId: string) => Promise<void>
   seatGuests: (tableId: string, data: Parameters<typeof tableApi.seatGuests>[1]) => Promise<void>
   clearTable: (tableId: string) => Promise<void>
   dispatch: React.Dispatch<BookingAction>
@@ -148,12 +153,69 @@ export function BookingProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function fetchFloorPlan(floorPlanId: string): Promise<FloorPlan | null> {
+    dispatch({ type: 'LOADING_STARTED' })
+    try {
+      const floorPlan = await floorPlanApi.getFloorPlan(floorPlanId)
+      dispatch({ type: 'FLOOR_PLAN_LOADED', payload: { floorPlan } })
+      return floorPlan
+    } catch (error) {
+      dispatch({ type: 'LOADING_FAILED', payload: { error: (error as Error).message } })
+      return null
+    }
+  }
+
+  async function createFloorPlanFn(data: Parameters<typeof floorPlanApi.createFloorPlan>[0]): Promise<string | null> {
+    dispatch({ type: 'LOADING_STARTED' })
+    try {
+      const result = await floorPlanApi.createFloorPlan(data)
+      const floorPlan = await floorPlanApi.getFloorPlan(result.id)
+      dispatch({ type: 'FLOOR_PLAN_LOADED', payload: { floorPlan } })
+      return result.id
+    } catch (error) {
+      dispatch({ type: 'LOADING_FAILED', payload: { error: (error as Error).message } })
+      return null
+    }
+  }
+
   async function createTable(data: Parameters<typeof tableApi.createTable>[0]) {
     dispatch({ type: 'LOADING_STARTED' })
     try {
       const result = await tableApi.createTable(data)
       const table = await tableApi.getTable(result.id)
       dispatch({ type: 'TABLES_LOADED', payload: { tables: [...state.tables, table] } })
+    } catch (error) {
+      dispatch({ type: 'LOADING_FAILED', payload: { error: (error as Error).message } })
+    }
+  }
+
+  async function createTableOnPlan(floorPlanId: string, data: Parameters<typeof tableApi.createTable>[0]): Promise<Table | null> {
+    try {
+      const result = await tableApi.createTable({ ...data, floorPlanId })
+      await floorPlanApi.addTable(floorPlanId, result.id)
+      const table = await tableApi.getTable(result.id)
+      dispatch({ type: 'TABLES_LOADED', payload: { tables: [...state.tables, table] } })
+      return table
+    } catch (error) {
+      dispatch({ type: 'LOADING_FAILED', payload: { error: (error as Error).message } })
+      return null
+    }
+  }
+
+  async function updateTablePosition(tableId: string, position: TablePosition) {
+    try {
+      const table = await tableApi.updateTable(tableId, { position })
+      dispatch({ type: 'TABLE_UPDATED', payload: { table } })
+    } catch (error) {
+      dispatch({ type: 'LOADING_FAILED', payload: { error: (error as Error).message } })
+    }
+  }
+
+  async function removeTableFromPlan(floorPlanId: string, tableId: string) {
+    try {
+      await floorPlanApi.removeTable(floorPlanId, tableId)
+      await tableApi.deleteTable(tableId)
+      dispatch({ type: 'TABLES_LOADED', payload: { tables: state.tables.filter(t => t.id !== tableId) } })
     } catch (error) {
       dispatch({ type: 'LOADING_FAILED', payload: { error: (error as Error).message } })
     }
@@ -195,7 +257,12 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         noShowBooking,
         fetchBookingsForDate,
         fetchTablesForSite,
+        fetchFloorPlan,
+        createFloorPlan: createFloorPlanFn,
         createTable,
+        createTableOnPlan,
+        updateTablePosition,
+        removeTableFromPlan,
         seatGuests,
         clearTable,
         dispatch,

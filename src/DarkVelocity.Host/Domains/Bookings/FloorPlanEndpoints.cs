@@ -1,5 +1,6 @@
 using DarkVelocity.Host.Contracts;
 using DarkVelocity.Host.Grains;
+using DarkVelocity.Host.State;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DarkVelocity.Host.Endpoints;
@@ -91,6 +92,72 @@ public static class FloorPlanEndpoints
                 return Results.NotFound(Hal.Error("not_found", "Floor plan not found"));
 
             await grain.RemoveTableAsync(tableId);
+            return Results.NoContent();
+        });
+
+        // Structural elements (walls, doors, dividers)
+        group.MapPost("/{floorPlanId}/elements", async (
+            Guid orgId, Guid siteId, Guid floorPlanId,
+            [FromBody] CreateFloorPlanElementRequest request,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IFloorPlanGrain>(GrainKeys.FloorPlan(orgId, siteId, floorPlanId));
+            if (!await grain.ExistsAsync())
+                return Results.NotFound(Hal.Error("not_found", "Floor plan not found"));
+
+            var element = new FloorPlanElement
+            {
+                Id = Guid.NewGuid(),
+                Type = request.Type,
+                X = request.X,
+                Y = request.Y,
+                Width = request.Width,
+                Height = request.Height,
+                Rotation = request.Rotation,
+                Label = request.Label
+            };
+
+            await grain.AddElementAsync(element);
+            return Results.Created(
+                $"/api/orgs/{orgId}/sites/{siteId}/floor-plans/{floorPlanId}/elements/{element.Id}",
+                Hal.Resource(element, new Dictionary<string, object>
+                {
+                    ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/floor-plans/{floorPlanId}/elements/{element.Id}" },
+                    ["floor-plan"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/floor-plans/{floorPlanId}" }
+                }));
+        });
+
+        group.MapPatch("/{floorPlanId}/elements/{elementId}", async (
+            Guid orgId, Guid siteId, Guid floorPlanId, Guid elementId,
+            [FromBody] UpdateFloorPlanElementRequest request,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IFloorPlanGrain>(GrainKeys.FloorPlan(orgId, siteId, floorPlanId));
+            if (!await grain.ExistsAsync())
+                return Results.NotFound(Hal.Error("not_found", "Floor plan not found"));
+
+            await grain.UpdateElementAsync(elementId, request.X, request.Y, request.Width, request.Height, request.Rotation, request.Label);
+            var state = await grain.GetStateAsync();
+            var element = state.Elements.FirstOrDefault(e => e.Id == elementId);
+
+            return element != null
+                ? Results.Ok(Hal.Resource(element, new Dictionary<string, object>
+                {
+                    ["self"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/floor-plans/{floorPlanId}/elements/{elementId}" },
+                    ["floor-plan"] = new { href = $"/api/orgs/{orgId}/sites/{siteId}/floor-plans/{floorPlanId}" }
+                }))
+                : Results.NotFound(Hal.Error("not_found", "Element not found"));
+        });
+
+        group.MapDelete("/{floorPlanId}/elements/{elementId}", async (
+            Guid orgId, Guid siteId, Guid floorPlanId, Guid elementId,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<IFloorPlanGrain>(GrainKeys.FloorPlan(orgId, siteId, floorPlanId));
+            if (!await grain.ExistsAsync())
+                return Results.NotFound(Hal.Error("not_found", "Floor plan not found"));
+
+            await grain.RemoveElementAsync(elementId);
             return Results.NoContent();
         });
 

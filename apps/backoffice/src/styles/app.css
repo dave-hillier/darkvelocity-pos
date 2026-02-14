@@ -83,3 +83,127 @@ main {
   background: var(--pico-del-color);
   color: white;
 }
+
+/* ============================================================================
+   Floor Plan Designer — custom layout needed for 3-panel editor
+   ============================================================================ */
+
+.floor-plan-designer {
+  display: grid;
+  grid-template-columns: 200px 1fr 280px;
+  height: calc(100vh - 5rem);
+  gap: 0;
+  margin: -1.5rem;
+  margin-top: 0;
+}
+
+.floor-plan-palette {
+  border-right: 1px solid var(--pico-muted-border-color);
+  padding: 1rem;
+  overflow-y: auto;
+  background: var(--pico-card-background-color);
+}
+
+.floor-plan-canvas-wrapper {
+  overflow: auto;
+  background: color-mix(in srgb, var(--pico-background-color) 95%, var(--pico-muted-color) 5%);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.floor-plan-properties {
+  border-left: 1px solid var(--pico-muted-border-color);
+  padding: 1rem;
+  overflow-y: auto;
+  background: var(--pico-card-background-color);
+}
+
+.palette-section {
+  margin-bottom: 1.5rem;
+}
+
+.palette-section h4 {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--pico-muted-color);
+  margin-bottom: 0.5rem;
+}
+
+.palette-item {
+  cursor: pointer;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--pico-border-radius);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  transition: background 0.15s;
+  font-size: 0.875rem;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  color: var(--pico-color);
+}
+
+.palette-item:hover {
+  background: var(--pico-secondary-focus);
+}
+
+.palette-item svg {
+  flex-shrink: 0;
+}
+
+/* SVG canvas styles */
+.floor-plan-svg {
+  border-radius: var(--pico-border-radius);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  cursor: default;
+}
+
+.floor-plan-svg .table-group {
+  cursor: grab;
+}
+
+.floor-plan-svg .table-group:active {
+  cursor: grabbing;
+}
+
+.floor-plan-svg .element-group {
+  cursor: grab;
+}
+
+.floor-plan-svg .element-group:active {
+  cursor: grabbing;
+}
+
+/* Properties panel form styling */
+.floor-plan-properties label {
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.floor-plan-properties input,
+.floor-plan-properties select {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.floor-plan-properties h4 {
+  margin-bottom: 0.75rem;
+}
+
+/* Merge connector */
+.merge-connector {
+  stroke-dasharray: 6 4;
+  animation: merge-dash 0.8s linear infinite;
+}
+
+@keyframes merge-dash {
+  to {
+    stroke-dashoffset: -10;
+  }
+}

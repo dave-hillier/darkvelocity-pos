@@ -53,6 +53,23 @@ public record UpdateFloorPlanRequest(
 
 public record AddTableToFloorPlanRequest(Guid TableId);
 
+public record CreateFloorPlanElementRequest(
+    FloorPlanElementType Type,
+    int X,
+    int Y,
+    int Width,
+    int Height,
+    int Rotation = 0,
+    string? Label = null);
+
+public record UpdateFloorPlanElementRequest(
+    int? X = null,
+    int? Y = null,
+    int? Width = null,
+    int? Height = null,
+    int? Rotation = null,
+    string? Label = null);
+
 // ============================================================================
 // Waitlist Request DTOs
 // ============================================================================
