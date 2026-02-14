@@ -113,6 +113,11 @@ public interface IFloorPlanGrain : IGrainWithStringKey
     Task AssignTableToSectionAsync(Guid tableId, Guid sectionId);
     Task UnassignTableFromSectionAsync(Guid tableId);
 
+    // Structural elements (walls, doors, dividers)
+    Task AddElementAsync(FloorPlanElement element);
+    Task RemoveElementAsync(Guid elementId);
+    Task UpdateElementAsync(Guid elementId, int? x = null, int? y = null, int? width = null, int? height = null, int? rotation = null, string? label = null);
+
     // Status
     Task SetDefaultAsync();
     Task ActivateAsync();

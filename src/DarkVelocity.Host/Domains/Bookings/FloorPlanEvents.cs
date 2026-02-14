@@ -1,3 +1,5 @@
+using DarkVelocity.Host.State;
+
 namespace DarkVelocity.Host.Events;
 
 /// <summary>
@@ -120,4 +122,40 @@ public sealed record FloorPlanActivated(
 public sealed record FloorPlanDeactivated(
     [property: Id(0)] Guid FloorPlanId,
     [property: Id(1)] DateTimeOffset OccurredAt
+) : IFloorPlanEvent;
+
+/// <summary>
+/// Domain event: A structural element (wall, door, divider) was added to the floor plan.
+/// </summary>
+[GenerateSerializer]
+public sealed record FloorPlanElementAdded(
+    [property: Id(0)] Guid FloorPlanId,
+    [property: Id(1)] DateTimeOffset OccurredAt,
+    [property: Id(2)] FloorPlanElement Element
+) : IFloorPlanEvent;
+
+/// <summary>
+/// Domain event: A structural element was removed from the floor plan.
+/// </summary>
+[GenerateSerializer]
+public sealed record FloorPlanElementRemoved(
+    [property: Id(0)] Guid FloorPlanId,
+    [property: Id(1)] DateTimeOffset OccurredAt,
+    [property: Id(2)] Guid ElementId
+) : IFloorPlanEvent;
+
+/// <summary>
+/// Domain event: A structural element was updated on the floor plan.
+/// </summary>
+[GenerateSerializer]
+public sealed record FloorPlanElementUpdated(
+    [property: Id(0)] Guid FloorPlanId,
+    [property: Id(1)] DateTimeOffset OccurredAt,
+    [property: Id(2)] Guid ElementId,
+    [property: Id(3)] int? X = null,
+    [property: Id(4)] int? Y = null,
+    [property: Id(5)] int? Width = null,
+    [property: Id(6)] int? Height = null,
+    [property: Id(7)] int? Rotation = null,
+    [property: Id(8)] string? Label = null
 ) : IFloorPlanEvent;

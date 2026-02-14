@@ -348,6 +348,37 @@ public class FloorPlanGrain : JournaledGrain<FloorPlanState, IFloorPlanEvent>, I
                 state.UpdatedAt = e.OccurredAt.UtcDateTime;
                 state.Version++;
                 break;
+
+            case FloorPlanElementAdded e:
+                state.Elements.Add(e.Element);
+                state.UpdatedAt = e.OccurredAt.UtcDateTime;
+                state.Version++;
+                break;
+
+            case FloorPlanElementRemoved e:
+                state.Elements.RemoveAll(el => el.Id == e.ElementId);
+                state.UpdatedAt = e.OccurredAt.UtcDateTime;
+                state.Version++;
+                break;
+
+            case FloorPlanElementUpdated e:
+                var elIndex = state.Elements.FindIndex(el => el.Id == e.ElementId);
+                if (elIndex >= 0)
+                {
+                    var existing = state.Elements[elIndex];
+                    state.Elements[elIndex] = existing with
+                    {
+                        X = e.X ?? existing.X,
+                        Y = e.Y ?? existing.Y,
+                        Width = e.Width ?? existing.Width,
+                        Height = e.Height ?? existing.Height,
+                        Rotation = e.Rotation ?? existing.Rotation,
+                        Label = e.Label ?? existing.Label
+                    };
+                }
+                state.UpdatedAt = e.OccurredAt.UtcDateTime;
+                state.Version++;
+                break;
         }
     }
 
@@ -524,6 +555,51 @@ public class FloorPlanGrain : JournaledGrain<FloorPlanState, IFloorPlanEvent>, I
         ));
 
         await ConfirmEvents();
+    }
+
+    public async Task AddElementAsync(FloorPlanElement element)
+    {
+        EnsureExists();
+
+        RaiseEvent(new FloorPlanElementAdded(
+            FloorPlanId: State.Id,
+            OccurredAt: DateTimeOffset.UtcNow,
+            Element: element
+        ));
+
+        await ConfirmEvents();
+    }
+
+    public async Task RemoveElementAsync(Guid elementId)
+    {
+        EnsureExists();
+        if (State.Elements.Any(e => e.Id == elementId))
+        {
+            RaiseEvent(new FloorPlanElementRemoved(
+                FloorPlanId: State.Id,
+                OccurredAt: DateTimeOffset.UtcNow,
+                ElementId: elementId
+            ));
+
+            await ConfirmEvents();
+        }
+    }
+
+    public async Task UpdateElementAsync(Guid elementId, int? x = null, int? y = null, int? width = null, int? height = null, int? rotation = null, string? label = null)
+    {
+        EnsureExists();
+        if (State.Elements.Any(e => e.Id == elementId))
+        {
+            RaiseEvent(new FloorPlanElementUpdated(
+                FloorPlanId: State.Id,
+                OccurredAt: DateTimeOffset.UtcNow,
+                ElementId: elementId,
+                X: x, Y: y, Width: width, Height: height,
+                Rotation: rotation, Label: label
+            ));
+
+            await ConfirmEvents();
+        }
     }
 
     public async Task AssignTableToSectionAsync(Guid tableId, Guid sectionId)

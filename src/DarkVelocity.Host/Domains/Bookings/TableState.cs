@@ -70,6 +70,26 @@ public sealed class TableState
 }
 
 // Floor Plan State
+public enum FloorPlanElementType
+{
+    Wall,
+    Door,
+    Divider
+}
+
+[GenerateSerializer]
+public record FloorPlanElement
+{
+    [Id(0)] public Guid Id { get; init; }
+    [Id(1)] public FloorPlanElementType Type { get; init; }
+    [Id(2)] public int X { get; init; }
+    [Id(3)] public int Y { get; init; }
+    [Id(4)] public int Width { get; init; }
+    [Id(5)] public int Height { get; init; }
+    [Id(6)] public int Rotation { get; init; }
+    [Id(7)] public string? Label { get; init; }
+}
+
 [GenerateSerializer]
 public record FloorPlanSection
 {
@@ -100,6 +120,7 @@ public sealed class FloorPlanState
     [Id(11)] public DateTime CreatedAt { get; set; }
     [Id(12)] public DateTime? UpdatedAt { get; set; }
     [Id(13)] public int Version { get; set; }
+    [Id(14)] public List<FloorPlanElement> Elements { get; set; } = [];
 }
 
 // Booking Availability

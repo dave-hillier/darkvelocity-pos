@@ -15,7 +15,9 @@ export type BookingAction =
   | { type: 'BOOKING_NO_SHOW'; payload: { bookingId: string } }
   | { type: 'TABLES_LOADED'; payload: { tables: Table[] } }
   | { type: 'TABLE_STATUS_CHANGED'; payload: { tableId: string; status: string } }
+  | { type: 'TABLE_UPDATED'; payload: { table: Table } }
   | { type: 'FLOOR_PLANS_LOADED'; payload: { floorPlans: FloorPlan[] } }
+  | { type: 'FLOOR_PLAN_LOADED'; payload: { floorPlan: FloorPlan } }
   | { type: 'LOADING_STARTED' }
   | { type: 'LOADING_FAILED'; payload: { error: string } }
 
@@ -151,8 +153,28 @@ export function bookingReducer(state: BookingState, action: BookingAction): Book
       }
     }
 
+    case 'TABLE_UPDATED': {
+      const { table } = action.payload
+      return {
+        ...state,
+        tables: state.tables.map(t => t.id === table.id ? table : t),
+      }
+    }
+
     case 'FLOOR_PLANS_LOADED':
       return { ...state, floorPlans: action.payload.floorPlans, isLoading: false }
+
+    case 'FLOOR_PLAN_LOADED': {
+      const { floorPlan } = action.payload
+      const exists = state.floorPlans.some(fp => fp.id === floorPlan.id)
+      return {
+        ...state,
+        floorPlans: exists
+          ? state.floorPlans.map(fp => fp.id === floorPlan.id ? floorPlan : fp)
+          : [...state.floorPlans, floorPlan],
+        isLoading: false,
+      }
+    }
 
     default:
       return state
