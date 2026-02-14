@@ -43,6 +43,7 @@ const navSections = [
   {
     title: 'Bookings',
     links: [
+      { to: '/bookings/arrivals', label: 'Arrivals' },
       { to: '/bookings', label: 'Reservations' },
       { to: '/bookings/floor-plans', label: 'Floor Plans' },
     ],

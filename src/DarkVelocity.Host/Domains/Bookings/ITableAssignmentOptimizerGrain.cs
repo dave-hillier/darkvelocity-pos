@@ -119,6 +119,11 @@ public interface ITableAssignmentOptimizerGrain : IGrainWithStringKey
     /// </summary>
     Task<IReadOnlyList<ServerWorkload>> GetServerWorkloadsAsync();
 
+    /// <summary>
+    /// Gets IDs of all registered tables.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> GetRegisteredTableIdsAsync();
+
     Task<bool> ExistsAsync();
 }
 

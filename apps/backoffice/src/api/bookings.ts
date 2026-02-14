@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { HalResource } from '../types'
+import type { HalResource, HalCollection } from '../types'
 
 export interface GuestInfo {
   name: string
@@ -94,4 +94,53 @@ export async function completeBooking(bookingId: string, data?: {
 }): Promise<HalResource> {
   const endpoint = apiClient.buildOrgSitePath(`/bookings/${bookingId}/complete`)
   return apiClient.post(endpoint, data ?? {})
+}
+
+export async function noShowBooking(bookingId: string, data?: {
+  markedBy?: string
+}): Promise<HalResource> {
+  const endpoint = apiClient.buildOrgSitePath(`/bookings/${bookingId}/no-show`)
+  return apiClient.post(endpoint, data ?? {})
+}
+
+export interface BookingReference {
+  bookingId: string
+  confirmationCode: string
+  time: string
+  partySize: number
+  guestName: string
+  status: BookingStatus
+  tableId?: string
+  tableNumber?: string
+  duration?: string
+}
+
+export interface DayViewSlot {
+  startTime: string
+  endTime: string
+  bookingCount: number
+  coverCount: number
+  bookings: BookingReference[]
+}
+
+export interface DayView {
+  date: string
+  totalBookings: number
+  totalCovers: number
+  confirmedBookings: number
+  seatedBookings: number
+  noShowCount: number
+  slots: DayViewSlot[]
+}
+
+export async function fetchBookings(date?: string): Promise<HalCollection<BookingReference>> {
+  const params = date ? `?date=${date}` : ''
+  const endpoint = apiClient.buildOrgSitePath(`/bookings${params}`)
+  return apiClient.get(endpoint)
+}
+
+export async function fetchDayView(date?: string): Promise<DayView & HalResource> {
+  const params = date ? `?date=${date}` : ''
+  const endpoint = apiClient.buildOrgSitePath(`/bookings/day-view${params}`)
+  return apiClient.get(endpoint)
 }

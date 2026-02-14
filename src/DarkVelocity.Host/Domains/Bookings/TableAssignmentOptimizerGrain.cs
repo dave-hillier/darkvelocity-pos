@@ -298,6 +298,12 @@ public class TableAssignmentOptimizerGrain : Grain, ITableAssignmentOptimizerGra
         return Task.FromResult<IReadOnlyList<ServerWorkload>>(workloads);
     }
 
+    public Task<IReadOnlyList<Guid>> GetRegisteredTableIdsAsync()
+    {
+        IReadOnlyList<Guid> ids = _state.State.Tables.Select(t => t.TableId).ToList();
+        return Task.FromResult(ids);
+    }
+
     public Task<bool> ExistsAsync() => Task.FromResult(_state.State.SiteId != Guid.Empty);
 
     private int CalculateTableScore(OptimizableTable table, TableAssignmentRequest request)

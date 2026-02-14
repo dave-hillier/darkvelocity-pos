@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useOrder } from '../contexts/OrderContext'
 
 function formatCurrency(amount: number): string {
@@ -13,6 +14,7 @@ interface ActionsMenuProps {
 }
 
 export default function ActionsMenu({ onClose }: ActionsMenuProps) {
+  const navigate = useNavigate()
   const { order, clearOrder, clearUnsentItems, applyOrderDiscount } = useOrder()
   const [showOrderDiscount, setShowOrderDiscount] = useState(false)
   const [discountValue, setDiscountValue] = useState('')
@@ -124,6 +126,15 @@ export default function ActionsMenu({ onClose }: ActionsMenuProps) {
                 onClick={handleVoid}
               >
                 Void Order
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                className="outline"
+                onClick={() => { onClose(); navigate('/tables') }}
+              >
+                View Bookings
               </button>
             </li>
           </ul>

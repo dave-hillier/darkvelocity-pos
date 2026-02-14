@@ -31,6 +31,7 @@ import EmployeeDetailPage from './pages/EmployeeDetailPage'
 import CustomersPage from './pages/CustomersPage'
 import CustomerDetailPage from './pages/CustomerDetailPage'
 import BookingsPage from './pages/BookingsPage'
+import ArrivalsPage from './pages/ArrivalsPage'
 import FloorPlansPage from './pages/FloorPlansPage'
 import ChannelsPage from './pages/ChannelsPage'
 import ChannelDetailPage from './pages/ChannelDetailPage'
@@ -100,6 +101,7 @@ function AppRoutes() {
         <Route path="customers" element={<CustomersPage />} />
         <Route path="customers/:customerId" element={<CustomerDetailPage />} />
         <Route path="bookings" element={<BookingsPage />} />
+        <Route path="bookings/arrivals" element={<ArrivalsPage />} />
         <Route path="bookings/floor-plans" element={<FloorPlansPage />} />
         <Route path="channels" element={<ChannelsPage />} />
         <Route path="channels/:channelId" element={<ChannelDetailPage />} />

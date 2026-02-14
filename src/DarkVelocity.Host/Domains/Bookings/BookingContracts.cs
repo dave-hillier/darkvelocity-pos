@@ -18,3 +18,4 @@ public record CancelBookingRequest(string Reason, Guid CancelledBy);
 public record CheckInRequest(Guid CheckedInBy);
 public record SeatGuestRequest(Guid TableId, string TableNumber, Guid SeatedBy);
 public record CompleteBookingRequest(Guid? OrderId = null);
+public record NoShowRequest(Guid? MarkedBy = null);

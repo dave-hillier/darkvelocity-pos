@@ -12,6 +12,7 @@ export type BookingAction =
   | { type: 'BOOKING_CHECKED_IN'; payload: { bookingId: string; arrivedAt: string } }
   | { type: 'BOOKING_SEATED'; payload: { bookingId: string; tableId: string } }
   | { type: 'BOOKING_COMPLETED'; payload: { bookingId: string } }
+  | { type: 'BOOKING_NO_SHOW'; payload: { bookingId: string } }
   | { type: 'TABLES_LOADED'; payload: { tables: Table[] } }
   | { type: 'TABLE_STATUS_CHANGED'; payload: { tableId: string; status: string } }
   | { type: 'FLOOR_PLANS_LOADED'; payload: { floorPlans: FloorPlan[] } }
@@ -121,6 +122,18 @@ export function bookingReducer(state: BookingState, action: BookingAction): Book
         bookings,
         selectedBooking: state.selectedBooking?.id === bookingId
           ? { ...state.selectedBooking, status: 'Completed' }
+          : state.selectedBooking,
+      }
+    }
+
+    case 'BOOKING_NO_SHOW': {
+      const { bookingId } = action.payload
+      const bookings = updateBookingStatus(state.bookings, bookingId, 'NoShow')
+      return {
+        ...state,
+        bookings,
+        selectedBooking: state.selectedBooking?.id === bookingId
+          ? { ...state.selectedBooking, status: 'NoShow' }
           : state.selectedBooking,
       }
     }
