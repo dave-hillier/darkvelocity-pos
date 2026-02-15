@@ -198,19 +198,51 @@ public class BookingCalendarGrainImpl : Grain, IBookingCalendarGrain
 
         var settings = await settingsGrain.GetStateAsync();
         var interval = settings.SlotInterval;
-        var duration = query.RequestedDuration ?? settings.DefaultDuration;
         var turnoverBuffer = settings.TurnoverBuffer;
+
+        // Resolve base duration (meal period or site default)
+        var baseDuration = query.RequestedDuration ?? settings.DefaultDuration;
 
         // Check blocked dates
         if (settings.BlockedDates.Contains(query.Date))
         {
-            return GenerateUnavailableSlots(settings.DefaultOpenTime, settings.DefaultCloseTime, interval, duration);
+            return GenerateUnavailableSlots(settings.DefaultOpenTime, settings.DefaultCloseTime, interval, baseDuration);
         }
 
         // Check party size
         if (query.PartySize > settings.MaxPartySizeOnline)
         {
-            return GenerateUnavailableSlots(settings.DefaultOpenTime, settings.DefaultCloseTime, interval, duration);
+            return GenerateUnavailableSlots(settings.DefaultOpenTime, settings.DefaultCloseTime, interval, baseDuration);
+        }
+
+        // Compute last seating cutoff
+        var lastSeatingCutoff = settings.DefaultCloseTime;
+        if (settings.LastSeatingOffset > TimeSpan.Zero)
+        {
+            lastSeatingCutoff = settings.DefaultCloseTime.Add(-settings.LastSeatingOffset);
+        }
+
+        // Pre-compute channel quota state
+        var isStaffSource = query.Source is BookingSource.Direct or BookingSource.Phone;
+        var channelQuotaExceeded = false;
+        if (!isStaffSource && query.Source.HasValue && settings.ChannelQuotas.Count > 0)
+        {
+            var quota = settings.ChannelQuotas.FirstOrDefault(q => q.Source == query.Source.Value);
+            if (quota != null)
+            {
+                var channelCovers = _state.State.TotalCovers; // simplified: use total covers for day
+                channelQuotaExceeded = channelCovers >= quota.MaxCoversPerDay;
+            }
+        }
+
+        // Pre-compute walk-in holdback
+        var walkInHoldbackExceeded = false;
+        if (!isStaffSource && settings.WalkInHoldbackPercent > 0)
+        {
+            var totalCapacity = settings.MaxBookingsPerSlot * ((int)((settings.DefaultCloseTime - settings.DefaultOpenTime) / interval));
+            var reservedForWalkIns = totalCapacity * settings.WalkInHoldbackPercent / 100;
+            var totalBookings = _state.State.Bookings.Count;
+            walkInHoldbackExceeded = totalBookings >= (totalCapacity - reservedForWalkIns);
         }
 
         // Try to get table recommendations from optimizer
@@ -223,16 +255,87 @@ public class BookingCalendarGrainImpl : Grain, IBookingCalendarGrain
 
         while (currentTime < closeTime)
         {
+            // Resolve duration for this slot's meal period
+            var slotDuration = ResolveDurationForSlot(currentTime, baseDuration, settings);
+
+            // Resolve per-period last seating offset
+            var effectiveLastSeating = lastSeatingCutoff;
+            if (settings.MealPeriods.Count > 0)
+            {
+                var period = settings.MealPeriods.FirstOrDefault(p => currentTime >= p.StartTime && currentTime < p.EndTime);
+                if (period?.LastSeatingOffset.HasValue == true)
+                {
+                    var periodLastSeating = period.EndTime.Add(-period.LastSeatingOffset.Value);
+                    if (periodLastSeating < effectiveLastSeating)
+                        effectiveLastSeating = periodLastSeating;
+                }
+            }
+
+            // Rule: Last seating time
+            if (currentTime >= effectiveLastSeating)
+            {
+                slots.Add(UnavailableSlot(currentTime, slotDuration));
+                currentTime = currentTime.Add(interval);
+                continue;
+            }
+
+            // Rule: Minimum lead time (close to arrival)
+            if (!isStaffSource && settings.MinLeadTimeHours > 0 && query.CurrentTime.HasValue)
+            {
+                var slotDateTime = query.Date.ToDateTime(currentTime);
+                var leadTime = slotDateTime - query.CurrentTime.Value;
+                if (leadTime.TotalHours < (double)settings.MinLeadTimeHours)
+                {
+                    slots.Add(UnavailableSlot(currentTime, slotDuration));
+                    currentTime = currentTime.Add(interval);
+                    continue;
+                }
+            }
+
+            // Rule: Channel quota exceeded
+            if (channelQuotaExceeded)
+            {
+                slots.Add(UnavailableSlot(currentTime, slotDuration));
+                currentTime = currentTime.Add(interval);
+                continue;
+            }
+
+            // Rule: Walk-in holdback exceeded
+            if (walkInHoldbackExceeded)
+            {
+                slots.Add(UnavailableSlot(currentTime, slotDuration));
+                currentTime = currentTime.Add(interval);
+                continue;
+            }
+
             // Count bookings that overlap this time slot (considering duration + turnover buffer)
             var overlappingBookings = _state.State.Bookings.Count(b =>
             {
-                var bookingDuration = b.Duration ?? duration;
+                var bookingDuration = b.Duration ?? slotDuration;
                 var bookingEnd = b.Time.Add(bookingDuration).Add(turnoverBuffer);
                 return b.Time <= currentTime && bookingEnd > currentTime;
             });
 
             var slotAvailableByCount = overlappingBookings < settings.MaxBookingsPerSlot;
             var availableCapacity = Math.Max(0, settings.MaxBookingsPerSlot - overlappingBookings);
+
+            // Rule: Pacing — covers per interval window
+            var pacingAvailable = true;
+            if (settings.MaxCoversPerInterval > 0)
+            {
+                var windowSlots = Math.Max(1, settings.PacingWindowSlots);
+                var windowStart = currentTime;
+                var windowEnd = currentTime.Add(interval * windowSlots);
+
+                var coversInWindow = _state.State.Bookings
+                    .Where(b => b.Time >= windowStart && b.Time < windowEnd)
+                    .Sum(b => b.PartySize);
+
+                if (coversInWindow + query.PartySize > settings.MaxCoversPerInterval)
+                {
+                    pacingAvailable = false;
+                }
+            }
 
             // Get table suggestions from optimizer if available
             var suggestedTables = new List<TableSuggestion>();
@@ -245,7 +348,7 @@ public class BookingCalendarGrainImpl : Grain, IBookingCalendarGrain
                     BookingId: Guid.Empty,
                     PartySize: query.PartySize,
                     BookingTime: bookingDateTime,
-                    Duration: duration));
+                    Duration: slotDuration));
 
                 if (recommendations.Success && recommendations.Recommendations.Count > 0)
                 {
@@ -253,7 +356,7 @@ public class BookingCalendarGrainImpl : Grain, IBookingCalendarGrain
                     var bookedTableIds = _state.State.Bookings
                         .Where(b =>
                         {
-                            var bookingDuration = b.Duration ?? duration;
+                            var bookingDuration = b.Duration ?? slotDuration;
                             var bookingEnd = b.Time.Add(bookingDuration).Add(turnoverBuffer);
                             return b.Time <= currentTime && bookingEnd > currentTime && b.TableId.HasValue;
                         })
@@ -282,21 +385,42 @@ public class BookingCalendarGrainImpl : Grain, IBookingCalendarGrain
                 }
             }
 
-            var isAvailable = slotAvailableByCount && hasAvailableTables;
+            var isAvailable = slotAvailableByCount && hasAvailableTables && pacingAvailable;
 
             slots.Add(new AvailableTimeSlot
             {
                 Time = currentTime,
                 IsAvailable = isAvailable,
-                AvailableCapacity = availableCapacity,
+                AvailableCapacity = isAvailable ? availableCapacity : 0,
                 SuggestedTables = suggestedTables,
-                EstimatedDuration = duration
+                EstimatedDuration = slotDuration
             });
 
             currentTime = currentTime.Add(interval);
         }
 
         return slots;
+    }
+
+    private static TimeSpan ResolveDurationForSlot(TimeOnly slotTime, TimeSpan baseDuration, BookingSettingsState settings)
+    {
+        if (settings.MealPeriods.Count == 0)
+            return baseDuration;
+
+        var period = settings.MealPeriods.FirstOrDefault(p => slotTime >= p.StartTime && slotTime < p.EndTime);
+        return period?.DefaultDuration ?? baseDuration;
+    }
+
+    private static AvailableTimeSlot UnavailableSlot(TimeOnly time, TimeSpan duration)
+    {
+        return new AvailableTimeSlot
+        {
+            Time = time,
+            IsAvailable = false,
+            AvailableCapacity = 0,
+            SuggestedTables = [],
+            EstimatedDuration = duration
+        };
     }
 
     private static IReadOnlyList<AvailableTimeSlot> GenerateUnavailableSlots(

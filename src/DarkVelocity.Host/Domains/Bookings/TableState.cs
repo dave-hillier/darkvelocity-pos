@@ -133,6 +133,26 @@ public record AvailabilitySlot
     [Id(3)] public List<Guid> AvailableTableIds { get; init; } = [];
 }
 
+// Meal period configuration for time-based rules
+[GenerateSerializer]
+public record MealPeriodConfig
+{
+    [Id(0)] public string Name { get; init; } = string.Empty;
+    [Id(1)] public TimeOnly StartTime { get; init; }
+    [Id(2)] public TimeOnly EndTime { get; init; }
+    [Id(3)] public TimeSpan DefaultDuration { get; init; } = TimeSpan.FromMinutes(90);
+    [Id(4)] public TimeSpan? LastSeatingOffset { get; init; }
+}
+
+// Channel quota for booking source limits
+[GenerateSerializer]
+public record ChannelQuotaConfig
+{
+    [Id(0)] public BookingSource Source { get; init; }
+    [Id(1)] public int MaxCoversPerDay { get; init; }
+    [Id(2)] public int Priority { get; init; } // Lower = closes later
+}
+
 [GenerateSerializer]
 public sealed class BookingSettingsState
 {
@@ -159,4 +179,21 @@ public sealed class BookingSettingsState
 
     [Id(14)] public List<DateOnly> BlockedDates { get; set; } = [];
     [Id(15)] public int Version { get; set; }
+
+    // Pacing & staggering
+    [Id(16)] public int MaxCoversPerInterval { get; set; } // 0 = disabled
+    [Id(17)] public int PacingWindowSlots { get; set; } = 1;
+
+    // Minimum lead time (close to arrival)
+    [Id(18)] public decimal MinLeadTimeHours { get; set; } // 0 = disabled
+
+    // Last seating
+    [Id(19)] public TimeSpan LastSeatingOffset { get; set; } // TimeSpan.Zero = disabled
+
+    // Meal periods
+    [Id(20)] public List<MealPeriodConfig> MealPeriods { get; set; } = [];
+
+    // Channel quotas
+    [Id(21)] public List<ChannelQuotaConfig> ChannelQuotas { get; set; } = [];
+    [Id(22)] public int WalkInHoldbackPercent { get; set; } // 0 = disabled
 }

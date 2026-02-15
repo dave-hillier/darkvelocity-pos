@@ -47,6 +47,8 @@ public record OptimizableTable
     [Id(6)] public Guid? CurrentServerId { get; init; }
     [Id(7)] public bool IsOccupied { get; init; }
     [Id(8)] public int CurrentCovers { get; init; }
+    [Id(9)] public List<Guid> CombinableWith { get; init; } = [];
+    [Id(10)] public int MaxCombinationSize { get; init; } = 3;
 }
 
 [GenerateSerializer]

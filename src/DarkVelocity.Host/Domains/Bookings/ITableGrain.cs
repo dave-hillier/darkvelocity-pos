@@ -148,7 +148,14 @@ public record UpdateBookingSettingsCommand(
     [property: Id(5)] int? MaxBookingsPerSlot = null,
     [property: Id(6)] int? AdvanceBookingDays = null,
     [property: Id(7)] bool? RequireDeposit = null,
-    [property: Id(8)] decimal? DepositAmount = null);
+    [property: Id(8)] decimal? DepositAmount = null,
+    [property: Id(9)] int? MaxCoversPerInterval = null,
+    [property: Id(10)] int? PacingWindowSlots = null,
+    [property: Id(11)] decimal? MinLeadTimeHours = null,
+    [property: Id(12)] TimeSpan? LastSeatingOffset = null,
+    [property: Id(13)] List<MealPeriodConfig>? MealPeriods = null,
+    [property: Id(14)] List<ChannelQuotaConfig>? ChannelQuotas = null,
+    [property: Id(15)] int? WalkInHoldbackPercent = null);
 
 public interface IBookingSettingsGrain : IGrainWithStringKey
 {

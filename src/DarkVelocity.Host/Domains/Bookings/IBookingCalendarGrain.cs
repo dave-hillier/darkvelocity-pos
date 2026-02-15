@@ -102,7 +102,9 @@ public record GetCalendarAvailabilityQuery(
     [property: Id(0)] DateOnly Date,
     [property: Id(1)] int PartySize,
     [property: Id(2)] TimeOnly? PreferredTime = null,
-    [property: Id(3)] TimeSpan? RequestedDuration = null);
+    [property: Id(3)] TimeSpan? RequestedDuration = null,
+    [property: Id(4)] BookingSource? Source = null,
+    [property: Id(5)] DateTime? CurrentTime = null);
 
 // ============================================================================
 // Enhanced Booking Calendar Grain Interface
