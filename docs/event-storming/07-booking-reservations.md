@@ -766,34 +766,76 @@ public record BookingAnalytics
 
 ### Booking Rules
 
-1. **Advance Booking**: Configurable window (e.g., 30 days max, 2 hours min)
-2. **Party Size Limits**: Min and max party size per booking
-3. **Duration Estimates**: Auto-calculate based on party size
-4. **Table Combinations**: Large parties may need multiple tables
-5. **Double Booking Prevention**: Time buffer between seatings
+1. **Advance Booking Window**: Configurable max days ahead (e.g., 30 days). Prevents booking too far in the future
+2. **Minimum Lead Time (Close to Arrival)**: Configurable minimum hours before a slot that online bookings close (e.g., 2 hours). A 7pm slot with a 2-hour lead time stops accepting online bookings at 5pm. Staff can still book inside the cutoff
+3. **Party Size Limits**: Min and max party size per booking source. Online max may be lower (e.g., 8) than phone/staff max (e.g., 20)
+4. **Duration Estimates by Meal Period**: Auto-calculate expected dining duration based on party size and meal period. Lunch defaults shorter (60 min) than dinner (90–120 min). Configurable per meal period
+5. **Table Combinations**: Large parties may need multiple tables. Combination rules constrain which tables can join (adjacency, same section, compatible shapes)
+6. **Double Booking Prevention**: Time buffer (turnover buffer) between seatings to allow table clearing and resetting
+7. **Last Seating Time**: Distinct from venue close time. No new seatings after this time (e.g., 60–90 min before close). Configurable per meal period. Prevents guests arriving too close to close with insufficient time to dine
+8. **Blocked Dates**: Specific dates where no bookings are accepted (private events, holidays, refurbishments)
+
+### Pacing & Staggering Rules
+
+These rules prevent the kitchen and front-of-house from being overwhelmed by too many simultaneous arrivals. `MaxBookingsPerSlot` is a blunt instrument — pacing rules provide finer control.
+
+1. **Covers per Interval**: Maximum total covers (not just booking count) arriving within a configurable window (e.g., max 30 covers in any 15-minute window). A booking for 8 consumes more pacing capacity than a booking for 2
+2. **Covers per Meal Period**: Maximum total covers for an entire meal period (e.g., max 80 covers for dinner service). Once the dinner cap is reached, remaining dinner slots close
+3. **Stagger Across Adjacent Slots**: Limit covers across a rolling window wider than a single slot (e.g., max 40 covers across any 30-minute window). Prevents clustering where back-to-back slots are each at their individual max
+4. **Section Pacing**: Per-section cover limits within a pacing window. Prevents all arrivals being seated in one section while others sit empty
+5. **Kitchen Pacing Integration**: Feed booking arrival forecasts to the kitchen display system so the kitchen can anticipate upcoming order volume. Not a hard constraint on bookings, but an information flow
+
+### Channel Quota Rules
+
+Control how booking capacity is distributed across sources to protect walk-in and direct capacity.
+
+1. **Walk-in Hold-back**: Reserve a percentage of capacity for walk-ins (e.g., hold 20% of tables unreservable online). Configurable by meal period — lunch may reserve less than dinner
+2. **Per-Channel Caps**: Maximum bookings or covers per channel per day or meal period (e.g., max 10 covers from OpenTable for Friday dinner). Prevents any single third-party platform from consuming all capacity
+3. **Priority Ordering**: When multiple channels compete for remaining capacity, a priority order determines which channels close first (e.g., third-party channels close before direct website, which closes before phone)
+4. **Staff Override**: Staff can always book regardless of channel quota state. Quotas only apply to automated/self-service channels
+
+### Table Assignment Rules
+
+1. **Minimum Party Size Enforcement**: Tables have `MinCapacity` and `MaxCapacity`. A party of 2 should not be assigned a 10-top when a 2-top is available. The optimizer should enforce minimum, not just score preference
+2. **Table Combination Constraints**: Which tables can combine — based on adjacency (same section or explicitly marked as combinable pairs), compatible shape, and maximum combination size (e.g., max 3 tables in a combination)
+3. **VIP Table Reservation**: Hold specific tables (e.g., window, chef's table) for VIP-tier guests until a configurable cutoff time. After the cutoff, release to general availability
+4. **Server Workload Hard Cap**: Maximum covers per server per service period. Once a server section hits the cap, the optimizer must assign to other sections even if the table fit is slightly worse
 
 ### Deposit Rules
 
-1. **Threshold Trigger**: Deposits for parties > X or prime times
-2. **Amount Calculation**: Per-person or fixed amount
-3. **Payment Deadline**: Must pay within X hours of booking
-4. **Cancellation Window**: Full refund if cancelled > 24h before
+1. **Threshold Trigger**: Deposits for parties > X or during prime time periods
+2. **Amount Calculation**: Per-person or fixed amount, configurable by meal period
+3. **Payment Deadline**: Must pay within X hours of booking or auto-cancel
+4. **Cancellation Window**: Full refund if cancelled > 24h before. Configurable per deposit policy
 5. **No-Show Policy**: Forfeit deposit on no-show
+6. **Prime Time Deposits**: Require deposits for all bookings during designated peak periods regardless of party size
 
 ### Confirmation Rules
 
-1. **Auto-Confirm**: Small parties auto-confirmed
-2. **Manual Review**: Large parties or special times need review
-3. **Confirmation Required**: Guest must confirm within X hours
-4. **Reminder Schedule**: 24h and 2h before reminders
+1. **Auto-Confirm**: Small parties (e.g., ≤ 4) auto-confirmed
+2. **Manual Review**: Large parties or special times need staff review before confirmation
+3. **Confirmation Required**: Guest must confirm within X hours or booking auto-cancels
+4. **Reminder Schedule**: 24h and 2h before reminders. Configurable per venue
+5. **Reconfirmation for Large Parties**: Parties above a threshold must reconfirm 48h before
 
 ### No-Show Rules
 
-1. **Grace Period**: Wait X minutes past booking time
-2. **Contact Attempt**: Try to reach guest before marking
-3. **Table Release**: Release table after grace period
-4. **History Tracking**: Track guest no-show history
-5. **Blocking**: Option to block repeat no-showers
+1. **Grace Period**: Wait X minutes past booking time (e.g., 15 min) before marking
+2. **Contact Attempt**: Try to reach guest (SMS/call) before marking as no-show
+3. **Table Release**: Release table after grace period for walk-ins or waitlist
+4. **History Tracking**: Track guest no-show history on customer profile
+5. **Blocking**: Option to block repeat no-showers from online booking (e.g., 3 no-shows in 6 months)
+6. **Deposit Forfeiture**: Auto-forfeit deposit when marked as no-show
+
+### Meal Period Turn Time Rules
+
+Turn time data should feed back into availability calculations rather than using a flat default duration for all bookings.
+
+1. **Meal Period Definitions**: Configurable named periods (Breakfast, Lunch, Afternoon, Dinner, Late Night) with start/end times per day of week
+2. **Default Duration by Meal Period**: Each meal period has its own default booking duration (e.g., Lunch: 60 min, Dinner: 90 min, Late Night: 120 min)
+3. **Duration by Party Size**: Larger parties take longer. Scale duration by party size bracket (e.g., 1–2: base, 3–4: +15 min, 5–6: +30 min, 7+: +45 min)
+4. **Analytics-Driven Duration**: When sufficient historical turn time data exists, use actual median turn times (by party size + day + meal period) instead of defaults. Fall back to defaults when data is insufficient
+5. **Duration Override**: Staff can manually set a specific duration on any individual booking, overriding all calculated values
 
 ---
 
