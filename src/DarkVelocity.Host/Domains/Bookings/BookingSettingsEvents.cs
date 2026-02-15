@@ -1,3 +1,5 @@
+using DarkVelocity.Host.State;
+
 namespace DarkVelocity.Host.Events;
 
 /// <summary>
@@ -31,6 +33,23 @@ public sealed record BookingSettingsUpdated : IBookingSettingsEvent
     [Id(8)] public bool? RequireDeposit { get; init; }
     [Id(9)] public decimal? DepositAmount { get; init; }
     [Id(10)] public DateTimeOffset OccurredAt { get; init; }
+
+    // Pacing & staggering
+    [Id(11)] public int? MaxCoversPerInterval { get; init; }
+    [Id(12)] public int? PacingWindowSlots { get; init; }
+
+    // Minimum lead time
+    [Id(13)] public decimal? MinLeadTimeHours { get; init; }
+
+    // Last seating
+    [Id(14)] public TimeSpan? LastSeatingOffset { get; init; }
+
+    // Meal periods (replaces entire list when set)
+    [Id(15)] public List<MealPeriodConfig>? MealPeriods { get; init; }
+
+    // Channel quotas (replaces entire list when set)
+    [Id(16)] public List<ChannelQuotaConfig>? ChannelQuotas { get; init; }
+    [Id(17)] public int? WalkInHoldbackPercent { get; init; }
 }
 
 [GenerateSerializer]

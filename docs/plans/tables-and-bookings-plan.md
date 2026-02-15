@@ -264,6 +264,65 @@ When `BookingGrain.LinkToOrderAsync()` fires with a paid deposit → publish `Bo
 
 ---
 
+### Phase 6: Advanced Booking Rules
+
+These rules are documented in `docs/event-storming/07-booking-reservations.md` under Business Rules. They require Phase 1 (availability) and Phase 2 (optimizer wiring) to be complete first, because pacing and channel quotas modify availability calculations that must actually work.
+
+#### 6.1 Pacing & staggering
+
+Add covers-per-interval pacing to `BookingSettingsState` and enforce in availability calculation.
+
+**Settings to add:**
+- `MaxCoversPerInterval` (int, default: 0 = disabled) — max total covers arriving in any single slot interval
+- `PacingWindowSlots` (int, default: 1) — how many adjacent slots the pacing window spans (e.g., 2 = 30 min window with 15 min slots)
+- `MaxCoversPerMealPeriod` (Dictionary<string, int>) — per-period cover caps (e.g., "Dinner": 80)
+
+**Enforcement:** `BookingCalendarGrain.GetAvailabilityAsync()` sums covers (not booking count) across the pacing window. When `MaxCoversPerInterval > 0`, a slot is unavailable if adding the requested party size would exceed the cap.
+
+#### 6.2 Minimum lead time (close to arrival)
+
+Add `MinLeadTimeHours` (decimal, default: 0) to `BookingSettingsState`. In availability calculation, slots where `slotTime - now < MinLeadTimeHours` are marked unavailable for the requesting channel. Staff bookings bypass the check.
+
+#### 6.3 Last seating time
+
+Add `LastSeatingOffset` (TimeSpan, default: 0 = disabled) to `BookingSettingsState`. Availability slots after `DefaultCloseTime - LastSeatingOffset` are marked unavailable. This is distinct from `DefaultCloseTime` which controls operating hours.
+
+#### 6.4 Channel quotas
+
+Add channel quota configuration to `BookingSettingsState`:
+- `ChannelQuotas` (Dictionary<BookingSource, ChannelQuota>) where `ChannelQuota` has `MaxCoversPerDay`, `MaxCoversPerMealPeriod`, and `Priority` (int, lower = closes later)
+- `WalkInHoldbackPercent` (int, default: 0) — percentage of total capacity reserved for walk-ins
+
+**Enforcement:** `BookingCalendarGrain.GetAvailabilityAsync()` accepts a `BookingSource` parameter. Before returning availability, it checks the requesting channel's quota. Staff source is always exempt.
+
+#### 6.5 Meal period definitions
+
+Add `MealPeriods` (List<MealPeriodConfig>) to `BookingSettingsState`:
+```csharp
+public record MealPeriodConfig(
+    string Name,           // "Lunch", "Dinner", etc.
+    TimeOnly StartTime,
+    TimeOnly EndTime,
+    TimeSpan DefaultDuration,
+    TimeSpan? LastSeatingOffset);
+```
+
+When meal periods are configured, `DefaultDuration` and `LastSeatingOffset` resolve from the period containing the booking time, falling back to site-level defaults.
+
+#### 6.6 Minimum party size enforcement in optimizer
+
+Change `TableAssignmentOptimizerGrain` scoring to **reject** (not just penalize) tables where `partySize < table.MinCapacity`. Today a party of 2 can be assigned to a 10-top; this should be a hard constraint with a configurable override.
+
+#### 6.7 Table combination adjacency constraints
+
+Add combination constraint data to table registration:
+- `CombinableWith` (List<Guid>) — explicit list of tables this table can combine with (adjacency)
+- `MaxCombinationSize` (int, default: 3) — max tables in a single combination
+
+The optimizer's `FindTableCombinations()` should only consider pairs/triples that appear in each other's `CombinableWith` lists.
+
+---
+
 ## Summary
 
 | Phase | What | Why | Effort |
@@ -273,5 +332,8 @@ When `BookingGrain.LinkToOrderAsync()` fires with a paid deposit → publish `Bo
 | **3. Cross-grain wiring** | Status sync, no-show customer history, sections, composite view, SignalR | Completes the operational flow for front-of-house | 5-7 days |
 | **4. Test coverage** | Tests for optimizer, enhanced waitlist, subscriber, analytics | 4 production grains with zero tests | 3-4 days |
 | **5. Public booking** | Public API, deposit payment links, deposit-to-order | Requires phases 1-2 to be correct | 5-7 days |
+| **6. Advanced booking rules** | Pacing, lead time, last seating, channel quotas, meal periods, combination constraints | Industry-standard rules that competitors (SevenRooms, OpenTable) enforce | 5-8 days |
 
-**Phase 1 is the priority.** Availability is the foundation. Everything else -- optimizer recommendations, public booking, waitlist estimates -- depends on availability returning real numbers. Today it returns "everything is available" regardless of how many bookings exist.
+**Phase 1 is the priority.** Availability is the foundation. Everything else -- optimizer recommendations, public booking, waitlist estimates, pacing rules -- depends on availability returning real numbers. Today it returns "everything is available" regardless of how many bookings exist.
+
+Phase 6 depends on Phases 1-2. Pacing and channel quotas modify the availability calculation, so availability must be table-aware and calendar-connected before these rules can be layered on.

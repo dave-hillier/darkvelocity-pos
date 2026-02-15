@@ -108,7 +108,7 @@ public class TableAssignmentOptimizerGrain : Grain, ITableAssignmentOptimizerGra
         return result.Recommendations.FirstOrDefault();
     }
 
-    public async Task RegisterTableAsync(Guid tableId, string tableNumber, int minCapacity, int maxCapacity, bool isCombinable, IReadOnlyList<string>? tags = null)
+    public async Task RegisterTableAsync(Guid tableId, string tableNumber, int minCapacity, int maxCapacity, bool isCombinable, IReadOnlyList<string>? tags = null, IReadOnlyList<Guid>? combinableWith = null, int maxCombinationSize = 3)
     {
         EnsureExists();
 
@@ -122,7 +122,9 @@ public class TableAssignmentOptimizerGrain : Grain, ITableAssignmentOptimizerGra
             IsCombinable = isCombinable,
             Tags = tags?.ToList() ?? [],
             IsOccupied = false,
-            CurrentCovers = 0
+            CurrentCovers = 0,
+            CombinableWith = combinableWith?.ToList() ?? [],
+            MaxCombinationSize = maxCombinationSize
         };
 
         if (existingIndex >= 0)
@@ -314,6 +316,10 @@ public class TableAssignmentOptimizerGrain : Grain, ITableAssignmentOptimizerGra
         if (table.MaxCapacity < request.PartySize)
             return 0; // Table too small
 
+        // Minimum party size enforcement — reject tables where party is below min capacity
+        if (request.PartySize < table.MinCapacity)
+            return 0; // Party too small for this table
+
         var sizeOverage = table.MaxCapacity - request.PartySize;
         if (sizeOverage == 0)
             score += 50; // Perfect match
@@ -395,10 +401,23 @@ public class TableAssignmentOptimizerGrain : Grain, ITableAssignmentOptimizerGra
         {
             for (int j = i + 1; j < combinableTables.Count; j++)
             {
-                var totalCapacity = combinableTables[i].MaxCapacity + combinableTables[j].MaxCapacity;
+                var tableA = combinableTables[i];
+                var tableB = combinableTables[j];
+
+                // Adjacency constraint: if CombinableWith lists are specified, both must reference each other
+                if (tableA.CombinableWith.Count > 0 && !tableA.CombinableWith.Contains(tableB.TableId))
+                    continue;
+                if (tableB.CombinableWith.Count > 0 && !tableB.CombinableWith.Contains(tableA.TableId))
+                    continue;
+
+                // Max combination size constraint
+                if (tableA.MaxCombinationSize < 2 || tableB.MaxCombinationSize < 2)
+                    continue;
+
+                var totalCapacity = tableA.MaxCapacity + tableB.MaxCapacity;
                 if (totalCapacity >= targetCapacity && totalCapacity <= targetCapacity + 4)
                 {
-                    combinations.Add([combinableTables[i], combinableTables[j]]);
+                    combinations.Add([tableA, tableB]);
                 }
             }
         }

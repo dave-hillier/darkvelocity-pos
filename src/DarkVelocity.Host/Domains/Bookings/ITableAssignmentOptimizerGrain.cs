@@ -82,7 +82,7 @@ public interface ITableAssignmentOptimizerGrain : IGrainWithStringKey
     /// <summary>
     /// Registers a table with its properties for optimization.
     /// </summary>
-    Task RegisterTableAsync(Guid tableId, string tableNumber, int minCapacity, int maxCapacity, bool isCombinable, IReadOnlyList<string>? tags = null);
+    Task RegisterTableAsync(Guid tableId, string tableNumber, int minCapacity, int maxCapacity, bool isCombinable, IReadOnlyList<string>? tags = null, IReadOnlyList<Guid>? combinableWith = null, int maxCombinationSize = 3);
 
     /// <summary>
     /// Removes a table from optimization.

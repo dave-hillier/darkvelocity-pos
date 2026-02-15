@@ -658,6 +658,13 @@ public class BookingSettingsGrain : JournaledGrain<BookingSettingsState, IBookin
                 if (e.AdvanceBookingDays.HasValue) state.AdvanceBookingDays = e.AdvanceBookingDays.Value;
                 if (e.RequireDeposit.HasValue) state.RequireDeposit = e.RequireDeposit.Value;
                 if (e.DepositAmount.HasValue) state.DepositAmount = e.DepositAmount.Value;
+                if (e.MaxCoversPerInterval.HasValue) state.MaxCoversPerInterval = e.MaxCoversPerInterval.Value;
+                if (e.PacingWindowSlots.HasValue) state.PacingWindowSlots = e.PacingWindowSlots.Value;
+                if (e.MinLeadTimeHours.HasValue) state.MinLeadTimeHours = e.MinLeadTimeHours.Value;
+                if (e.LastSeatingOffset.HasValue) state.LastSeatingOffset = e.LastSeatingOffset.Value;
+                if (e.MealPeriods != null) state.MealPeriods = e.MealPeriods;
+                if (e.ChannelQuotas != null) state.ChannelQuotas = e.ChannelQuotas;
+                if (e.WalkInHoldbackPercent.HasValue) state.WalkInHoldbackPercent = e.WalkInHoldbackPercent.Value;
                 break;
 
             case BookingDateBlocked e:
@@ -703,6 +710,13 @@ public class BookingSettingsGrain : JournaledGrain<BookingSettingsState, IBookin
             AdvanceBookingDays = command.AdvanceBookingDays,
             RequireDeposit = command.RequireDeposit,
             DepositAmount = command.DepositAmount,
+            MaxCoversPerInterval = command.MaxCoversPerInterval,
+            PacingWindowSlots = command.PacingWindowSlots,
+            MinLeadTimeHours = command.MinLeadTimeHours,
+            LastSeatingOffset = command.LastSeatingOffset,
+            MealPeriods = command.MealPeriods,
+            ChannelQuotas = command.ChannelQuotas,
+            WalkInHoldbackPercent = command.WalkInHoldbackPercent,
             OccurredAt = DateTimeOffset.UtcNow
         });
         await ConfirmEvents();
