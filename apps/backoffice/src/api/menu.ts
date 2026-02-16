@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { HalCollection, DocumentSnapshot } from '../types'
+import type { DocumentSnapshot } from '../types'
 
 // ========================================================================
 // Content Types (what the CMS documents contain)

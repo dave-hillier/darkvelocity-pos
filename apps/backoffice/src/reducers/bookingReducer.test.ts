@@ -145,6 +145,7 @@ describe('bookingReducer', () => {
       height: 600,
       tableIds: [],
       sections: [],
+      elements: [],
       createdAt: '2026-01-01T00:00:00Z',
       _links: { self: { href: '/floor-plans/fp-1' } },
     }]

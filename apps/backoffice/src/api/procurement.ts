@@ -139,7 +139,7 @@ export async function confirmPurchaseDocument(documentId: string, data: {
   return apiClient.post(apiClient.buildOrgSitePath(`/purchases/${documentId}/confirm`), data)
 }
 
-export async function rejectPurchaseDocument(documentId: string, rejectedBy: string, reason: string): Promise<void> {
+export async function rejectPurchaseDocument(documentId: string, _rejectedBy: string, _reason: string): Promise<void> {
   return apiClient.delete(apiClient.buildOrgSitePath(`/purchases/${documentId}`))
 }
 
@@ -164,8 +164,8 @@ export async function acceptDelivery(deliveryId: string): Promise<Delivery> {
   return apiClient.post(apiClient.buildOrgSitePath(`/purchases/${deliveryId}/confirm`), {})
 }
 
-export async function rejectDelivery(deliveryId: string, reason: string): Promise<Delivery> {
-  return apiClient.delete(apiClient.buildOrgSitePath(`/purchases/${deliveryId}`)) as Promise<Delivery>
+export async function rejectDelivery(deliveryId: string, _reason: string): Promise<void> {
+  return apiClient.delete(apiClient.buildOrgSitePath(`/purchases/${deliveryId}`))
 }
 
 // Vendor Mappings (org-scoped)

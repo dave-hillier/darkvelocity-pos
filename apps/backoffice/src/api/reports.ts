@@ -68,8 +68,8 @@ export interface CostAlertsResponse {
 
 // Daily Sales (site-scoped reports)
 export async function getDailySalesCOGS(
-  startDate: string,
-  endDate: string
+  _startDate: string,
+  _endDate: string
 ): Promise<HalCollection<DailySalesCOGS>> {
   return apiClient.get(
     apiClient.buildOrgSitePath(`/reports/sales/today`)
@@ -104,8 +104,8 @@ export async function getItemMargins(
 
 // Category Margins
 export async function getCategoryMargins(
-  startDate: string,
-  endDate: string
+  _startDate: string,
+  _endDate: string
 ): Promise<HalCollection<CategoryMargin>> {
   return apiClient.get(
     apiClient.buildOrgSitePath(`/reports/sales/today`)

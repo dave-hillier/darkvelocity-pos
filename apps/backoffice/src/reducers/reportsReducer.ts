@@ -33,7 +33,7 @@ export interface CategoryMargin {
 }
 
 export interface CostAlert {
-  id: string
+  alertId: string
   alertType: string
   recipeName: string | null
   ingredientName: string | null
@@ -115,7 +115,7 @@ export function reportsReducer(state: ReportsState, action: ReportsAction): Repo
         ...state,
         isLoading: false,
         costAlerts: state.costAlerts.map((alert) =>
-          alert.id === action.payload.alertId
+          alert.alertId === action.payload.alertId
             ? { ...alert, isAcknowledged: true, acknowledgedAt: new Date().toISOString() }
             : alert
         ),

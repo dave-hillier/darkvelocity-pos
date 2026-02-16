@@ -6,7 +6,7 @@ import * as employeeApi from '../api/employees'
 export default function EmployeeDetailPage() {
   const { employeeId } = useParams<{ employeeId: string }>()
   const navigate = useNavigate()
-  const { selectedEmployee, selectEmployee, deselectEmployee, clockIn, clockOut, assignRole, removeRole, updateEmployee, error } = useEmployees()
+  const { selectedEmployee, selectEmployee, deselectEmployee, clockIn, clockOut, removeRole, error } = useEmployees()
   const [isLoadingDetail, setIsLoadingDetail] = useState(false)
 
   useEffect(() => {
