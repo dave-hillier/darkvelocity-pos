@@ -979,6 +979,36 @@ public static class GrainKeys
     public static string SlugLookup() => "global:sluglookup";
 
     // ============================================================================
+    // Rooms & Reservations
+    // ============================================================================
+
+    /// <summary>
+    /// Creates a key for a room type grain.
+    /// </summary>
+    public static string RoomType(Guid orgId, Guid siteId, Guid roomTypeId) => SiteEntity(orgId, siteId, "roomtype", roomTypeId);
+
+    /// <summary>
+    /// Creates a key for a room grain (physical room).
+    /// </summary>
+    public static string Room(Guid orgId, Guid siteId, Guid roomId) => SiteEntity(orgId, siteId, "room", roomId);
+
+    /// <summary>
+    /// Creates a key for a room reservation grain.
+    /// </summary>
+    public static string RoomReservation(Guid orgId, Guid siteId, Guid reservationId) => SiteEntity(orgId, siteId, "reservation", reservationId);
+
+    /// <summary>
+    /// Creates a key for a room inventory grain (one per room type per date).
+    /// </summary>
+    public static string RoomInventory(Guid orgId, Guid siteId, Guid roomTypeId, DateOnly date)
+        => $"{orgId}:{siteId}:roominventory:{roomTypeId}:{date:yyyy-MM-dd}";
+
+    /// <summary>
+    /// Creates a key for room reservation settings grain (per site).
+    /// </summary>
+    public static string RoomReservationSettings(Guid orgId, Guid siteId) => $"{orgId}:{siteId}:roomsettings";
+
+    // ============================================================================
     // Tables & Bookings Advanced Grains
     // ============================================================================
 

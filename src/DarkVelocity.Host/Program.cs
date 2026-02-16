@@ -142,7 +142,10 @@ app.MapOAuthEndpoints()
    .MapOrderingEndpoints()
    .MapProductEndpoints()
    .MapProcurementEndpoints()
-   .MapSystemEndpoints();
+   .MapSystemEndpoints()
+   .MapRoomEndpoints()
+   .MapRoomReservationEndpoints()
+   .MapRoomAvailabilityEndpoints();
 
 app.Run();
 
