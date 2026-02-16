@@ -2,7 +2,7 @@ import { apiClient } from './client'
 import type { HalResource, HalCollection } from '../types'
 
 export type TableStatus = 'Available' | 'Occupied' | 'Reserved' | 'Dirty' | 'Blocked' | 'OutOfService'
-export type TableShape = 'Square' | 'Round' | 'Rectangle' | 'Booth' | 'Bar' | 'Custom'
+export type TableShape = 'Square' | 'Round' | 'Oval' | 'Rectangle' | 'Booth' | 'Bar' | 'Custom'
 
 export interface TablePosition {
   x: number

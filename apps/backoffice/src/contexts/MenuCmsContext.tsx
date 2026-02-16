@@ -6,8 +6,6 @@ import {
   type MenuCmsAction,
 } from '../reducers/menuCmsReducer'
 import * as menuApi from '../api/menu'
-import type { DocumentSnapshot } from '../types'
-import type { MenuItemContent } from '../api/menu'
 
 interface MenuCmsContextValue extends MenuCmsState {
   loadItems: (categoryId?: string) => Promise<void>

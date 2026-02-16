@@ -54,7 +54,7 @@ function makeCategoryMargin(overrides: Partial<CategoryMargin> = {}): CategoryMa
 
 function makeCostAlert(overrides: Partial<CostAlert> = {}): CostAlert {
   return {
-    id: 'alert-1',
+    alertId: 'alert-1',
     alertType: 'cost_increase',
     recipeName: 'Fish and Chips',
     ingredientName: 'Cod Fillet',
@@ -139,7 +139,7 @@ describe('reportsReducer', () => {
 
   describe('COST_ALERTS_LOADED', () => {
     it('replaces cost alerts', () => {
-      const costAlerts = [makeCostAlert(), makeCostAlert({ id: 'alert-2' })]
+      const costAlerts = [makeCostAlert(), makeCostAlert({ alertId: 'alert-2' })]
       const state = reportsReducer(
         { ...initialReportsState, isLoading: true },
         { type: 'COST_ALERTS_LOADED', payload: { costAlerts } }
@@ -151,7 +151,7 @@ describe('reportsReducer', () => {
 
   describe('ALERT_ACKNOWLEDGED', () => {
     it('marks alert as acknowledged', () => {
-      const alerts = [makeCostAlert({ id: 'alert-1' }), makeCostAlert({ id: 'alert-2' })]
+      const alerts = [makeCostAlert({ alertId: 'alert-1' }), makeCostAlert({ alertId: 'alert-2' })]
       const prev: ReportsState = { ...initialReportsState, costAlerts: alerts }
       const state = reportsReducer(prev, {
         type: 'ALERT_ACKNOWLEDGED',

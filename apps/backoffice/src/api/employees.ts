@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { HalCollection, HalResource } from '../types'
+import type { HalResource } from '../types'
 
 export interface Employee extends HalResource {
   id: string

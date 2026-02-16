@@ -6,7 +6,7 @@ import * as channelApi from '../api/channels'
 export default function ChannelDetailPage() {
   const { channelId } = useParams<{ channelId: string }>()
   const navigate = useNavigate()
-  const { selectedChannel, selectChannel, deselectChannel, pauseOrders, resumeOrders, addLocation, removeLocation, triggerMenuSync, disconnectChannel, error } = useChannels()
+  const { selectedChannel, selectChannel, deselectChannel, pauseOrders, resumeOrders, removeLocation, triggerMenuSync, disconnectChannel, error } = useChannels()
   const [isLoadingDetail, setIsLoadingDetail] = useState(false)
 
   useEffect(() => {
