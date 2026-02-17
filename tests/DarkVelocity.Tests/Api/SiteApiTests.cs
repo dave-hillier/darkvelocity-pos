@@ -239,7 +239,7 @@ public class SiteApiTests
 
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
-        json.RootElement.GetProperty("message").GetString().Should().Be("Site opened");
+        json.RootElement.GetProperty("status").GetString().Should().Be("Open");
     }
 
     // Given: An existing site that has been opened for business
@@ -272,6 +272,6 @@ public class SiteApiTests
 
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
-        json.RootElement.GetProperty("message").GetString().Should().Be("Site closed");
+        json.RootElement.GetProperty("status").GetString().Should().Be("Closed");
     }
 }

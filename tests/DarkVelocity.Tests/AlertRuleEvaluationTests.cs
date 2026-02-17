@@ -40,7 +40,7 @@ public class AlertRuleEvaluationTests
             EntityName = "Ground Beef",
             Metrics = new Dictionary<string, decimal>
             {
-                { "QuantityOnHand", 5 },
+                { "QuantityAvailable", 5 },
                 { "ReorderPoint", 20 }
             }
         };
@@ -76,7 +76,7 @@ public class AlertRuleEvaluationTests
             EntityName = "Ground Beef",
             Metrics = new Dictionary<string, decimal>
             {
-                { "QuantityOnHand", 50 },
+                { "QuantityAvailable", 50 },
                 { "ReorderPoint", 20 }
             }
         };
@@ -112,7 +112,7 @@ public class AlertRuleEvaluationTests
             EntityName = "Chicken Breast",
             Metrics = new Dictionary<string, decimal>
             {
-                { "QuantityOnHand", 0 }
+                { "QuantityAvailable", 0 }
             }
         };
 
@@ -356,7 +356,7 @@ public class AlertRuleEvaluationTests
             EntityName = "Ground Beef",
             Metrics = new Dictionary<string, decimal>
             {
-                { "QuantityOnHand", 5 },
+                { "QuantityAvailable", 5 },
                 { "ReorderPoint", 20 }
             }
         };
@@ -399,7 +399,7 @@ public class AlertRuleEvaluationTests
             EntityName = "Ground Beef",
             Metrics = new Dictionary<string, decimal>
             {
-                { "QuantityOnHand", 5 },
+                { "QuantityAvailable", 5 },
                 { "ReorderPoint", 20 }
             }
         };
@@ -436,7 +436,8 @@ public class AlertRuleEvaluationTests
             EntityName = "Problematic Item",
             Metrics = new Dictionary<string, decimal>
             {
-                { "QuantityOnHand", -2 } // Both out of stock and negative
+                { "QuantityOnHand", -2 }, // Triggers NegativeStock (< 0)
+                { "QuantityAvailable", -2 } // Triggers OutOfStock (<= 0)
             }
         };
 
@@ -472,7 +473,7 @@ public class AlertRuleEvaluationTests
             EntityName = "Ground Beef",
             Metrics = new Dictionary<string, decimal>
             {
-                { "QuantityOnHand", 0 }
+                { "QuantityAvailable", 0 }
             },
             Context = new Dictionary<string, string>
             {

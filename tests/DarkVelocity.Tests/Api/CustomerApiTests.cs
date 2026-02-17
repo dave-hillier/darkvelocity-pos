@@ -56,8 +56,9 @@ public class CustomerApiTests
         json.RootElement.GetProperty("displayName").GetString().Should().NotBeNullOrEmpty();
         json.RootElement.GetProperty("_links").GetProperty("self").GetProperty("href").GetString()
             .Should().Contain("/customers/");
-        json.RootElement.GetProperty("_links").GetProperty("loyalty").GetProperty("href").GetString()
-            .Should().EndWith("/loyalty");
+        // New customers are not enrolled, so they get a loyalty:enroll link
+        json.RootElement.GetProperty("_links").GetProperty("loyalty:enroll").GetProperty("href").GetString()
+            .Should().Contain("/loyalty/enroll");
     }
 
     // Given: a customer who has been registered in the organization
@@ -84,8 +85,9 @@ public class CustomerApiTests
         var json = JsonDocument.Parse(content);
 
         json.RootElement.GetProperty("id").GetGuid().Should().Be(customerId);
-        json.RootElement.GetProperty("_links").GetProperty("loyalty").GetProperty("href").GetString()
-            .Should().Contain("/loyalty");
+        // Non-enrolled customers get loyalty:enroll link and always get rewards
+        json.RootElement.GetProperty("_links").GetProperty("loyalty:enroll").GetProperty("href").GetString()
+            .Should().Contain("/loyalty/enroll");
         json.RootElement.GetProperty("_links").GetProperty("rewards").GetProperty("href").GetString()
             .Should().Contain("/rewards");
     }
@@ -170,7 +172,7 @@ public class CustomerApiTests
 
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
-        json.RootElement.GetProperty("message").GetString().Should().Be("Enrolled in loyalty program");
+        json.RootElement.GetProperty("enrolled").GetBoolean().Should().BeTrue();
     }
 
     // Given: a customer enrolled in a loyalty program

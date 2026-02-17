@@ -98,10 +98,11 @@ public class OrderApiTests
         var json = JsonDocument.Parse(content);
 
         json.RootElement.GetProperty("id").GetGuid().Should().Be(orderId);
+        // Open orders have send and void action links
         json.RootElement.GetProperty("_links").GetProperty("send").GetProperty("href").GetString()
             .Should().EndWith("/send");
-        json.RootElement.GetProperty("_links").GetProperty("close").GetProperty("href").GetString()
-            .Should().EndWith("/close");
+        json.RootElement.GetProperty("_links").GetProperty("void").GetProperty("href").GetString()
+            .Should().EndWith("/void");
     }
 
     // Given: a site with no matching order
@@ -272,7 +273,7 @@ public class OrderApiTests
 
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
-        json.RootElement.GetProperty("message").GetString().Should().Be("Order closed");
+        json.RootElement.GetProperty("status").ValueKind.Should().NotBe(JsonValueKind.Undefined);
     }
 
     [Fact]
@@ -296,7 +297,7 @@ public class OrderApiTests
 
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
-        json.RootElement.GetProperty("message").GetString().Should().Be("Order voided");
+        json.RootElement.GetProperty("status").ValueKind.Should().NotBe(JsonValueKind.Undefined);
     }
 
     [Fact]

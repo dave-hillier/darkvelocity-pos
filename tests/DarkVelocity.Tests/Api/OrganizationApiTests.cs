@@ -180,7 +180,7 @@ public class OrganizationApiTests
 
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
-        json.RootElement.GetProperty("message").GetString().Should().Be("Organization suspended");
+        json.RootElement.GetProperty("status").GetString().Should().Be("Suspended");
     }
 
     // Given: A nonexistent organization ID

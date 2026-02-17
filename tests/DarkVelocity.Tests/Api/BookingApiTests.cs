@@ -113,10 +113,11 @@ public class BookingApiTests
         var json = JsonDocument.Parse(content);
 
         json.RootElement.GetProperty("id").GetGuid().Should().Be(bookingId);
+        // Newly created bookings are in Requested status, so they have confirm and cancel links
         json.RootElement.GetProperty("_links").GetProperty("confirm").GetProperty("href").GetString()
             .Should().EndWith("/confirm");
-        json.RootElement.GetProperty("_links").GetProperty("checkin").GetProperty("href").GetString()
-            .Should().EndWith("/checkin");
+        json.RootElement.GetProperty("_links").GetProperty("cancel").GetProperty("href").GetString()
+            .Should().EndWith("/cancel");
     }
 
     // Given: a site with no matching booking
@@ -170,8 +171,9 @@ public class BookingApiTests
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
 
-        json.RootElement.GetProperty("_links").GetProperty("booking").GetProperty("href").GetString()
-            .Should().Contain($"/bookings/{bookingId}");
+        // After confirming, booking has checkin and cancel links
+        json.RootElement.GetProperty("_links").GetProperty("checkin").GetProperty("href").GetString()
+            .Should().EndWith("/checkin");
     }
 
     // Given: an existing booking for a guest
@@ -239,10 +241,11 @@ public class BookingApiTests
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
 
-        json.RootElement.GetProperty("_links").GetProperty("booking").GetProperty("href").GetString()
-            .Should().Contain($"/bookings/{bookingId}");
+        // After check-in, booking is in Arrived status with seat and cancel links
         json.RootElement.GetProperty("_links").GetProperty("seat").GetProperty("href").GetString()
             .Should().EndWith("/seat");
+        json.RootElement.GetProperty("_links").GetProperty("cancel").GetProperty("href").GetString()
+            .Should().EndWith("/cancel");
     }
 
     // Given: a checked-in guest with a confirmed booking

@@ -627,7 +627,7 @@ public record RecordProductSaleCommand(
     [property: Id(3)] int Quantity,
     [property: Id(4)] decimal NetSales,
     [property: Id(5)] decimal COGS,
-    [property: Id(6)] IReadOnlyList<ModifierSale> Modifiers);
+    [property: Id(6)] List<ModifierSale> Modifiers);
 
 [GenerateSerializer]
 public record ModifierSale(

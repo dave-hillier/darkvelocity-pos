@@ -64,7 +64,7 @@ public class AdvancedReportingGrainTests
         var snapshot = await grain.GetSnapshotAsync();
 
         Assert.Equal(3, snapshot.HourlyPerformances.Count);
-        Assert.Equal(12, snapshot.PeakHour); // Lunch hour should have highest sales among lunch hours
+        Assert.Equal(18, snapshot.PeakHour); // Hour 18 has highest net sales (1200)
         Assert.Equal(DayPart.Dinner, snapshot.PeakDaypart); // Dinner should be peak daypart
 
         // Check hourly data

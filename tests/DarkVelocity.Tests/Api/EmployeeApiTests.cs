@@ -110,10 +110,9 @@ public class EmployeeApiTests
         var json = JsonDocument.Parse(content);
 
         json.RootElement.GetProperty("id").GetGuid().Should().Be(employeeId);
+        // New employee is not clocked in, so only clock-in link is present
         json.RootElement.GetProperty("_links").GetProperty("clock-in").GetProperty("href").GetString()
             .Should().EndWith("/clock-in");
-        json.RootElement.GetProperty("_links").GetProperty("clock-out").GetProperty("href").GetString()
-            .Should().EndWith("/clock-out");
     }
 
     // Given: an organization with no matching employee
@@ -292,7 +291,7 @@ public class EmployeeApiTests
 
         var content = await response.Content.ReadAsStringAsync();
         var json = JsonDocument.Parse(content);
-        json.RootElement.GetProperty("message").GetString().Should().Be("Role assigned");
+        json.RootElement.GetProperty("assigned").GetBoolean().Should().BeTrue();
     }
 
     // Given: an employee who has been assigned a role
