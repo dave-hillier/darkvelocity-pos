@@ -40,12 +40,28 @@ jobs:
         run: |
           cd docker
           docker compose up -d azurite postgres spicedb-migrate spicedb
+
           echo "Waiting for Azurite..."
-          timeout 30 bash -c 'until nc -z localhost 10002; do sleep 1; done' || true
+          elapsed=0
+          while [ $elapsed -lt 30 ]; do
+            nc -z localhost 10002 && break
+            sleep 1; elapsed=$((elapsed + 1))
+          done
+
           echo "Waiting for PostgreSQL..."
-          timeout 60 bash -c 'until docker exec darkvelocity-postgres pg_isready -U darkvelocity; do sleep 1; done' || true
+          elapsed=0
+          while [ $elapsed -lt 60 ]; do
+            docker exec darkvelocity-postgres pg_isready -U darkvelocity && break
+            sleep 1; elapsed=$((elapsed + 1))
+          done
+
           echo "Waiting for SpiceDB..."
-          timeout 30 bash -c 'until nc -z localhost 50051; do sleep 1; done' || true
+          elapsed=0
+          while [ $elapsed -lt 30 ]; do
+            nc -z localhost 50051 && break
+            sleep 1; elapsed=$((elapsed + 1))
+          done
+
           echo "Infrastructure ready"
 
       - name: Build solution
