@@ -45,6 +45,7 @@ services:
       - "8888:8888"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5200
       - ConnectionStrings__Default=Host=postgres;Database=darkvelocity;Username=darkvelocity;Password=darkvelocity_dev
       - ConnectionStrings__AzureStorage=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;
     depends_on:
@@ -53,7 +54,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5200/health"]
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/5200'"]
       interval: 10s
       timeout: 5s
       retries: 5
