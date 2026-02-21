@@ -8,7 +8,7 @@ function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
-export default function OrderPanel() {
+export default function OrderPanel({ displayIndicator }: { displayIndicator?: React.ReactNode }) {
   const { order, selectedLineId, selectLine, removeItem } = useOrder()
   const { user, logout } = useAuth()
 
@@ -17,6 +17,7 @@ export default function OrderPanel() {
       <section className="order-panel">
         <header>
           <h2>New Order</h2>
+          {displayIndicator && <div>{displayIndicator}</div>}
           <p>Select an item from the menu to start</p>
         </header>
         <footer style={{ marginTop: 'auto', paddingTop: '1rem' }}>
@@ -33,6 +34,7 @@ export default function OrderPanel() {
     <section className="order-panel">
       <header>
         <h2>Order #{order.orderNumber}</h2>
+        {displayIndicator && <div>{displayIndicator}</div>}
       </header>
 
       <ul className="order-lines" role="list">

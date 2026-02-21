@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useOrder } from '../contexts/OrderContext'
+import { useRegisterDisplay, type PaymentMethodChoice, type ReceiptTypeChoice } from '../contexts/DisplayContext'
 
 type PaymentMethod = 'cash' | 'card'
 
@@ -16,11 +17,14 @@ const quickAmounts = [5, 10, 20, 50]
 export default function PaymentPage() {
   const navigate = useNavigate()
   const { order, completePayment, clearOrder } = useOrder()
+  const display = useRegisterDisplay()
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null)
   const [amountReceived, setAmountReceived] = useState('')
   const [tipAmount, setTipAmount] = useState(0)
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentComplete, setPaymentComplete] = useState(false)
+  const [receiptType, setReceiptType] = useState<ReceiptTypeChoice | null>(null)
+  const [awaitingReceipt, setAwaitingReceipt] = useState(false)
 
   if (!order || order.lines.length === 0) {
     navigate('/register')
@@ -32,6 +36,44 @@ export default function PaymentPage() {
   const receivedAmount = parseFloat(amountReceived) || 0
   const changeAmount = Math.max(0, receivedAmount - totalWithTip)
   const canComplete = paymentMethod === 'card' || receivedAmount >= totalWithTip
+
+  // Send tip request to display on mount
+  useEffect(() => {
+    if (display.isDisplayConnected && order) {
+      display.requestTip(order)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for tip selection from display
+  useEffect(() => {
+    display.onTipSelected((amount: number) => {
+      setTipAmount(amount)
+      // After tip is selected, request payment method from display
+      if (order) {
+        display.requestPayment(order)
+      }
+    })
+  }, [display, order])
+
+  // Listen for payment method selection from display
+  useEffect(() => {
+    display.onPaymentMethodSelected((method: PaymentMethodChoice) => {
+      setPaymentMethod(method)
+    })
+  }, [display])
+
+  // Listen for receipt type selection from display
+  useEffect(() => {
+    display.onReceiptTypeSelected((type: ReceiptTypeChoice) => {
+      setReceiptType(type)
+      setAwaitingReceipt(false)
+      // Show thank you then go idle
+      if (order) {
+        display.sendPaymentComplete(order, totalWithTip, changeAmount)
+        setTimeout(() => display.sendIdle(), 5000)
+      }
+    })
+  }, [display, order, totalWithTip, changeAmount])
 
   function handleDigit(digit: string) {
     setAmountReceived((prev) => {
@@ -58,7 +100,8 @@ export default function PaymentPage() {
   }
 
   function handleTipPreset(percent: number) {
-    setTipAmount(Math.round(orderGrandTotal * percent) / 100)
+    const amount = Math.round(orderGrandTotal * percent) / 100
+    setTipAmount(amount)
   }
 
   async function handleCompletePayment() {
@@ -66,15 +109,30 @@ export default function PaymentPage() {
 
     setIsProcessing(true)
 
+    // Send processing state to display
+    if (display.isDisplayConnected && order) {
+      display.sendPaymentProcessing(order)
+    }
+
     try {
       // Simulate payment processing
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       completePayment('payment-' + Date.now())
       setPaymentComplete(true)
+
+      // Request receipt type from display
+      if (display.isDisplayConnected && order) {
+        display.requestReceipt(order, totalWithTip, changeAmount)
+        setAwaitingReceipt(true)
+      }
     } catch (error) {
       console.error('Payment failed:', error)
       alert('Payment failed. Please try again.')
+      // Revert display to payment method screen
+      if (display.isDisplayConnected && order) {
+        display.requestPayment(order)
+      }
     } finally {
       setIsProcessing(false)
     }
@@ -82,10 +140,12 @@ export default function PaymentPage() {
 
   function handleNewOrder() {
     clearOrder()
+    display.sendIdle()
     navigate('/register')
   }
 
   function handleBack() {
+    display.sendIdle()
     navigate('/register')
   }
 
@@ -101,6 +161,12 @@ export default function PaymentPage() {
               <span>Total</span>
               <span>{formatCurrency(totalWithTip)}</span>
             </div>
+            {tipAmount > 0 && (
+              <div className="summary-row">
+                <span>Tip</span>
+                <span>{formatCurrency(tipAmount)}</span>
+              </div>
+            )}
             {paymentMethod === 'cash' && (
               <>
                 <div className="summary-row">
@@ -113,7 +179,16 @@ export default function PaymentPage() {
                 </div>
               </>
             )}
+            {receiptType && (
+              <div className="summary-row">
+                <span>Receipt</span>
+                <span>{receiptType === 'print' ? 'Printed' : receiptType === 'email' ? 'Emailed' : 'None'}</span>
+              </div>
+            )}
           </div>
+          {awaitingReceipt && display.isDisplayConnected && (
+            <p aria-busy="true">Waiting for customer to select receipt type...</p>
+          )}
           <footer>
             <button onClick={handleNewOrder}>
               New Order
@@ -136,19 +211,37 @@ export default function PaymentPage() {
         </div>
       </header>
 
+      {display.isDisplayConnected && !paymentMethod && (
+        <article>
+          <p aria-busy="true">
+            Customer is selecting tip and payment method on display...
+          </p>
+        </article>
+      )}
+
       {!paymentMethod && (
         <section className="payment-methods">
           <h2>Select Payment Method</h2>
           <div className="method-buttons">
             <button
               className="payment-method-btn"
-              onClick={() => setPaymentMethod('cash')}
+              onClick={() => {
+                setPaymentMethod('cash')
+                if (display.isDisplayConnected && order) {
+                  display.sendPaymentProcessing(order)
+                }
+              }}
             >
               <span className="method-icon">Cash</span>
             </button>
             <button
               className="payment-method-btn"
-              onClick={() => setPaymentMethod('card')}
+              onClick={() => {
+                setPaymentMethod('card')
+                if (display.isDisplayConnected && order) {
+                  display.sendPaymentProcessing(order)
+                }
+              }}
             >
               <span className="method-icon">Card</span>
             </button>

@@ -66,6 +66,7 @@ builder.Services
 // SignalR for real-time floor plan updates
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<FloorPlanNotifier>();
+builder.Services.AddSingleton<CustomerDisplayNotifier>();
 
 var app = builder.Build();
 
@@ -93,6 +94,7 @@ app.MapOrleansDashboard(routePrefix: "/dashboard");
 
 // SignalR hubs
 app.MapHub<FloorPlanHub>("/hubs/floor-plan");
+app.MapHub<CustomerDisplayHub>("/hubs/customer-display");
 
 // Map all API endpoints
 app.MapOAuthEndpoints()

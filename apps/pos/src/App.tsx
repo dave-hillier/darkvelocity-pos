@@ -3,11 +3,13 @@ import { AuthProvider } from './contexts/AuthContext'
 import { DeviceAuthProvider, useDeviceAuth } from './contexts/DeviceAuthContext'
 import { OrderProvider } from './contexts/OrderContext'
 import { MenuProvider } from './contexts/MenuContext'
+import { RegisterDisplayProvider, CustomerDisplayProvider } from './contexts/DisplayContext'
 import DeviceSetupPage from './pages/DeviceSetupPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import PaymentPage from './pages/PaymentPage'
 import TablesPage from './pages/TablesPage'
+import CustomerDisplayPage from './pages/CustomerDisplayPage'
 import { useAuth } from './contexts/AuthContext'
 
 function DeviceProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -65,7 +67,9 @@ function AppRoutes() {
             <UserProtectedRoute>
               <MenuProvider>
                 <OrderProvider>
-                  <RegisterPage />
+                  <RegisterDisplayProvider>
+                    <RegisterPage />
+                  </RegisterDisplayProvider>
                 </OrderProvider>
               </MenuProvider>
             </UserProtectedRoute>
@@ -78,9 +82,21 @@ function AppRoutes() {
           <DeviceProtectedRoute>
             <UserProtectedRoute>
               <OrderProvider>
-                <PaymentPage />
+                <RegisterDisplayProvider>
+                  <PaymentPage />
+                </RegisterDisplayProvider>
               </OrderProvider>
             </UserProtectedRoute>
+          </DeviceProtectedRoute>
+        }
+      />
+      <Route
+        path="/display"
+        element={
+          <DeviceProtectedRoute>
+            <CustomerDisplayProvider>
+              <CustomerDisplayPage />
+            </CustomerDisplayProvider>
           </DeviceProtectedRoute>
         }
       />
