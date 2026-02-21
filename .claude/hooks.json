@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "command": "./scripts/ensure-services.sh --quiet",
+        "timeout": 120
+      }
+    ]
+  }
+}
