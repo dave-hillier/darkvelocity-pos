@@ -68,6 +68,7 @@ public class PosDeviceGrain : Grain, IPosDeviceGrain
         if (command.AutoPrintReceipts.HasValue) _state.State.AutoPrintReceipts = command.AutoPrintReceipts.Value;
         if (command.OpenDrawerOnCash.HasValue) _state.State.OpenDrawerOnCash = command.OpenDrawerOnCash.Value;
         if (command.IsActive.HasValue) _state.State.IsActive = command.IsActive.Value;
+        if (command.DefaultCustomerDisplayId.HasValue) _state.State.DefaultCustomerDisplayId = command.DefaultCustomerDisplayId.Value;
 
         _state.State.Version++;
         await _state.WriteStateAsync();
@@ -135,7 +136,8 @@ public class PosDeviceGrain : Grain, IPosDeviceGrain
             IsActive: _state.State.IsActive,
             IsOnline: _state.State.IsOnline,
             LastSeenAt: _state.State.LastSeenAt,
-            RegisteredAt: _state.State.RegisteredAt);
+            RegisteredAt: _state.State.RegisteredAt,
+            DefaultCustomerDisplayId: _state.State.DefaultCustomerDisplayId);
     }
 
     private void EnsureInitialized()

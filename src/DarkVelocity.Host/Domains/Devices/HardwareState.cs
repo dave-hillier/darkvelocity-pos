@@ -27,6 +27,7 @@ public sealed class PosDeviceState
     [Id(15)] public DateTime? LastSeenAt { get; set; }
     [Id(16)] public DateTime? RegisteredAt { get; set; }
     [Id(17)] public int Version { get; set; }
+    [Id(18)] public Guid? DefaultCustomerDisplayId { get; set; }
 }
 
 // ============================================================================

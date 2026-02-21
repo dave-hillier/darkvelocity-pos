@@ -15,6 +15,7 @@ public static class DeviceEndpoints
         MapPrintJobEndpoints(app);
         MapSyncQueueEndpoints(app);
         MapDeviceHealthEndpoints(app);
+        MapCustomerDisplayEndpoints(app);
 
         return app;
     }
@@ -622,6 +623,199 @@ public static class DeviceEndpoints
             return Results.Ok(new { message = "Printer health updated" });
         });
     }
+
+    // ============================================================================
+    // Customer Display Endpoints
+    // ============================================================================
+
+    private static void MapCustomerDisplayEndpoints(WebApplication app)
+    {
+        var group = app.MapGroup("/api/devices").WithTags("CustomerDisplay");
+
+        // Register a customer display
+        group.MapPost("/{orgId}/displays", async (
+            Guid orgId,
+            [FromBody] RegisterCustomerDisplayApiRequest request,
+            IGrainFactory grainFactory) =>
+        {
+            var displayId = Guid.NewGuid();
+            var grain = grainFactory.GetGrain<ICustomerDisplayGrain>(
+                GrainKeys.CustomerDisplay(orgId, displayId));
+
+            var command = new RegisterCustomerDisplayCommand(
+                LocationId: request.LocationId,
+                Name: request.Name,
+                DeviceId: request.DeviceId,
+                PairedPosDeviceId: request.PairedPosDeviceId);
+
+            var snapshot = await grain.RegisterAsync(command);
+            return Results.Created(
+                $"/api/devices/{orgId}/displays/{displayId}",
+                Hal.Resource(snapshot, BuildCustomerDisplayLinks(orgId, snapshot)));
+        });
+
+        // Get a customer display
+        group.MapGet("/{orgId}/displays/{displayId}", async (
+            Guid orgId,
+            Guid displayId,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<ICustomerDisplayGrain>(
+                GrainKeys.CustomerDisplay(orgId, displayId));
+
+            try
+            {
+                var snapshot = await grain.GetSnapshotAsync();
+                return Results.Ok(Hal.Resource(snapshot, BuildCustomerDisplayLinks(orgId, snapshot)));
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.NotFound(Hal.Error("not_found", "Customer display not found"));
+            }
+        });
+
+        // Update a customer display
+        group.MapPut("/{orgId}/displays/{displayId}", async (
+            Guid orgId,
+            Guid displayId,
+            [FromBody] UpdateCustomerDisplayApiRequest request,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<ICustomerDisplayGrain>(
+                GrainKeys.CustomerDisplay(orgId, displayId));
+
+            try
+            {
+                var command = new UpdateCustomerDisplayCommand(
+                    Name: request.Name,
+                    PairedPosDeviceId: request.PairedPosDeviceId,
+                    IsActive: request.IsActive,
+                    IdleMessage: request.IdleMessage,
+                    LogoUrl: request.LogoUrl,
+                    TipPresets: request.TipPresets,
+                    TipEnabled: request.TipEnabled,
+                    ReceiptPromptEnabled: request.ReceiptPromptEnabled);
+
+                var snapshot = await grain.UpdateAsync(command);
+                return Results.Ok(Hal.Resource(snapshot, BuildCustomerDisplayLinks(orgId, snapshot)));
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.NotFound(Hal.Error("not_found", "Customer display not found"));
+            }
+        });
+
+        // Pair a display to a POS device
+        group.MapPost("/{orgId}/displays/{displayId}/pair", async (
+            Guid orgId,
+            Guid displayId,
+            [FromBody] PairDisplayApiRequest request,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<ICustomerDisplayGrain>(
+                GrainKeys.CustomerDisplay(orgId, displayId));
+
+            try
+            {
+                await grain.PairAsync(request.PosDeviceId);
+                var snapshot = await grain.GetSnapshotAsync();
+                return Results.Ok(Hal.Resource(snapshot, BuildCustomerDisplayLinks(orgId, snapshot)));
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.NotFound(Hal.Error("not_found", "Customer display not found"));
+            }
+        });
+
+        // Unpair a display
+        group.MapPost("/{orgId}/displays/{displayId}/unpair", async (
+            Guid orgId,
+            Guid displayId,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<ICustomerDisplayGrain>(
+                GrainKeys.CustomerDisplay(orgId, displayId));
+
+            try
+            {
+                await grain.UnpairAsync();
+                var snapshot = await grain.GetSnapshotAsync();
+                return Results.Ok(Hal.Resource(snapshot, BuildCustomerDisplayLinks(orgId, snapshot)));
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.NotFound(Hal.Error("not_found", "Customer display not found"));
+            }
+        });
+
+        // Record a heartbeat from the display
+        group.MapPost("/{orgId}/displays/{displayId}/heartbeat", async (
+            Guid orgId,
+            Guid displayId,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<ICustomerDisplayGrain>(
+                GrainKeys.CustomerDisplay(orgId, displayId));
+
+            try
+            {
+                await grain.RecordHeartbeatAsync();
+                return Results.Ok(new { message = "Heartbeat recorded" });
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.NotFound(Hal.Error("not_found", "Customer display not found"));
+            }
+        });
+
+        // Deactivate a display
+        group.MapDelete("/{orgId}/displays/{displayId}", async (
+            Guid orgId,
+            Guid displayId,
+            IGrainFactory grainFactory) =>
+        {
+            var grain = grainFactory.GetGrain<ICustomerDisplayGrain>(
+                GrainKeys.CustomerDisplay(orgId, displayId));
+
+            try
+            {
+                await grain.DeactivateAsync();
+                return Results.NoContent();
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.NotFound(Hal.Error("not_found", "Customer display not found"));
+            }
+        });
+    }
+
+    private static Dictionary<string, object> BuildCustomerDisplayLinks(Guid orgId, CustomerDisplaySnapshot snapshot)
+    {
+        var basePath = $"/api/devices/{orgId}/displays/{snapshot.DisplayId}";
+
+        var links = new Dictionary<string, object>
+        {
+            ["self"] = new { href = basePath },
+            ["organization"] = new { href = $"/api/orgs/{orgId}" }
+        };
+
+        if (snapshot.PairedPosDeviceId.HasValue)
+        {
+            links["paired-device"] = new { href = $"/api/devices/{orgId}/{snapshot.PairedPosDeviceId.Value}" };
+            links["unpair"] = new { href = $"{basePath}/unpair", method = "POST" };
+        }
+        else
+        {
+            links["pair"] = new { href = $"{basePath}/pair", method = "POST" };
+        }
+
+        if (snapshot.IsActive)
+        {
+            links["deactivate"] = new { href = basePath, method = "DELETE" };
+        }
+
+        return links;
+    }
 }
 
 // ============================================================================
@@ -666,3 +860,21 @@ public record DeviceHealthHeartbeatRequest(
 public record UpdatePrinterHealthRequest(
     PrinterHealthStatus Status,
     int? PaperLevel = null);
+
+public record RegisterCustomerDisplayApiRequest(
+    Guid LocationId,
+    string Name,
+    string DeviceId,
+    Guid? PairedPosDeviceId = null);
+
+public record UpdateCustomerDisplayApiRequest(
+    string? Name = null,
+    Guid? PairedPosDeviceId = null,
+    bool? IsActive = null,
+    string? IdleMessage = null,
+    string? LogoUrl = null,
+    IReadOnlyList<int>? TipPresets = null,
+    bool? TipEnabled = null,
+    bool? ReceiptPromptEnabled = null);
+
+public record PairDisplayApiRequest(Guid PosDeviceId);
