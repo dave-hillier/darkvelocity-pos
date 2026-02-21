@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 const API_PORT = 5200;
 const POS_PORT = 5173;
 const BACKOFFICE_PORT = 5174;
+const KDS_PORT = 5175;
 
 export default defineConfig({
   testDir: './tests',
@@ -46,6 +47,15 @@ export default defineConfig({
       command: `npx vite --port ${BACKOFFICE_PORT}`,
       cwd: '../../apps/backoffice',
       port: BACKOFFICE_PORT,
+      reuseExistingServer: !process.env.CI,
+      env: {
+        VITE_API_URL: `http://localhost:${API_PORT}`,
+      },
+    },
+    {
+      command: `npx vite --port ${KDS_PORT}`,
+      cwd: '../../apps/kds',
+      port: KDS_PORT,
       reuseExistingServer: !process.env.CI,
       env: {
         VITE_API_URL: `http://localhost:${API_PORT}`,
