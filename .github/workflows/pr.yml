@@ -36,33 +36,8 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Start infrastructure services
-        run: |
-          cd docker
-          docker compose up -d azurite postgres spicedb-migrate spicedb
-
-          echo "Waiting for Azurite..."
-          elapsed=0
-          while [ $elapsed -lt 30 ]; do
-            nc -z localhost 10002 && break
-            sleep 1; elapsed=$((elapsed + 1))
-          done
-
-          echo "Waiting for PostgreSQL..."
-          elapsed=0
-          while [ $elapsed -lt 60 ]; do
-            docker exec darkvelocity-postgres pg_isready -U darkvelocity && break
-            sleep 1; elapsed=$((elapsed + 1))
-          done
-
-          echo "Waiting for SpiceDB..."
-          elapsed=0
-          while [ $elapsed -lt 30 ]; do
-            nc -z localhost 50051 && break
-            sleep 1; elapsed=$((elapsed + 1))
-          done
-
-          echo "Infrastructure ready"
+      - name: Ensure infrastructure services
+        run: ./scripts/ensure-services.sh
 
       - name: Build solution
         run: dotnet build
@@ -89,8 +64,3 @@ jobs:
           name: coverage-report
           path: coverage/report
 
-      - name: Stop infrastructure services
-        if: always()
-        run: |
-          cd docker
-          docker compose down || true

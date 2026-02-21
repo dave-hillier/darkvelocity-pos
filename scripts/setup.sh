@@ -23,8 +23,6 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Configuration
 DOCKER_COMPOSE_FILE="$PROJECT_ROOT/docker/docker-compose.yml"
-AZURITE_WAIT_TIMEOUT=30
-POSTGRES_WAIT_TIMEOUT=60
 
 # -----------------------------------------------------------------------------
 # Helper Functions
@@ -149,75 +147,10 @@ check_prerequisites() {
 # Docker Infrastructure
 # -----------------------------------------------------------------------------
 
-start_docker_infrastructure() {
-    print_header "Starting Docker Infrastructure"
+ensure_docker_infrastructure() {
+    print_header "Ensuring Docker Infrastructure"
 
-    # Check if Docker daemon is running
-    if ! docker info &> /dev/null; then
-        print_error "Docker daemon is not running. Please start Docker and try again."
-        exit 1
-    fi
-
-    print_info "Starting containers..."
-    cd "$PROJECT_ROOT/docker"
-
-    # Use docker compose (new) or docker-compose (legacy)
-    if docker compose version &> /dev/null; then
-        docker compose up -d
-    else
-        docker-compose up -d
-    fi
-
-    cd "$PROJECT_ROOT"
-    print_success "Docker containers started"
-}
-
-wait_for_postgres() {
-    print_info "Waiting for PostgreSQL to be ready..."
-
-    local elapsed=0
-    while [[ $elapsed -lt $POSTGRES_WAIT_TIMEOUT ]]; do
-        if docker exec darkvelocity-postgres pg_isready -U darkvelocity &> /dev/null; then
-            print_success "PostgreSQL is ready"
-            return 0
-        fi
-        sleep 2
-        elapsed=$((elapsed + 2))
-        echo -ne "\r  Waiting... ${elapsed}s"
-    done
-
-    echo ""
-    print_error "PostgreSQL did not become ready within ${POSTGRES_WAIT_TIMEOUT}s"
-    return 1
-}
-
-wait_for_azurite() {
-    print_info "Waiting for Azurite (Azure Storage Emulator) to be ready..."
-
-    local elapsed=0
-    while [[ $elapsed -lt $AZURITE_WAIT_TIMEOUT ]]; do
-        if nc -z localhost 10002 &> /dev/null; then
-            print_success "Azurite is ready"
-            return 0
-        fi
-        sleep 2
-        elapsed=$((elapsed + 2))
-        echo -ne "\r  Waiting... ${elapsed}s"
-    done
-
-    echo ""
-    print_error "Azurite did not become ready within ${AZURITE_WAIT_TIMEOUT}s"
-    return 1
-}
-
-wait_for_services() {
-    print_header "Waiting for Infrastructure Services"
-
-    wait_for_azurite
-    wait_for_postgres
-
-    echo ""
-    print_success "All infrastructure services are ready!"
+    "$SCRIPT_DIR/ensure-services.sh"
 }
 
 # -----------------------------------------------------------------------------
@@ -430,8 +363,7 @@ main() {
 
     # Setup steps
     if [[ "$skip_docker" != true ]]; then
-        start_docker_infrastructure
-        wait_for_services
+        ensure_docker_infrastructure
     fi
 
     if [[ "$skip_backend" != true ]]; then
