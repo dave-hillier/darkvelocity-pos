@@ -435,6 +435,12 @@ public static class GrainKeys
         => $"{orgId}:device:{deviceId}:syncqueue";
 
     /// <summary>
+    /// Creates a key for a customer display grain.
+    /// </summary>
+    public static string CustomerDisplay(Guid orgId, Guid displayId)
+        => OrgEntity(orgId, "customerdisplay", displayId);
+
+    /// <summary>
     /// Creates a key for a device status (health) grain.
     /// </summary>
     public static string DeviceStatus(Guid orgId, Guid locationId)
