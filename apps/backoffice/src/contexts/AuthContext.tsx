@@ -29,7 +29,7 @@ interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 const STORAGE_KEY = 'darkvelocity_backoffice_auth'
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5200'
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5200'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({

@@ -7,6 +7,7 @@ RUN npm ci
 
 # Copy source and build
 COPY . .
+ENV VITE_API_URL=""
 RUN npm run build
 
 # Production image with nginx
