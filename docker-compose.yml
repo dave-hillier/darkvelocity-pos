@@ -44,7 +44,7 @@ services:
       - "5200:5200"
       - "8888:8888"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5200
       - Urls=http://+:5200
       - ConnectionStrings__Default=Host=postgres;Database=darkvelocity;Username=darkvelocity;Password=darkvelocity_dev
