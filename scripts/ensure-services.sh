@@ -6,6 +6,9 @@
 # Only starts services that aren't already up. Designed to be fast when everything
 # is already running (exits in < 1 second).
 #
+# If a required port is already in use (e.g., another Azurite instance), the
+# existing service is reused rather than starting a new container.
+#
 # Usage:
 #   ./scripts/ensure-services.sh           # Check and start if needed
 #   ./scripts/ensure-services.sh --quiet   # Suppress output when all healthy
@@ -42,10 +45,30 @@ log_warn() { log "${YELLOW}[WARN]${NC} $1"; }
 log_err()  { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 
 # -----------------------------------------------------------------------------
-# Health checks for individual services
+# Service definitions: map container names to compose services and check ports
 # -----------------------------------------------------------------------------
 
 CONTAINERS=("darkvelocity-azurite" "darkvelocity-postgres" "darkvelocity-spicedb")
+
+service_for_container() {
+    case "$1" in
+        darkvelocity-azurite)  echo "azurite" ;;
+        darkvelocity-postgres) echo "postgres" ;;
+        darkvelocity-spicedb)  echo "spicedb" ;;
+    esac
+}
+
+port_for_container() {
+    case "$1" in
+        darkvelocity-azurite)  echo 10002 ;;
+        darkvelocity-postgres) echo 5432 ;;
+        darkvelocity-spicedb)  echo 50051 ;;
+    esac
+}
+
+# -----------------------------------------------------------------------------
+# Health checks for individual services
+# -----------------------------------------------------------------------------
 
 container_is_healthy() {
     local name="$1"
@@ -61,16 +84,14 @@ container_is_running() {
     [[ "$state" == "running" ]]
 }
 
+port_is_reachable() {
+    local port="$1"
+    nc -z localhost "$port" &>/dev/null
+}
+
 all_services_healthy() {
     for c in "${CONTAINERS[@]}"; do
         container_is_healthy "$c" || return 1
-    done
-    return 0
-}
-
-all_services_running() {
-    for c in "${CONTAINERS[@]}"; do
-        container_is_running "$c" || return 1
     done
     return 0
 }
@@ -94,7 +115,7 @@ wait_for_azurite() {
 wait_for_postgres() {
     local elapsed=0
     while [[ $elapsed -lt $POSTGRES_WAIT_TIMEOUT ]]; do
-        if docker exec darkvelocity-postgres pg_isready -U darkvelocity &>/dev/null; then
+        if nc -z localhost 5432 &>/dev/null; then
             return 0
         fi
         sleep 2
@@ -103,14 +124,24 @@ wait_for_postgres() {
     return 1
 }
 
-wait_for_all_healthy() {
-    log_info "Waiting for services to become healthy..."
+wait_for_managed_healthy() {
+    local skip_containers=("$@")
+    log_info "Waiting for managed services to become healthy..."
     local max_wait=90
     local elapsed=0
     while [[ $elapsed -lt $max_wait ]]; do
-        if all_services_healthy; then
-            return 0
-        fi
+        local all_healthy=true
+        for c in "${CONTAINERS[@]}"; do
+            # Skip containers that are externally managed
+            local is_skipped=false
+            for s in "${skip_containers[@]}"; do
+                [[ "$c" == "$s" ]] && is_skipped=true && break
+            done
+            [[ "$is_skipped" == true ]] && continue
+
+            container_is_healthy "$c" || { all_healthy=false; break; }
+        done
+        [[ "$all_healthy" == true ]] && return 0
         sleep 3
         elapsed=$((elapsed + 3))
     done
@@ -118,15 +149,56 @@ wait_for_all_healthy() {
 }
 
 # -----------------------------------------------------------------------------
-# Docker compose helper (supports new and legacy)
+# Docker compose helpers
 # -----------------------------------------------------------------------------
 
-compose_up() {
-    cd "$DOCKER_DIR"
+# Determine the compose command (v2 plugin vs standalone)
+compose_cmd() {
     if docker compose version &>/dev/null; then
-        docker compose up -d
+        echo "docker compose"
     else
-        docker-compose up -d
+        echo "docker-compose"
+    fi
+}
+
+# On self-hosted CI runners, containers from previous runs may persist but
+# lose their compose project labels (e.g., after the compose network is
+# removed between jobs). When we selectively start a service like spicedb,
+# compose resolves depends_on and tries to CREATE postgres — which fails
+# because a container with that name already exists.
+#
+# Fix: create the compose network, connect existing containers to it (with
+# service-name aliases so compose DNS resolution works), then start only
+# the requested services with --no-deps.
+ensure_compose_network() {
+    # Compose project name defaults to directory basename ("docker")
+    local network="docker_default"
+    docker network create "$network" 2>/dev/null || true
+
+    # Connect already-running containers so new services can reach them
+    # by compose service name (e.g. "postgres" not "darkvelocity-postgres")
+    for c in "${CONTAINERS[@]}"; do
+        if container_is_running "$c"; then
+            local svc
+            svc=$(service_for_container "$c")
+            docker network connect --alias "$svc" "$network" "$c" 2>/dev/null || true
+        fi
+    done
+}
+
+# Start services via docker compose.
+# When specific service names are given, uses --no-deps to avoid compose
+# trying to recreate already-running dependency containers.
+compose_up() {
+    local services=("$@")
+    local cmd
+    cmd=$(compose_cmd)
+    cd "$DOCKER_DIR"
+    if [[ ${#services[@]} -gt 0 ]]; then
+        ensure_compose_network
+        $cmd up -d --no-deps "${services[@]}"
+    else
+        $cmd up -d
     fi
     cd "$PROJECT_ROOT"
 }
@@ -148,27 +220,40 @@ main() {
         return 0
     fi
 
-    # Check what's missing
-    local needs_start=false
+    # Check what's missing, collect only the compose services that need starting
+    local services_to_start=()
+    local external_services=()
     for c in "${CONTAINERS[@]}"; do
+        local port
+        port=$(port_for_container "$c")
+        local service
+        service=$(service_for_container "$c")
         if container_is_healthy "$c"; then
             log_ok "$c is healthy"
         elif container_is_running "$c"; then
             log_warn "$c is running but not yet healthy"
+        elif port_is_reachable "$port"; then
+            log_ok "$service is already available on port $port (reusing existing service)"
+            external_services+=("$c")
         else
             log_info "$c is not running"
-            needs_start=true
+            services_to_start+=("$service")
         fi
     done
 
-    if [[ "$needs_start" == true ]]; then
-        log_info "Starting Docker infrastructure..."
-        compose_up
-    else
-        log_info "All containers are running, waiting for health checks..."
+    if [[ ${#services_to_start[@]} -gt 0 ]]; then
+        # Include spicedb-migrate when spicedb needs starting
+        for s in "${services_to_start[@]}"; do
+            if [[ "$s" == "spicedb" ]]; then
+                services_to_start+=("spicedb-migrate")
+                break
+            fi
+        done
+        log_info "Starting services: ${services_to_start[*]}..."
+        compose_up "${services_to_start[@]}"
     fi
 
-    # Wait for readiness
+    # Wait for readiness (port-based checks work for both managed and external services)
     if ! wait_for_azurite; then
         log_err "Azurite did not become ready within ${AZURITE_WAIT_TIMEOUT}s"
         exit 1
@@ -181,8 +266,8 @@ main() {
     fi
     log_ok "PostgreSQL is ready"
 
-    # Wait for all containers (including SpiceDB) to report healthy
-    if ! wait_for_all_healthy; then
+    # Wait for managed containers to report healthy (skip external services)
+    if ! wait_for_managed_healthy "${external_services[@]}"; then
         log_warn "Some services did not reach healthy state, but core services (Azurite, PostgreSQL) are ready"
     else
         log_ok "All background services are running and healthy"
