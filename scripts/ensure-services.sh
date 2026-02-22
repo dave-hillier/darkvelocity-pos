@@ -50,17 +50,21 @@ log_err()  { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 
 CONTAINERS=("darkvelocity-azurite" "darkvelocity-postgres" "darkvelocity-spicedb")
 
-declare -A CONTAINER_SERVICE=(
-    ["darkvelocity-azurite"]="azurite"
-    ["darkvelocity-postgres"]="postgres"
-    ["darkvelocity-spicedb"]="spicedb"
-)
+service_for_container() {
+    case "$1" in
+        darkvelocity-azurite)  echo "azurite" ;;
+        darkvelocity-postgres) echo "postgres" ;;
+        darkvelocity-spicedb)  echo "spicedb" ;;
+    esac
+}
 
-declare -A CONTAINER_PORT=(
-    ["darkvelocity-azurite"]=10002
-    ["darkvelocity-postgres"]=5432
-    ["darkvelocity-spicedb"]=50051
-)
+port_for_container() {
+    case "$1" in
+        darkvelocity-azurite)  echo 10002 ;;
+        darkvelocity-postgres) echo 5432 ;;
+        darkvelocity-spicedb)  echo 50051 ;;
+    esac
+}
 
 # -----------------------------------------------------------------------------
 # Health checks for individual services
@@ -181,8 +185,10 @@ main() {
     local services_to_start=()
     local external_services=()
     for c in "${CONTAINERS[@]}"; do
-        local port="${CONTAINER_PORT[$c]}"
-        local service="${CONTAINER_SERVICE[$c]}"
+        local port
+        port=$(port_for_container "$c")
+        local service
+        service=$(service_for_container "$c")
         if container_is_healthy "$c"; then
             log_ok "$c is healthy"
         elif container_is_running "$c"; then
