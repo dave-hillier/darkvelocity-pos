@@ -149,17 +149,56 @@ wait_for_managed_healthy() {
 }
 
 # -----------------------------------------------------------------------------
-# Docker compose helper (supports new and legacy)
-# Accepts optional service names to start only specific services.
+# Docker compose helpers
 # -----------------------------------------------------------------------------
 
+# Determine the compose command (v2 plugin vs standalone)
+compose_cmd() {
+    if docker compose version &>/dev/null; then
+        echo "docker compose"
+    else
+        echo "docker-compose"
+    fi
+}
+
+# On self-hosted CI runners, containers from previous runs may persist but
+# lose their compose project labels (e.g., after the compose network is
+# removed between jobs). When we selectively start a service like spicedb,
+# compose resolves depends_on and tries to CREATE postgres — which fails
+# because a container with that name already exists.
+#
+# Fix: create the compose network, connect existing containers to it (with
+# service-name aliases so compose DNS resolution works), then start only
+# the requested services with --no-deps.
+ensure_compose_network() {
+    # Compose project name defaults to directory basename ("docker")
+    local network="docker_default"
+    docker network create "$network" 2>/dev/null || true
+
+    # Connect already-running containers so new services can reach them
+    # by compose service name (e.g. "postgres" not "darkvelocity-postgres")
+    for c in "${CONTAINERS[@]}"; do
+        if container_is_running "$c"; then
+            local svc
+            svc=$(service_for_container "$c")
+            docker network connect --alias "$svc" "$network" "$c" 2>/dev/null || true
+        fi
+    done
+}
+
+# Start services via docker compose.
+# When specific service names are given, uses --no-deps to avoid compose
+# trying to recreate already-running dependency containers.
 compose_up() {
     local services=("$@")
+    local cmd
+    cmd=$(compose_cmd)
     cd "$DOCKER_DIR"
-    if docker compose version &>/dev/null; then
-        docker compose up -d "${services[@]}"
+    if [[ ${#services[@]} -gt 0 ]]; then
+        ensure_compose_network
+        $cmd up -d --no-deps "${services[@]}"
     else
-        docker-compose up -d "${services[@]}"
+        $cmd up -d
     fi
     cd "$PROJECT_ROOT"
 }
