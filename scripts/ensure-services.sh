@@ -6,6 +6,9 @@
 # Only starts services that aren't already up. Designed to be fast when everything
 # is already running (exits in < 1 second).
 #
+# If a required port is already in use (e.g., another Azurite instance), the
+# existing service is reused rather than starting a new container.
+#
 # Usage:
 #   ./scripts/ensure-services.sh           # Check and start if needed
 #   ./scripts/ensure-services.sh --quiet   # Suppress output when all healthy
@@ -42,10 +45,26 @@ log_warn() { log "${YELLOW}[WARN]${NC} $1"; }
 log_err()  { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 
 # -----------------------------------------------------------------------------
-# Health checks for individual services
+# Service definitions: map container names to compose services and check ports
 # -----------------------------------------------------------------------------
 
 CONTAINERS=("darkvelocity-azurite" "darkvelocity-postgres" "darkvelocity-spicedb")
+
+declare -A CONTAINER_SERVICE=(
+    ["darkvelocity-azurite"]="azurite"
+    ["darkvelocity-postgres"]="postgres"
+    ["darkvelocity-spicedb"]="spicedb"
+)
+
+declare -A CONTAINER_PORT=(
+    ["darkvelocity-azurite"]=10002
+    ["darkvelocity-postgres"]=5432
+    ["darkvelocity-spicedb"]=50051
+)
+
+# -----------------------------------------------------------------------------
+# Health checks for individual services
+# -----------------------------------------------------------------------------
 
 container_is_healthy() {
     local name="$1"
@@ -61,16 +80,14 @@ container_is_running() {
     [[ "$state" == "running" ]]
 }
 
+port_is_reachable() {
+    local port="$1"
+    nc -z localhost "$port" &>/dev/null
+}
+
 all_services_healthy() {
     for c in "${CONTAINERS[@]}"; do
         container_is_healthy "$c" || return 1
-    done
-    return 0
-}
-
-all_services_running() {
-    for c in "${CONTAINERS[@]}"; do
-        container_is_running "$c" || return 1
     done
     return 0
 }
@@ -94,7 +111,7 @@ wait_for_azurite() {
 wait_for_postgres() {
     local elapsed=0
     while [[ $elapsed -lt $POSTGRES_WAIT_TIMEOUT ]]; do
-        if docker exec darkvelocity-postgres pg_isready -U darkvelocity &>/dev/null; then
+        if nc -z localhost 5432 &>/dev/null; then
             return 0
         fi
         sleep 2
@@ -103,14 +120,24 @@ wait_for_postgres() {
     return 1
 }
 
-wait_for_all_healthy() {
-    log_info "Waiting for services to become healthy..."
+wait_for_managed_healthy() {
+    local skip_containers=("$@")
+    log_info "Waiting for managed services to become healthy..."
     local max_wait=90
     local elapsed=0
     while [[ $elapsed -lt $max_wait ]]; do
-        if all_services_healthy; then
-            return 0
-        fi
+        local all_healthy=true
+        for c in "${CONTAINERS[@]}"; do
+            # Skip containers that are externally managed
+            local is_skipped=false
+            for s in "${skip_containers[@]}"; do
+                [[ "$c" == "$s" ]] && is_skipped=true && break
+            done
+            [[ "$is_skipped" == true ]] && continue
+
+            container_is_healthy "$c" || { all_healthy=false; break; }
+        done
+        [[ "$all_healthy" == true ]] && return 0
         sleep 3
         elapsed=$((elapsed + 3))
     done
@@ -119,14 +146,16 @@ wait_for_all_healthy() {
 
 # -----------------------------------------------------------------------------
 # Docker compose helper (supports new and legacy)
+# Accepts optional service names to start only specific services.
 # -----------------------------------------------------------------------------
 
 compose_up() {
+    local services=("$@")
     cd "$DOCKER_DIR"
     if docker compose version &>/dev/null; then
-        docker compose up -d
+        docker compose up -d "${services[@]}"
     else
-        docker-compose up -d
+        docker-compose up -d "${services[@]}"
     fi
     cd "$PROJECT_ROOT"
 }
@@ -148,27 +177,38 @@ main() {
         return 0
     fi
 
-    # Check what's missing
-    local needs_start=false
+    # Check what's missing, collect only the compose services that need starting
+    local services_to_start=()
+    local external_services=()
     for c in "${CONTAINERS[@]}"; do
+        local port="${CONTAINER_PORT[$c]}"
+        local service="${CONTAINER_SERVICE[$c]}"
         if container_is_healthy "$c"; then
             log_ok "$c is healthy"
         elif container_is_running "$c"; then
             log_warn "$c is running but not yet healthy"
+        elif port_is_reachable "$port"; then
+            log_ok "$service is already available on port $port (reusing existing service)"
+            external_services+=("$c")
         else
             log_info "$c is not running"
-            needs_start=true
+            services_to_start+=("$service")
         fi
     done
 
-    if [[ "$needs_start" == true ]]; then
-        log_info "Starting Docker infrastructure..."
-        compose_up
-    else
-        log_info "All containers are running, waiting for health checks..."
+    if [[ ${#services_to_start[@]} -gt 0 ]]; then
+        # Include spicedb-migrate when spicedb needs starting
+        for s in "${services_to_start[@]}"; do
+            if [[ "$s" == "spicedb" ]]; then
+                services_to_start+=("spicedb-migrate")
+                break
+            fi
+        done
+        log_info "Starting services: ${services_to_start[*]}..."
+        compose_up "${services_to_start[@]}"
     fi
 
-    # Wait for readiness
+    # Wait for readiness (port-based checks work for both managed and external services)
     if ! wait_for_azurite; then
         log_err "Azurite did not become ready within ${AZURITE_WAIT_TIMEOUT}s"
         exit 1
@@ -181,8 +221,8 @@ main() {
     fi
     log_ok "PostgreSQL is ready"
 
-    # Wait for all containers (including SpiceDB) to report healthy
-    if ! wait_for_all_healthy; then
+    # Wait for managed containers to report healthy (skip external services)
+    if ! wait_for_managed_healthy "${external_services[@]}"; then
         log_warn "Some services did not reach healthy state, but core services (Azurite, PostgreSQL) are ready"
     else
         log_ok "All background services are running and healthy"
