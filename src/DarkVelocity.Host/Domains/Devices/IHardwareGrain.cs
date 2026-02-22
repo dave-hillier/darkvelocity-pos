@@ -32,7 +32,7 @@ public record UpdatePosDeviceCommand(
     [property: Id(6)] bool? AutoPrintReceipts,
     [property: Id(7)] bool? OpenDrawerOnCash,
     [property: Id(8)] bool? IsActive,
-    [property: Id(9)] Guid? DefaultCustomerDisplayId);
+    [property: Id(9)] Guid? DefaultCustomerDisplayId = null);
 
 [GenerateSerializer]
 public record PosDeviceSnapshot(
@@ -52,7 +52,7 @@ public record PosDeviceSnapshot(
     [property: Id(13)] bool IsOnline,
     [property: Id(14)] DateTime? LastSeenAt,
     [property: Id(15)] DateTime? RegisteredAt,
-    [property: Id(16)] Guid? DefaultCustomerDisplayId);
+    [property: Id(16)] Guid? DefaultCustomerDisplayId = null);
 
 /// <summary>
 /// Grain for POS device management.
