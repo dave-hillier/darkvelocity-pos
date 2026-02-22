@@ -1,16 +1,23 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function LoginPage() {
   const { loginWithGoogle, loginWithMicrosoft, loginAsDev, isAuthenticated, isLoading, error } = useAuth()
   const navigate = useNavigate()
+  const [devLoginAvailable, setDevLoginAvailable] = useState(false)
 
   useEffect(() => {
     if (isAuthenticated) {
       navigate('/dashboard')
     }
   }, [isAuthenticated, navigate])
+
+  useEffect(() => {
+    fetch('/api/oauth/dev-login', { method: 'HEAD' })
+      .then(res => setDevLoginAvailable(res.status !== 404))
+      .catch(() => setDevLoginAvailable(false))
+  }, [])
 
   if (isLoading) {
     return (
@@ -94,22 +101,24 @@ export default function LoginPage() {
             Continue with Microsoft
           </button>
 
-          <button
-            type="button"
-            onClick={loginAsDev}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
-              backgroundColor: 'transparent',
-              color: 'var(--pico-muted-color)',
-              border: '1px dashed var(--pico-muted-border-color)',
-              marginTop: '0.75rem',
-            }}
-          >
-            Dev Login
-          </button>
+          {devLoginAvailable && (
+            <button
+              type="button"
+              onClick={loginAsDev}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                backgroundColor: 'transparent',
+                color: 'var(--pico-muted-color)',
+                border: '1px dashed var(--pico-muted-border-color)',
+                marginTop: '0.75rem',
+              }}
+            >
+              Dev Login
+            </button>
+          )}
         </section>
 
         <footer style={{ marginTop: '2rem', textAlign: 'center' }}>
