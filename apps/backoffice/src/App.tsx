@@ -37,6 +37,8 @@ import FloorPlanDesignerPage from './pages/FloorPlanDesignerPage'
 import ChannelsPage from './pages/ChannelsPage'
 import ChannelDetailPage from './pages/ChannelDetailPage'
 import DeviceAuthorizePage from './pages/DeviceAuthorizePage'
+import IngestionQueuePage from './pages/IngestionQueuePage'
+import IngestionSettingsPage from './pages/IngestionSettingsPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
@@ -108,6 +110,8 @@ function AppRoutes() {
         <Route path="channels" element={<ChannelsPage />} />
         <Route path="channels/:channelId" element={<ChannelDetailPage />} />
         <Route path="devices/authorize" element={<DeviceAuthorizePage />} />
+        <Route path="procurement/inbox" element={<IngestionQueuePage />} />
+        <Route path="procurement/inbox/settings" element={<IngestionSettingsPage />} />
       </Route>
 
       {/* Catch-all redirect */}

@@ -54,6 +54,7 @@ builder.Services
     .AddApiKeySeeder()
     .AddSingleton<IDocumentIntelligenceService, StubDocumentIntelligenceService>()
     .AddSingleton<IEmailIngestionService, StubEmailIngestionService>()
+    .AddSingleton<IMailboxPollingService, StubMailboxPollingService>()
     .AddSingleton<IFuzzyMatchingService, FuzzyMatchingService>()
     // Notification services
     .AddSingleton<IEmailService, StubEmailService>()
@@ -95,6 +96,7 @@ app.MapOrleansDashboard(routePrefix: "/dashboard");
 // SignalR hubs
 app.MapHub<FloorPlanHub>("/hubs/floor-plan");
 app.MapHub<CustomerDisplayHub>("/hubs/customer-display");
+app.MapHub<IngestionHub>("/hubs/ingestion");
 
 // Map all API endpoints
 app.MapOAuthEndpoints()
@@ -137,6 +139,7 @@ app.MapOAuthEndpoints()
    .MapBatchEndpoints()
    .MapPurchaseDocumentEndpoints()
    .MapEmailIngestionEndpoints()
+   .MapIngestionAgentEndpoints()
    .MapVendorMappingEndpoints()
    .MapExpenseEndpoints()
    .MapReportingEndpoints()

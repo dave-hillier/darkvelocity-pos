@@ -712,6 +712,18 @@ public static class GrainKeys
         => $"{orgId}:{siteId}:email-inbox";
 
     /// <summary>
+    /// Creates a key for an invoice ingestion agent grain (one per site).
+    /// </summary>
+    public static string IngestionAgent(Guid orgId, Guid siteId)
+        => $"{orgId}:{siteId}:ingestion-agent";
+
+    /// <summary>
+    /// Creates a key for a document processing plan grain.
+    /// </summary>
+    public static string DocumentProcessingPlan(Guid orgId, Guid siteId, Guid planId)
+        => SiteEntity(orgId, siteId, "doc-plan", planId);
+
+    /// <summary>
     /// Creates a key for an expense index grain (one per site).
     /// </summary>
     public static string ExpenseIndex(Guid orgId, Guid siteId)

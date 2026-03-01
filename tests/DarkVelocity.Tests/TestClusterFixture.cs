@@ -58,6 +58,7 @@ public class TestSiloConfigurator : ISiloConfigurator
         siloBuilder.Services.AddSingleton<IFuzzyMatchingService, FuzzyMatchingService>();
         siloBuilder.Services.AddSingleton<IDocumentIntelligenceService, StubDocumentIntelligenceService>();
         siloBuilder.Services.AddSingleton<IEmailIngestionService, StubEmailIngestionService>();
+        siloBuilder.Services.AddSingleton<IMailboxPollingService, StubMailboxPollingService>();
 
         // Add notification services
         siloBuilder.Services.AddSingleton<IEmailService, StubEmailService>();

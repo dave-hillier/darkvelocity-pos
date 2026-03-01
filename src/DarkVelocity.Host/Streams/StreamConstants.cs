@@ -100,4 +100,9 @@ public static class StreamConstants
     /// Stream namespace for scheduled job events.
     /// </summary>
     public const string ScheduledJobStreamNamespace = "scheduled-job-events";
+
+    /// <summary>
+    /// Stream namespace for invoice ingestion agent events.
+    /// </summary>
+    public const string IngestionAgentStreamNamespace = "ingestion-agent-events";
 }

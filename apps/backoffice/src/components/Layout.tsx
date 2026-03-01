@@ -28,6 +28,7 @@ const navSections = [
   {
     title: 'Procurement',
     links: [
+      { to: '/procurement/inbox', label: 'Document Inbox' },
       { to: '/procurement/suppliers', label: 'Suppliers' },
       { to: '/procurement/purchase-orders', label: 'Purchase Orders' },
       { to: '/procurement/deliveries', label: 'Deliveries' },
